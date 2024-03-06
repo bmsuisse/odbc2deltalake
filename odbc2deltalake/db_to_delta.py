@@ -626,17 +626,31 @@ def do_deletes(
             ],
             distinct=False,
         )
-        cur.execute(deletes_with_schema.sql("duckdb"))
-        rdr = cur.fetch_record_batch()
-        write_deltalake(
-            delta_table,
-            rdr,
-            schema=_all_nullable(rdr.schema),
-            mode="append",
-            schema_mode="merge",
-            writer_properties=WriterProperties(compression="ZSTD"),
-            engine="rust",
+
+        cur.execute(
+            "create view deletes_with_schema as " + deletes_with_schema.sql("duckdb")
         )
+    with local_con.cursor() as cur:
+        cur.execute(
+            "select count(*) from (select * from deletes_with_schema limit 1) s"
+        )
+        res = cur.fetchone()
+        assert res is not None
+        res = res[0]
+        has_deletes = res > 0
+    if has_deletes:
+        with local_con.cursor() as cur:
+            cur.execute(deletes_with_schema.sql("duckdb"))
+            rdr = cur.fetch_record_batch()
+            write_deltalake(
+                delta_table,
+                rdr,
+                schema=_all_nullable(rdr.schema),
+                mode="append",
+                schema_mode="merge",
+                writer_properties=WriterProperties(compression="ZSTD"),
+                engine="rust",
+            )
 
 
 def _retrieve_primary_key_data(
@@ -734,13 +748,15 @@ async def _handle_additional_updates(
             + sql_query.sql("duckdb")
         )
     with local_con.cursor() as cur:
-        cur.execute("select count(*) from real_additional_updates")
+        cur.execute(
+            "select count(*) from (select * from real_additional_updates limit 1) s"
+        )
         res = cur.fetchone()
         assert res is not None
         res = res[0]
         has_additional_updates = res > 0
     if has_additional_updates:
-        temp_table_name = "##temp_updates_" + str(hash(table[1]))
+        temp_table_name = "##temp_updates_" + str(hash(table[1]))[1:]
         sql = get_sql_for_schema(
             temp_table_name,
             [p.as_field_type() for p in pk_cols],
@@ -813,9 +829,9 @@ def _load_updates_to_delta(
         cur.execute(
             f'create view {delta_name} as select * from read_parquet("{str(delta_name_path)}")'
         )
-    
+
     with local_con.cursor() as cur:
-        cur.execute(f"select count(*) from {delta_name}")
+        cur.execute(f"select count(*) from (select * from {delta_name} limit 1)")
         res = cur.fetchone()
         assert res is not None
         res = res[0]
