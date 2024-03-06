@@ -30,7 +30,7 @@ IS_DELETED_COL_NAME = "__is_deleted"
 IS_DELETED_COL_INFO = InformationSchemaColInfo.from_name_type(
     IS_DELETED_COL_NAME, "bit"
 )
-VALID_FROM_COL_NAME = "__valid_from"
+VALID_FROM_COL_NAME = "__timestamp"
 VALID_FROM_COL_INFO = InformationSchemaColInfo.from_name_type(
     VALID_FROM_COL_NAME, "datetimeoffset"
 )

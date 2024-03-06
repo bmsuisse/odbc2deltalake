@@ -43,7 +43,7 @@ async def test_delta(connection: "DB_Connection"):
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
         assert sql is not None
-        res = con.execute("select max(__valid_from) from (" + sql + ") s").fetchone()
+        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
@@ -57,7 +57,7 @@ async def test_delta(connection: "DB_Connection"):
         con.execute("CREATE VIEW v_user_scd2 AS " + sql)
 
         name_tuples = con.execute(
-            'SELECT FirstName, LastName, __is_deleted  from v_user_scd2 order by "User - iD", __valid_from'
+            'SELECT FirstName, LastName, __is_deleted  from v_user_scd2 order by "User - iD", __timestamp'
         ).fetchall()
         assert name_tuples == [
             ("John", "Anders", False),
@@ -71,8 +71,8 @@ async def test_delta(connection: "DB_Connection"):
 
         name_tuples2 = con.execute(
             f"""SELECT FirstName, LastName  from v_user_scd2 
-                where __valid_from>{sql_quote_value(max_valid_from)} and not __is_deleted
-                order by "User - iD", __valid_from"""
+                where __timestamp>{sql_quote_value(max_valid_from)} and not __is_deleted
+                order by "User - iD", __timestamp"""
         ).fetchall()
         assert name_tuples2 == [
             ("Petra", "wayne-hösch"),

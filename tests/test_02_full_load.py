@@ -33,7 +33,7 @@ async def test_first_load_always_full(connection: "DB_Connection"):
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
         assert sql is not None
-        res = con.execute("select max(__valid_from) from (" + sql + ") s").fetchone()
+        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
@@ -59,7 +59,7 @@ async def test_first_load_always_full(connection: "DB_Connection"):
         con.execute("CREATE VIEW v_long_table_name AS " + sql)
 
         name_tuples = con.execute(
-            f'SELECT date from v_long_table_name where __valid_from>{sql_quote_value(max_valid_from)} order by "long column name"'
+            f'SELECT date from v_long_table_name where __timestamp>{sql_quote_value(max_valid_from)} order by "long column name"'
         ).fetchall()
         assert name_tuples == [
             (

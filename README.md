@@ -2,7 +2,7 @@
 
 This is a package that supports reading from ODBC and writing to a scd2 DeltaTable. The delta table will always have the following "system" cols:
 
-- \_\_valid_from : The Date of the Load
+- \_\_timestamp : The Date of the Load
 - \_\_is_deleted : True for a deletion of a record
 - \_\_is_full_load : True if it was a full load, meaning an implicit deletion of not delivered records
 

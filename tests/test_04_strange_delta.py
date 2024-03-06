@@ -60,7 +60,7 @@ async def test_strange_delta(connection: "DB_Connection"):
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
         assert sql is not None
-        res = con.execute("select max(__valid_from) from (" + sql + ") s").fetchone()
+        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
