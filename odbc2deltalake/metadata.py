@@ -23,7 +23,10 @@ def get_primary_keys(
     WHERE tc.CONSTRAINT_TYPE = ''Primary Key'' AND (ccu.Table_Name=@Table or @Table is null) AND (ccu.TABLE_SCHEMA=@Schema or @Schema is null) ', N'@Table varchar(100), @Schema varchar(100)',
 		@Schema=?, @Table=?
 """,
-            (table_name[0] if table_name else None, table_name[1] if table_name else None),
+            (
+                table_name[0] if table_name else None,
+                table_name[1] if table_name else None,
+            ),
         )
         res = cur.fetchall()
         if res is None:
@@ -44,6 +47,7 @@ class FieldWithType(BaseModel):
     type: str
     max_str_length: int | None = None
 
+
 class InformationSchemaColInfo(BaseModel):
     column_name: str
     data_type: str
@@ -53,18 +57,14 @@ class InformationSchemaColInfo(BaseModel):
     numeric_precision: int | None = None
     numeric_scale: int | None = None
     datetime_precision: int | None = None
-    generated_always_type_desc: Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"] = "NOT_APPLICABLE"
+    generated_always_type_desc: Literal[
+        "NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"
+    ] = "NOT_APPLICABLE"
 
-    @property
-    def compat_name(self):
-        from .query import get_compatible_name
-
-        return get_compatible_name(self.column_name)
-
-    def as_field_type(self, compat: bool = False):
+    def as_field_type(self):
 
         return FieldWithType(
-            name=self.column_name if not compat else self.compat_name,
+            name=self.column_name,
             type=self.data_type,
             max_str_length=self.character_maximum_length,
         )
@@ -89,7 +89,9 @@ class InformationSchemaColInfo(BaseModel):
             column_default=None,
             is_nullable=True,
             data_type=type,
-            character_maximum_length=precision if type in ["varchar", "char", "nvarchar", "nchar"] else None,
+            character_maximum_length=(
+                precision if type in ["varchar", "char", "nvarchar", "nchar"] else None
+            ),
             numeric_precision=precision if type in ["decimal", "numeric"] else None,
             numeric_scale=scale if type in ["decimal", "numeric"] else None,
             datetime_precision=None,
@@ -121,7 +123,10 @@ SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.gener
 		where (ccu.Table_Name=@Table or @Table is null) AND (ccu.TABLE_SCHEMA=@Schema or @Schema is null) ', N'@Table varchar(100), @Schema varchar(100)',
 		@Schema=?, @Table=?
 """,
-            (table_name[0] if table_name else None, table_name[1] if table_name else None),
+            (
+                table_name[0] if table_name else None,
+                table_name[1] if table_name else None,
+            ),
         )
         res = cur.fetchall()
         if res is None:

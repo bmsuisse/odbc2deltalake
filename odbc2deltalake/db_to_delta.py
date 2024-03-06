@@ -5,7 +5,7 @@ from deltalake.exceptions import TableNotFoundError
 from arrow_odbc import read_arrow_batches_from_odbc
 import asyncio
 from .sql_schema import get_sql_for_schema
-from .query import get_compatible_name, sql_quote_name
+from .query import sql_quote_name
 import os
 import pyarrow as pa
 import pyarrow.dataset as ds
@@ -105,17 +105,16 @@ def _get_cols_select(
     is_full: bool | None = None,
     with_valid_from: bool = False,
     table_alias: str | None = None,
-    source_uses_compat=False,
     flavor: Literal["tsql", "duckdb"],
 ) -> Sequence[ex.Expression]:
     return (
         [
             _cast(
-                c.column_name if not source_uses_compat else c.compat_name,
+                c.column_name,
                 c.data_type,
                 table_alias=table_alias,
                 flavor=flavor,
-            ).as_(c.compat_name)
+            ).as_(c.column_name)
             for c in cols
         ]
         + ([valid_from_expr] if with_valid_from else [])
@@ -244,7 +243,6 @@ def restore_last_pk(
             select=_get_cols_select(
                 cols=pk_cols + [delta_col],
                 table_alias="tr",
-                source_uses_compat=True,
                 flavor="duckdb",
             ),
             conditions=[
@@ -269,7 +267,6 @@ def restore_last_pk(
             select=_get_cols_select(
                 cols=pk_cols + [delta_col, IS_DELETED_COL_INFO],
                 table_alias="tr",
-                source_uses_compat=True,
                 flavor="duckdb",
             ),
             conditions=[
@@ -281,11 +278,11 @@ def restore_last_pk(
             ex.EQ(
                 this=ex.Window(
                     this=ex.RowNumber(),
-                    partition_by=[ex.column(get_compatible_name(pk)) for pk in pks],
+                    partition_by=[ex.column(pk) for pk in pks],
                     order=ex.Order(
                         expressions=[
                             ex.Ordered(
-                                this=ex.column(delta_col.compat_name),
+                                this=ex.column(delta_col.column_name),
                                 desc=True,
                                 nulls_first=False,
                             )
@@ -304,7 +301,7 @@ def restore_last_pk(
                 select df.* from delta_after_full_load df
                 union all
                 select f.*, (cast 0 as BOOLEAN) as {IS_DELETED_COL_NAME} from last_full_load f 
-                    anti join delta_after_full_load d on {', '.join([f"f.{sql_quote_name(c.column_name, compat=True)} = d.{sql_quote_name(c.column_name, compat=True)}" for c in pk_cols])}
+                    anti join delta_after_full_load d on {', '.join([f"f.{sql_quote_name(c.column_name)} = d.{sql_quote_name(c.column_name)}" for c in pk_cols])}
                 )
                 select * except({IS_DELETED_COL_NAME}) from base where {IS_DELETED_COL_NAME} = 0
                     """
@@ -360,7 +357,6 @@ def write_latest_pk(
                 *_get_cols_select(
                     cols=pks + [delta_col],
                     table_alias="t",
-                    source_uses_compat=True,
                     flavor="duckdb",
                 )
             )
@@ -383,7 +379,6 @@ def write_latest_pk(
                         *_get_cols_select(
                             cols=pks + [delta_col],
                             table_alias="au",
-                            source_uses_compat=True,
                             flavor="duckdb",
                         )
                     ).from_(table_from_tuple("delta_2", alias="au")),
@@ -392,7 +387,6 @@ def write_latest_pk(
                             *_get_cols_select(
                                 cols=pks + [delta_col],
                                 table_alias="d1",
-                                source_uses_compat=True,
                                 flavor="duckdb",
                             )
                         )
@@ -401,8 +395,8 @@ def write_latest_pk(
                             ex.table_("delta_2", alias="au2"),
                             ex.and_(
                                 *[
-                                    ex.column(c.compat_name, "d1").eq(
-                                        ex.column(c.compat_name, "au2")
+                                    ex.column(c.column_name, "d1").eq(
+                                        ex.column(c.column_name, "au2")
                                     )
                                     for c in pks
                                 ]
@@ -415,7 +409,6 @@ def write_latest_pk(
                             *_get_cols_select(
                                 cols=pks + [delta_col],
                                 table_alias="cpk",
-                                source_uses_compat=True,
                                 flavor="duckdb",
                             )
                         )
@@ -424,8 +417,8 @@ def write_latest_pk(
                             ex.table_("delta_2", alias="au3"),
                             ex.and_(
                                 *[
-                                    ex.column(c.compat_name, "cpk").eq(
-                                        ex.column(c.compat_name, "au3")
+                                    ex.column(c.column_name, "cpk").eq(
+                                        ex.column(c.column_name, "au3")
                                     )
                                     for c in pks
                                 ]
@@ -436,8 +429,8 @@ def write_latest_pk(
                             read_parquet(delta_1_path).as_("au4"),
                             ex.and_(
                                 *[
-                                    ex.column(c.compat_name, "cpk").eq(
-                                        ex.column(c.compat_name, "au4")
+                                    ex.column(c.column_name, "cpk").eq(
+                                        ex.column(c.column_name, "au4")
                                     )
                                     for c in pks
                                 ]
@@ -486,7 +479,7 @@ async def do_delta_load(
                 ex.func(
                     "MAX",
                     _cast(
-                        get_compatible_name(delta_col.compat_name),
+                        delta_col.column_name,
                         delta_col.data_type,
                         flavor="duckdb",
                     ),
@@ -571,14 +564,10 @@ def do_deletes(
     create_replace_view(local_con, DBDeltaPathConfigs.LAST_PK_VERSION, "delta", folder)
     delete_query = ex.except_(
         left=ex.select(
-            *_get_cols_select(
-                pk_cols, table_alias="lpk", source_uses_compat=True, flavor="duckdb"
-            )
+            *_get_cols_select(pk_cols, table_alias="lpk", flavor="duckdb")
         ).from_(table_from_tuple(DBDeltaPathConfigs.LAST_PK_VERSION, alias="lpk")),
         right=ex.select(
-            *_get_cols_select(
-                pk_cols, table_alias="cpk", source_uses_compat=True, flavor="duckdb"
-            )
+            *_get_cols_select(pk_cols, table_alias="cpk", flavor="duckdb")
         ).from_(table_from_tuple(DBDeltaPathConfigs.LATEST_PK_VERSION, alias="cpk")),
     )
 
@@ -586,14 +575,13 @@ def do_deletes(
         cur.execute("create view deletes as " + delete_query.sql("duckdb"))
     with local_con.cursor() as cur:
         non_pk_cols = [c for c in cols if c not in pk_cols]
-        non_pk_select = [ex.Null().as_(c.compat_name) for c in non_pk_cols]
+        non_pk_select = [ex.Null().as_(c.column_name) for c in non_pk_cols]
         deletes_with_schema = union(
             [
                 ex.select(
                     *_get_cols_select(
                         pk_cols,
                         table_alias="d1",
-                        source_uses_compat=True,
                         flavor="duckdb",
                     )
                 )
@@ -601,7 +589,6 @@ def do_deletes(
                     *_get_cols_select(
                         non_pk_cols,
                         table_alias="d1",
-                        source_uses_compat=True,
                         flavor="duckdb",
                     ),
                     append=True,
@@ -660,7 +647,6 @@ def _retrieve_primary_key_data(
             cols=pk_cols + [delta_col],
             with_valid_from=False,
             flavor="tsql",
-            source_uses_compat=False,
         )
     ).from_(table_from_tuple(table))
     pk_ts_reader_sql = pk_ts_col_select.sql("tsql")
@@ -701,7 +687,6 @@ async def _handle_additional_updates(
                     *_get_cols_select(
                         cols=pk_ds_cols,
                         table_alias="pk",
-                        source_uses_compat=True,
                         flavor="duckdb",
                     )
                 ).from_(
@@ -711,7 +696,6 @@ async def _handle_additional_updates(
                     *_get_cols_select(
                         cols=pk_ds_cols,
                         table_alias="lpk",
-                        source_uses_compat=True,
                         flavor="duckdb",
                     )
                 ).from_(
@@ -728,7 +712,6 @@ async def _handle_additional_updates(
                 *_get_cols_select(
                     cols=pk_cols,
                     table_alias="au",
-                    source_uses_compat=True,
                     flavor="duckdb",
                 )
             ).from_(read_parquet(additional_updates_path).as_("au")),
@@ -736,7 +719,6 @@ async def _handle_additional_updates(
                 *_get_cols_select(
                     cols=pk_cols,
                     table_alias="d1",
-                    source_uses_compat=True,
                     flavor="duckdb",
                 )
             ).from_(table_from_tuple("delta_1", alias="d1")),
@@ -752,10 +734,10 @@ async def _handle_additional_updates(
         res = res[0]
         has_additional_updates = res > 0
     if has_additional_updates:
-        temp_table_name = "##temp_updates_" + get_compatible_name(table[1])
+        temp_table_name = "##temp_updates_" + str(hash(table[1]))
         sql = get_sql_for_schema(
             temp_table_name,
-            [p.as_field_type(compat=True) for p in pk_cols],
+            [p.as_field_type() for p in pk_cols],
             primary_keys=None,
             with_exist_check=False,
         )
@@ -769,10 +751,10 @@ async def _handle_additional_updates(
             ).fetch_record_batch(),
             table_name=temp_table_name,
             connection=db_conn,
-            schema=[p.as_field_type(compat=True) for p in pk_cols],
+            schema=[p.as_field_type() for p in pk_cols],
         )
         criterion = f"""
-            inner join {temp_table_name} ttt on {', '.join([f't.{sql_quote_name(c.column_name, compat=False)} = ttt.{sql_quote_name(c.column_name, compat=True)}' for c in pk_cols])}"""
+            inner join {temp_table_name} ttt on {', '.join([f't.{sql_quote_name(c.column_name)} = ttt.{sql_quote_name(c.column_name)}' for c in pk_cols])}"""
 
         _load_updates_to_delta(
             connection_string=connection_string,
@@ -911,8 +893,7 @@ def do_full_load(
     with duckdb.connect() as local_con:
         sql = get_sql_for_delta_expr(
             dt,
-            select=[get_compatible_name(pk) for pk in pks]
-            + ([get_compatible_name(delta_col.column_name)] if delta_col else []),
+            select=[pk for pk in pks] + ([delta_col.column_name] if delta_col else []),
             action_filter=lambda ac: ac["path"] not in old_paths,
         )
         assert sql is not None
@@ -925,16 +906,3 @@ def do_full_load(
                 mode="overwrite",
                 overwrite_schema=True,
             )
-
-
-if __name__ == "__main__":
-    import pyodbc
-
-    print(pyodbc.drivers())
-    asyncio.run(
-        write_db_to_delta(
-            "driver=ODBC Driver 17 for SQL Server;Server=bms-mypage-prd.database.windows.net;Database=mypage;Multipleactiveresultsets=True;application name=extractor;Encrypt=yes;UID=ExtractUser;PWD=5U0t4^$^YqfP--2",
-            ("dbo", "user"),
-            Path("datatest/dbo/user"),
-        )
-    )
