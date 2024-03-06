@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Iterable, Literal, Sequence, TypeVar
-from deltalake import DeltaTable, write_deltalake
+from deltalake import DeltaTable, WriterProperties, write_deltalake
 from deltalake.exceptions import TableNotFoundError
 from arrow_odbc import read_arrow_batches_from_odbc
 import asyncio
@@ -314,7 +314,9 @@ def restore_last_pk(
             folder / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}",
             rdr,
             mode="overwrite",
-            overwrite_schema=True,
+            schema_mode="overwrite",
+            writer_properties=WriterProperties(compression="ZSTD"),
+            engine="rust",
         )
 
 
@@ -446,7 +448,9 @@ def write_latest_pk(
                 folder / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
                 cur.fetch_record_batch(),
                 mode="overwrite",
-                overwrite_schema=True,
+                schema_mode="overwrite",
+                writer_properties=WriterProperties(compression="ZSTD"),
+                engine="rust",
             )
 
 
@@ -629,7 +633,9 @@ def do_deletes(
             rdr,
             schema=_all_nullable(rdr.schema),
             mode="append",
-            file_options=ds.ParquetFileFormat().make_write_options(compression="zstd"),
+            schema_mode="merge",
+            writer_properties=WriterProperties(compression="ZSTD"),
+            engine="rust",
         )
 
 
@@ -807,6 +813,14 @@ def _load_updates_to_delta(
         cur.execute(
             f'create view {delta_name} as select * from read_parquet("{str(delta_name_path)}")'
         )
+    
+    with local_con.cursor() as cur:
+        cur.execute(f"select count(*) from {delta_name}")
+        res = cur.fetchone()
+        assert res is not None
+        res = res[0]
+        if res == 0:
+            return
     with local_con.cursor() as cur:
         cur.execute(f"select * from {delta_name}")
         rdr = cur.fetch_record_batch()
@@ -815,7 +829,9 @@ def _load_updates_to_delta(
             rdr,
             schema=_all_nullable(rdr.schema),
             mode="append",
-            file_options=ds.ParquetFileFormat().make_write_options(compression="zstd"),
+            writer_properties=WriterProperties(compression="ZSTD"),
+            engine="rust",
+            schema_mode="merge",
         )
 
 
@@ -883,7 +899,9 @@ def do_full_load(
         reader,
         schema=_all_nullable(reader.schema),
         mode=mode,
-        file_options=ds.ParquetFileFormat().make_write_options(compression="zstd"),
+        writer_properties=WriterProperties(compression="ZSTD"),
+        schema_mode="overwrite" if mode == "overwrite" else "merge",
+        engine="rust",
     )
     if delta_col is None:
         return
@@ -904,5 +922,7 @@ def do_full_load(
                 / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
                 cur.fetch_record_batch(),
                 mode="overwrite",
-                overwrite_schema=True,
+                schema_mode="overwrite",
+                writer_properties=WriterProperties(compression="ZSTD"),
+                engine="rust",
             )

@@ -80,11 +80,11 @@ async def test_strange_delta(connection: "DB_Connection"):
 
         id_tuples = con.execute(
             """SELECT s2.FirstName, s2.LastName, companyid from v_latest_pk_user3 lf 
-                                inner join v_user3_scd2 s2 on s2."user_-_id"=lf."user_-_id" and s2."time_stamp"=lf."time_stamp"
+                                inner join v_user3_scd2 s2 on s2."User - iD"=lf."User - iD" and s2."time stämp"=lf."time stämp"
                 where not s2.__is_deleted
-                qualify row_number() over (partition by s2."user_-_id" order by lf."time_stamp" desc)=1
+                qualify row_number() over (partition by s2."User - iD" order by lf."time stämp" desc)=1
                     
-                order by s2."user_-_id" 
+                order by s2."User - iD" 
                 """
         ).fetchall()
         assert id_tuples == [

@@ -74,6 +74,9 @@ class DB_Connection:
 def spawn_sql():
     import test_server
     import os
+    from dotenv import load_dotenv
+
+    load_dotenv()
 
     if os.getenv("NO_SQL_SERVER", "0") == "1":
         yield None

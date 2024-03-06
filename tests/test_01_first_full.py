@@ -26,7 +26,7 @@ async def test_first_load_timestamp(connection: "DB_Connection"):
         con.execute("CREATE VIEW v_user AS " + sql)
 
         name_tuples = con.execute(
-            'SELECT FirstName from v_user order by "user_-_id"'
+            'SELECT FirstName from v_user order by "User - iD"'
         ).fetchall()
         assert name_tuples == [("John",), ("Peter",), ("Petra",)]
 
@@ -35,7 +35,7 @@ async def test_first_load_timestamp(connection: "DB_Connection"):
         )
 
         id_tuples = con.execute(
-            'SELECT "user_-_id" from v_latest_pk order by "user_-_id"'
+            'SELECT "User - iD" from v_latest_pk order by "User - iD"'
         ).fetchall()
         assert id_tuples == [(1,), (2,), (3,)]
 
@@ -86,7 +86,7 @@ async def test_first_load_always_full(connection: "DB_Connection"):
         con.execute("CREATE VIEW v_long_table_name AS " + sql)
 
         name_tuples = con.execute(
-            'SELECT date from v_long_table_name order by "long_column_name"'
+            'SELECT date from v_long_table_name order by "long column name"'
         ).fetchall()
         assert name_tuples == [
             (
