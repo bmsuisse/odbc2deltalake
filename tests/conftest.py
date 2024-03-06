@@ -19,9 +19,12 @@ class DB_Connection:
             "ODBC_MASTER_CONN",
             build_connection_string(
                 {
-                    "server": "(localdb)\\MSSQLLocalDB",
+                    "server": "127.0.0.1,1444",
                     "database": "master",
-                    "Integrated Security": "True",
+                    "ENCRYPT": "yes",
+                    "TrustServerCertificate": "Yes",
+                    "UID": "sa",
+                    "PWD": "MyPass@word4tests",
                     "MultipleActiveResultSets": "True",
                 },
                 odbc=True,
@@ -68,7 +71,21 @@ class DB_Connection:
 
 
 @pytest.fixture(scope="session")
-def connection():
+def spawn_sql():
+    import test_server
+    import os
+
+    if os.getenv("NO_SQL_SERVER", "0") == "1":
+        yield None
+    else:
+        sql_server = test_server.start_mssql_server()
+        yield sql_server
+        if os.getenv("KEEP_SQL_SERVER", "0") == "0":  # can be handy during development
+            sql_server.stop()
+
+
+@pytest.fixture(scope="session")
+def connection(spawn_sql):
     c = DB_Connection()
     yield c
     c.close()
