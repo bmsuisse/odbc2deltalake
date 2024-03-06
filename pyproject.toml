@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "odbc2deltalake"
+version = "0.1.0"
+description = ""
+authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+deltalake = "^0.15.3"
+deltalake2db = "^0.1.0"
+duckdb = "^0.10.0"
+pyodbc = "^5.1.0"
+arrow-odbc = "^4.1.0"
+pydantic = "^2.6.3"
+
+
+[tool.poetry.group.dev.dependencies]
+pyright = "^1.1.352"
+black = "^24.2.0"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.0.2"
+pytest-asyncio = "^0.23.5"
+pytest-order = "^1.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
