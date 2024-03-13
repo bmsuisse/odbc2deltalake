@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odbc2deltalake"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
@@ -9,7 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 deltalake = ">=0.16.0"
-deltalake2db = ">=0.1.1"
+deltalake2db = ">=0.1.5"
 duckdb = ">=0.10.0"
 pyodbc = "^5.1.0"
 arrow-odbc = "^4.1.0"

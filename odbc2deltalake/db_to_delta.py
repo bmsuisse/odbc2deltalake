@@ -24,6 +24,7 @@ import time
 import sqlglot.expressions as ex
 from .sql_glot_utils import table_from_tuple, union
 from deltalake2db.sql_utils import read_parquet
+from .odbc_utils import build_connection_string
 import shutil
 
 IS_DELETED_COL_NAME = "__is_deleted"
@@ -144,13 +145,16 @@ def get_delta_col(
 
 
 async def write_db_to_delta(
-    connection_string: str,
+    connection_string: str | dict,
     table: tuple[str, str],
     folder: Path,
     conn: pyodbc.Connection | None = None,
+    *,
+    odbc_driver: str | None = None,
 ):
     delta_path = folder / "delta"
     owns_con = False
+    connection_string = build_connection_string(connection_string, odbc=True, odbc_driver=odbc_driver)
     if conn is None:
         conn = pyodbc.connect(connection_string)
         owns_con = True
