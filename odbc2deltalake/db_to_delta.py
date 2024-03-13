@@ -26,6 +26,9 @@ from .sql_glot_utils import table_from_tuple, union
 from deltalake2db.sql_utils import read_parquet
 from .odbc_utils import build_connection_string
 import shutil
+import logging
+
+logger = logging.getLogger(__name__)
 
 IS_DELETED_COL_NAME = "__is_deleted"
 IS_DELETED_COL_INFO = InformationSchemaColInfo.from_name_type(
@@ -154,7 +157,9 @@ async def write_db_to_delta(
 ):
     delta_path = folder / "delta"
     owns_con = False
-    connection_string = build_connection_string(connection_string, odbc=True, odbc_driver=odbc_driver)
+    connection_string = build_connection_string(
+        connection_string, odbc=True, odbc_driver=odbc_driver
+    )
     if conn is None:
         conn = pyodbc.connect(connection_string)
         owns_con = True
@@ -183,9 +188,11 @@ async def write_db_to_delta(
             lock_file_path, "x", encoding="utf-8"
         ) as f:  # lock file to avoid duplicate loading
             delta_col = get_delta_col(cols)  # Use the imported function
-            pks = get_primary_keys(conn, table)[table]  # Use the imported function
+            pks = get_primary_keys(conn, table)[table]  # Use the imported functionä
+
             if not (delta_path / "_delta_log").exists():
                 os.makedirs(delta_path, exist_ok=True)
+                logger.info(f"{table}: start full load")
                 do_full_load(
                     connection_string,
                     table,
@@ -217,6 +224,15 @@ async def write_db_to_delta(
                         db_conn=conn,
                     )
         os.remove(lock_file_path)
+    except Exception as e:
+        # restore files
+        if os.path.exists(lock_file_path):
+            os.remove(lock_file_path)
+        if (folder / "delta_load").exists():
+            shutil.rmtree(folder / "delta_load")
+
+        shutil.move(folder / "delta_load_backup", folder / "delta_load")
+        raise e
     finally:
         if owns_con:
             conn.close()
@@ -252,8 +268,8 @@ def restore_last_pk(
             conditions=[
                 ex.column(IS_FULL_LOAD_COL_NAME).eq(True),
                 ex.column(VALID_FROM_COL_NAME).eq(
-                    ex.subquery(
-                        ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME)))
+                    ex.Subquery(
+                        this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME)))
                         .from_("tr")
                         .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
                     )
@@ -469,9 +485,14 @@ async def do_delta_load(
     db_conn: pyodbc.Connection,
 ):
     last_pk_path = folder / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}"
+    logger.info(
+        f"{table}: Start Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join(pks)}"
+    )
 
-    with duckdb.connect() as local_con:
+    with duckdb.connect() as local_con:       
+        
         if not (last_pk_path / "_delta_log").exists():  # or do a full load?
+            logger.warning(f"{table}: Primary keys missing, try to restore")
             restore_last_pk(
                 local_con,
                 folder,
@@ -502,6 +523,7 @@ async def do_delta_load(
             delta_load_value = res[0] if res else None
         print(delta_load_value)
         if delta_load_value is None:
+            logger.warning(f"{table}: No delta load value, do a full load")
             do_full_load(
                 connection_string,
                 table,
@@ -515,6 +537,7 @@ async def do_delta_load(
         pk_cols = [c for c in cols if c.column_name in pks]
         pk_ds_cols = pk_cols + [delta_col]
         assert len(pk_ds_cols) == len(pks) + 1
+        logger.info(f"{table}: Start delta step 1, get primary keys and timestamps")
         _retrieve_primary_key_data(
             connection_string=connection_string,
             table=table,
@@ -526,6 +549,7 @@ async def do_delta_load(
         criterion = _cast(
             delta_col.column_name, delta_col.data_type, table_alias="t", flavor="tsql"
         ) > ex.convert(delta_load_value)
+        logger.info(f"{table}: Start delta step 2, load updates by timestamp")
         _load_updates_to_delta(
             connection_string,
             table,
@@ -548,8 +572,12 @@ async def do_delta_load(
             cols=cols,
         )
         dt.update_incremental()
+        
+        logger.info(f"{table}: Start delta step 3.5, write meta for next delta load")
+
         write_latest_pk(folder, pk_cols, delta_col)
 
+        logger.info(f"{table}: Start delta step 4.5, write deletes")
         do_deletes(
             folder=folder,
             local_con=local_con,
@@ -557,6 +585,7 @@ async def do_delta_load(
             cols=cols,
             pk_cols=pk_cols,
         )
+        logger.info(f"{table}: Done delta load")
 
 
 def do_deletes(
@@ -760,6 +789,7 @@ async def _handle_additional_updates(
         res = res[0]
         has_additional_updates = res > 0
     if has_additional_updates:
+        logger.warning(f"{table}: Start delta step 3, load strange updates")
         temp_table_name = "##temp_updates_" + str(hash(table[1]))[1:]
         sql = get_sql_for_schema(
             temp_table_name,
@@ -887,6 +917,7 @@ def do_full_load(
     delta_col: InformationSchemaColInfo | None,
     pks: list[str],
 ):
+    logger.info(f"{table}: Start Full Load")
     sql = (
         ex.select(
             *_get_cols_select(
@@ -924,7 +955,10 @@ def do_full_load(
         engine="rust",
     )
     if delta_col is None:
+        logger.info(f"{table}: Full Load done")
         return
+    logger.info(f"{table}: Full Load done, write meta for delta load")
+
     dt = dt or DeltaTable(delta_path)
     dt.update_incremental()
     delta_path.parent.joinpath("delta_load").mkdir(exist_ok=True)
