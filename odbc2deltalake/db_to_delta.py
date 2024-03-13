@@ -176,9 +176,9 @@ async def write_db_to_delta(
             folder / f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
             folder / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}",
         )
+    lock_file_path = folder / "meta/lock.txt"
 
     try:
-        lock_file_path = folder / "meta/lock.txt"
         if (
             os.path.exists(lock_file_path)
             and (time.time() - os.path.getmtime(lock_file_path)) > 60 * 60
@@ -489,8 +489,8 @@ async def do_delta_load(
         f"{table}: Start Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join(pks)}"
     )
 
-    with duckdb.connect() as local_con:       
-        
+    with duckdb.connect() as local_con:
+
         if not (last_pk_path / "_delta_log").exists():  # or do a full load?
             logger.warning(f"{table}: Primary keys missing, try to restore")
             restore_last_pk(
@@ -572,7 +572,7 @@ async def do_delta_load(
             cols=cols,
         )
         dt.update_incremental()
-        
+
         logger.info(f"{table}: Start delta step 3.5, write meta for next delta load")
 
         write_latest_pk(folder, pk_cols, delta_col)
