@@ -47,6 +47,7 @@ T = TypeVar("T")
 
 WRITER_PROPERTIES = WriterProperties(compression="ZSTD")
 
+
 def _not_none(v: T | None) -> T:
     if v is None:
         raise ValueError("Value is None")
@@ -521,7 +522,6 @@ async def do_delta_load(
             cur.execute(sql)
             res = cur.fetchone()
             delta_load_value = res[0] if res else None
-        print(delta_load_value)
         if delta_load_value is None:
             logger.warning(f"{table}: No delta load value, do a full load")
             do_full_load(
@@ -537,7 +537,7 @@ async def do_delta_load(
         pk_cols = [c for c in cols if c.column_name in pks]
         pk_ds_cols = pk_cols + [delta_col]
         assert len(pk_ds_cols) == len(pks) + 1
-        logger.info(f"{table}: Start delta step 1, get primary keys and timestamps")
+        logger.info(f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}")
         _retrieve_primary_key_data(
             connection_string=connection_string,
             table=table,
@@ -810,7 +810,7 @@ async def _handle_additional_updates(
             schema=[p.as_field_type() for p in pk_cols],
         )
         criterion = f"""
-            inner join {temp_table_name} ttt on {', '.join([f't.{sql_quote_name(c.column_name)} = ttt.{sql_quote_name(c.column_name)}' for c in pk_cols])}"""
+            inner join {temp_table_name} ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} = ttt.{sql_quote_name(c.column_name)}' for c in pk_cols])}"""
 
         _load_updates_to_delta(
             connection_string=connection_string,
@@ -886,6 +886,7 @@ def _load_updates_to_delta(
 
 
 def write_sql_to_parquet(connection_string: str, sql: str, parquet_path: str | Path):
+    logger.debug(f"SQL for {parquet_path}: \n{sql}")
     batch_reader = read_arrow_batches_from_odbc(
         query=sql,
         connection_string=connection_string,
