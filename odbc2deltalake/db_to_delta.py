@@ -322,7 +322,7 @@ def restore_last_pk(
                 select df.* from delta_after_full_load df
                 union all
                 select f.*, (cast 0 as BOOLEAN) as {IS_DELETED_COL_NAME} from last_full_load f 
-                    anti join delta_after_full_load d on {', '.join([f"f.{sql_quote_name(c.column_name)} = d.{sql_quote_name(c.column_name)}" for c in pk_cols])}
+                    anti join delta_after_full_load d on {' AND '.join([f"f.{sql_quote_name(c.column_name)} = d.{sql_quote_name(c.column_name)}" for c in pk_cols])}
                 )
                 select * except({IS_DELETED_COL_NAME}) from base where {IS_DELETED_COL_NAME} = 0
                     """
@@ -537,7 +537,9 @@ async def do_delta_load(
         pk_cols = [c for c in cols if c.column_name in pks]
         pk_ds_cols = pk_cols + [delta_col]
         assert len(pk_ds_cols) == len(pks) + 1
-        logger.info(f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}")
+        logger.info(
+            f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
+        )
         _retrieve_primary_key_data(
             connection_string=connection_string,
             table=table,
