@@ -8,6 +8,7 @@ import adlfs
 class FileSystemDestination:
     def __init__(self, path: str | Path):
         self.path = Path(path)
+        self.storage_options = None
 
     def __truediv__(self, other: str):
         return FileSystemDestination(self.path / other)

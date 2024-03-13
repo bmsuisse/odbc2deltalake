@@ -181,7 +181,8 @@ async def write_db_to_delta(
     (destination / "meta/schema.json").upload(
         json.dumps([c.model_dump() for c in cols], indent=4).encode("utf-8")
     )
-    (destination / "delta_load_backup").rm_tree()
+    if (destination / "delta_load_backup").exists():
+        (destination / "delta_load_backup").rm_tree()
     if (destination / "delta_load").exists():
         fs, path = destination.get_fs_path()
         fs.move(
@@ -191,7 +192,7 @@ async def write_db_to_delta(
         )
         fs.copy(
             path + "/" + f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
-            path + "/" + f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}",
+            path + "/" + f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}/",
             recursive=True,
         )
     lock_file_path = destination / "meta/lock.txt"

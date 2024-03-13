@@ -100,6 +100,7 @@ def spawn_azurite():
     import os
 
     if os.getenv("NO_AZURITE_DOCKER", "0") == "1":
+        test_server.create_test_blobstorage()
         yield None
     else:
         azurite = test_server.start_azurite()
