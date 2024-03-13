@@ -45,6 +45,7 @@ IS_FULL_LOAD_COL_INFO = InformationSchemaColInfo.from_name_type(
 
 T = TypeVar("T")
 
+WRITER_PROPERTIES = WriterProperties(compression="ZSTD")
 
 def _not_none(v: T | None) -> T:
     if v is None:
@@ -192,7 +193,6 @@ async def write_db_to_delta(
 
             if not (delta_path / "_delta_log").exists():
                 os.makedirs(delta_path, exist_ok=True)
-                logger.info(f"{table}: start full load")
                 do_full_load(
                     connection_string,
                     table,
@@ -335,7 +335,7 @@ def restore_last_pk(
             rdr,
             mode="overwrite",
             schema_mode="overwrite",
-            writer_properties=WriterProperties(compression="ZSTD"),
+            writer_properties=WRITER_PROPERTIES,
             engine="rust",
         )
 
@@ -469,7 +469,7 @@ def write_latest_pk(
                 cur.fetch_record_batch(),
                 mode="overwrite",
                 schema_mode="overwrite",
-                writer_properties=WriterProperties(compression="ZSTD"),
+                writer_properties=WRITER_PROPERTIES,
                 engine="rust",
             )
 
@@ -681,7 +681,7 @@ def do_deletes(
                 schema=_all_nullable(rdr.schema),
                 mode="append",
                 schema_mode="merge",
-                writer_properties=WriterProperties(compression="ZSTD"),
+                writer_properties=WRITER_PROPERTIES,
                 engine="rust",
             )
 
@@ -879,7 +879,7 @@ def _load_updates_to_delta(
             rdr,
             schema=_all_nullable(rdr.schema),
             mode="append",
-            writer_properties=WriterProperties(compression="ZSTD"),
+            writer_properties=WRITER_PROPERTIES,
             engine="rust",
             schema_mode="merge",
         )
@@ -950,7 +950,7 @@ def do_full_load(
         reader,
         schema=_all_nullable(reader.schema),
         mode=mode,
-        writer_properties=WriterProperties(compression="ZSTD"),
+        writer_properties=WRITER_PROPERTIES,
         schema_mode="overwrite" if mode == "overwrite" else "merge",
         engine="rust",
     )
@@ -977,6 +977,6 @@ def do_full_load(
                 cur.fetch_record_batch(),
                 mode="overwrite",
                 schema_mode="overwrite",
-                writer_properties=WriterProperties(compression="ZSTD"),
+                writer_properties=WRITER_PROPERTIES,
                 engine="rust",
             )
