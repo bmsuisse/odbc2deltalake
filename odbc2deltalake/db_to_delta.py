@@ -353,6 +353,13 @@ def restore_last_pk(
         cur.execute(sql)
 
     with local_con.cursor() as cur:
+        cur.execute("select count(*) from v_last_pk_version")
+        res = cur.fetchone()
+        assert res is not None
+        res = res[0]
+        if res == 0:
+            return False
+    with local_con.cursor() as cur:
         cur.execute("select * from v_last_pk_version")
         rdr = cur.fetch_record_batch()
         dp, do = (
@@ -367,6 +374,7 @@ def restore_last_pk(
             engine="rust",
             storage_options=do,
         )
+        return True
 
 
 def create_replace_view(
@@ -536,13 +544,24 @@ async def do_delta_load(
 
         if not (last_pk_path / "_delta_log").exists():  # or do a full load?
             logger.warning(f"{table}: Primary keys missing, try to restore")
-            restore_last_pk(
+            if not restore_last_pk(
                 local_con,
                 destination,
                 (destination / "delta").as_delta_table(),
                 delta_col,
                 [c for c in cols if c.column_name in pks],
-            )
+            ):
+                logger.warning(f"{table}: No primary keys found, do a full load")
+                do_full_load(
+                    connection_string,
+                    table,
+                    destination / "delta",
+                    mode="append",
+                    cols=cols,
+                    pks=pks,
+                    delta_col=delta_col,
+                )
+                return
         delta_path = destination / "delta"
         dt = delta_path.as_delta_table()
         sq = get_sql_for_delta_expr(
