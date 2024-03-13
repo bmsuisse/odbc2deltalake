@@ -97,3 +97,40 @@ async def test_delta(connection: "DB_Connection"):
             ("Markus", "Müller"),
             ("Heiri", "Meier"),
         ]
+
+
+@pytest.mark.order(5)
+@pytest.mark.asyncio
+async def test_delta_sys(connection: "DB_Connection"):
+    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+
+    base_path = Path("tests/_data/dbo/company")
+    await write_db_to_delta(
+        connection.conn_str, ("dbo", "company"), base_path, connection.conn
+    )
+    with connection.new_connection() as nc:
+        with nc.cursor() as cursor:
+            cursor.execute(
+                """
+insert into dbo.[company](id, name)
+select 'c300',
+    'The 300 company';
+                   """
+            )
+        with nc.cursor() as cursor:
+            cursor.execute("SELECT * FROM [dbo].[company]")
+            alls = cursor.fetchall()
+            print(alls)
+        with duckdb.connect() as con:
+            sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
+            assert sql is not None
+            con.execute("CREATE VIEW v_company AS " + sql)
+
+            name_tuples = con.execute(
+                'SELECT name from v_company order by "id"'
+            ).fetchall()
+            assert name_tuples == [
+                ("The First company",),
+                ("The Second company",),
+                ("The 300 company",),
+            ]

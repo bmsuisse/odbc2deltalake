@@ -1,12 +1,12 @@
 drop table if exists dbo.[user2];
 drop table if exists dbo.[user3];
 drop table if exists dbo.[user4];
-drop table if exists dbo.[company];
 drop table if exists dbo.[user];
+drop table if exists dbo.[company];
 drop table if exists [long schema].[long table name];
 GO
 create table dbo.[company](
-        id varchar(10) primary key,
+        id varchar(10) collate Latin1_General_CS_AS primary key,
         name varchar(100),
         SysStartTime datetime2 GENERATED ALWAYS AS ROW START,
         SysEndTime datetime2 GENERATED ALWAYS AS ROW
@@ -24,7 +24,7 @@ create table dbo.[user](
     FirstName varchar(100),
     LastName nvarchar(max),
     Age decimal(15, 3),
-    companyid varchar(10) not null references dbo.company(id),
+    companyid varchar(10)  collate Latin1_General_CS_AS  not null references dbo.company(id),
     [time stämp] timestamp
 );
 create table dbo.[user2](
@@ -32,7 +32,7 @@ create table dbo.[user2](
     FirstName varchar(100),
     LastName nvarchar(max),
     Age decimal(15, 3),
-    companyid varchar(10) not null references dbo.company(id),
+    companyid varchar(10) collate Latin1_General_CS_AS  not null references dbo.company(id),
     [time stämp] timestamp
 );
 create table dbo.[user3](
@@ -40,7 +40,7 @@ create table dbo.[user3](
     FirstName varchar(100),
     LastName nvarchar(max),
     Age decimal(15, 3),
-    companyid varchar(10) not null references dbo.company(id),
+    companyid varchar(10)  collate Latin1_General_CS_AS not null references dbo.company(id),
     [time stämp] timestamp
 );
 create table dbo.[user4](
@@ -48,7 +48,7 @@ create table dbo.[user4](
     FirstName varchar(100),
     LastName nvarchar(max),
     Age decimal(15, 3),
-    companyid varchar(10) not null references dbo.company(id),
+    companyid varchar(10)  collate Latin1_General_CS_AS not null references dbo.company(id),
     [time stämp] timestamp
 );
 insert into dbo.[user](FirstName, LastName, Age, companyid)
@@ -60,14 +60,23 @@ FROM (
     ) as x(fn, ln, a, ci);
 ;
 insert into dbo.[user2](FirstName, LastName, Age, companyid)
-select FirstName, LastName, Age, companyid from dbo.[user]
-;
+select FirstName,
+    LastName,
+    Age,
+    companyid
+from dbo.[user];
 insert into dbo.[user3](FirstName, LastName, Age, companyid)
-select FirstName, LastName, Age, companyid from dbo.[user]
-;
+select FirstName,
+    LastName,
+    Age,
+    companyid
+from dbo.[user];
 insert into dbo.[user4](FirstName, LastName, Age, companyid)
-select FirstName, LastName, Age, companyid from dbo.[user]
-;
+select FirstName,
+    LastName,
+    Age,
+    companyid
+from dbo.[user];
 IF NOT EXISTS(
     Select *
     from sys.schemas

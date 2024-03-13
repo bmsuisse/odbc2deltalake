@@ -251,11 +251,12 @@ async def write_db_to_delta(
         if (destination / "delta_load").exists():
             (destination / "delta_load").rm_tree()
         fs, path = destination.get_fs_path()
-        fs.move(
-            path + "/" + "delta_load_backup",
-            path + "/" + "delta_load",
-            recursive=True,
-        )
+        if (destination / "delta_load_backup").exists():
+            fs.move(
+                path + "/" + "delta_load_backup",
+                path + "/" + "delta_load",
+                recursive=True,
+            )
         raise e
     finally:
         if owns_con:
@@ -313,6 +314,7 @@ def restore_last_pk(
                 table_alias="tr",
                 flavor="duckdb",
             ),
+            delta_table_cte_name="tr",
             conditions=[
                 ex.column(VALID_FROM_COL_NAME) > ex.convert(latest_full_load_date)
             ],
@@ -339,17 +341,16 @@ def restore_last_pk(
         )
         cur.execute("create view delta_after_full_load as " + sq.sql("duckdb"))
     with local_con.cursor() as cur:
-        cur.execute(
-            f"""create view v_last_pk_version as
+        sql = f"""create view v_last_pk_version as
                 with base as ( 
                 select df.* from delta_after_full_load df
                 union all
-                select f.*, (cast 0 as BOOLEAN) as {IS_DELETED_COL_NAME} from last_full_load f 
+                select f.*, False as {IS_DELETED_COL_NAME} from last_full_load f 
                     anti join delta_after_full_load d on {' AND '.join([f"f.{sql_quote_name(c.column_name)} = d.{sql_quote_name(c.column_name)}" for c in pk_cols])}
                 )
-                select * except({IS_DELETED_COL_NAME}) from base where {IS_DELETED_COL_NAME} = 0
+                select * EXCLUDE ({IS_DELETED_COL_NAME}) from base where {IS_DELETED_COL_NAME}
                     """
-        )
+        cur.execute(sql)
 
     with local_con.cursor() as cur:
         cur.execute("select * from v_last_pk_version")
@@ -1023,6 +1024,8 @@ def do_full_load(
     dt.update_incremental()
     (delta_path.parent / "delta_load").mkdir()
     with duckdb.connect() as local_con:
+        if delta_path.storage_options is not None:
+            apply_storage_options(local_con, delta_path.storage_options)
         sql = get_sql_for_delta_expr(
             dt,
             select=[pk for pk in pks] + ([delta_col.column_name] if delta_col else []),

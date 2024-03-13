@@ -66,6 +66,9 @@ def create_test_blobstorage():
     cc = ContainerClient.from_connection_string(constr, "testlakeodbc")
     if not cc.exists():
         cc.create_container()
+    else:
+        cc.delete_container()
+        cc.create_container()
     return cc
 
 
