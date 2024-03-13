@@ -14,6 +14,8 @@ duckdb = ">=0.10.0"
 pyodbc = "^5.1.0"
 arrow-odbc = "^4.1.0"
 pydantic = "^2.6.3"
+azure-identity = "^1.15.0"
+adlfs = "^2024.2.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -28,6 +30,7 @@ pytest-order = "^1.2.0"
 pytest-cov = "^4.1.0"
 docker = "^7.0.0"
 python-dotenv = "^1.0.1"
+azure-storage-blob = "^12.19.1"
 
 [build-system]
 requires = ["poetry-core"]

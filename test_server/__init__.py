@@ -54,3 +54,47 @@ def start_mssql_server() -> Container:
     sleep(15)
     print("Successfully created sql container...")
     return sql_server
+
+
+def create_test_blobstorage():
+    constr = os.getenv(
+        "TEST_BLOB_CONSTR",
+        "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;",
+    )
+    from azure.storage.blob import ContainerClient
+
+    cc = ContainerClient.from_connection_string(constr, "testlakeodbc")
+    if not cc.exists():
+        cc.create_container()
+    return cc
+
+
+def start_azurite() -> Container:
+    client = (
+        docker.from_env()
+    )  # code taken from https://github.com/fsspec/adlfs/blob/main/adlfs/tests/conftest.py#L72
+    azurite_server: Container | None = None
+    try:
+        m = cast(Container, client.containers.get("test4azurite"))
+        if m.status == "running":
+            create_test_blobstorage()
+            return m
+        else:
+            azurite_server = m
+    except docker.errors.NotFound as err:
+        pass
+
+    if azurite_server is None:
+        azurite_server = client.containers.run(
+            "mcr.microsoft.com/azure-storage/azurite:latest",
+            detach=True,
+            name="test4azurite",
+            ports={"10000/tcp": "10000", "10001/tcp": "10001", "10002/tcp": "10002"},
+        )  # type: ignore
+    assert azurite_server is not None
+    azurite_server.start()
+    print(azurite_server.status)
+    sleep(20)
+    create_test_blobstorage()
+    print("Successfully created azurite container...")
+    return azurite_server
