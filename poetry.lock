@@ -268,6 +268,26 @@ typing-extensions = ">=4.3.0"
 aio = ["azure-core[aio] (>=1.28.0,<2.0.0)"]
 
 [[package]]
+name = "azure-storage-file-datalake"
+version = "12.14.0"
+description = "Microsoft Azure File DataLake Storage Client Library for Python"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "azure-storage-file-datalake-12.14.0.tar.gz", hash = "sha256:358f1616db479b8272b74fb7d5f10f93dfc695a264137dd1959b50b50dcd6346"},
+    {file = "azure_storage_file_datalake-12.14.0-py3-none-any.whl", hash = "sha256:736b565e8c46fc0a36f64102d5fa63e1367b698496d845b7572fc7cad4925cec"},
+]
+
+[package.dependencies]
+azure-core = ">=1.28.0,<2.0.0"
+azure-storage-blob = ">=12.19.0,<13.0.0"
+isodate = ">=0.6.1"
+typing-extensions = ">=4.3.0"
+
+[package.extras]
+aio = ["azure-core[aio] (>=1.28.0,<2.0.0)"]
+
+[[package]]
 name = "black"
 version = "24.2.0"
 description = "The uncompromising code formatter."
@@ -659,13 +679,13 @@ pyspark = ["delta-spark", "numpy (==1.22.2)", "pyspark"]
 
 [[package]]
 name = "deltalake2db"
-version = "0.1.7"
+version = "0.1.8"
 description = ""
 optional = false
 python-versions = ">=3.10,<4.0"
 files = [
-    {file = "deltalake2db-0.1.7-py3-none-any.whl", hash = "sha256:40865ce54efc7875c1861a6ca53e9bebba6999813e14e286266fdb32581a29bf"},
-    {file = "deltalake2db-0.1.7.tar.gz", hash = "sha256:7e7e3a15a3d333b2e0ebef766b7e822304afeb6a7676300199d9acd8d1ba3993"},
+    {file = "deltalake2db-0.1.8-py3-none-any.whl", hash = "sha256:52ae43dd7366726a0212927996c9c6798ca95a0ce4725757d8fe4a689db57aaa"},
+    {file = "deltalake2db-0.1.8.tar.gz", hash = "sha256:9a4b47c77956b65288325522b51d93df650787f59a7f62130d9c779424f0d158"},
 ]
 
 [package.dependencies]
@@ -1773,4 +1793,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "9c489189bc86eb75ef7b5822166c8b405343e4af1d83372f660900f5ea857a67"
+content-hash = "050f6c0d3b7228708329fb6c03898a310a4a396b68e135c28eacccd44f3b2983"

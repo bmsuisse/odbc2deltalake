@@ -185,11 +185,8 @@ async def write_db_to_delta(
         (destination / "delta_load_backup").rm_tree()
     if (destination / "delta_load").exists():
         fs, path = destination.get_fs_path()
-        fs.move(
-            path + "/" + "delta_load",
-            path + "/" + "delta_load_backup",
-            recursive=True,
-        )
+        (destination / "delta_load").path_rename(destination / "delta_load_backup")  # type: ignore
+
         if (
             destination / f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
         ).exists():
