@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odbc2deltalake"
-version = "0.2.1"
+version = "0.2.2"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
@@ -9,13 +9,14 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 deltalake = ">=0.16.0"
-deltalake2db = ">=0.1.7"
+deltalake2db = ">=0.1.8"
 duckdb = ">=0.10.0"
 pyodbc = "^5.1.0"
 arrow-odbc = "^4.1.0"
 pydantic = "^2.6.3"
 azure-identity = "^1.15.0"
 adlfs = "^2024.2.0"
+azure-storage-file-datalake = "^12.14.0"
 
 
 [tool.poetry.group.dev.dependencies]

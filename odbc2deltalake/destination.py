@@ -1,14 +1,16 @@
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, cast, TYPE_CHECKING
 import fsspec
-from .azure_utils import convert_options
-import adlfs
+
+if TYPE_CHECKING:
+    import adlfs
 
 
 class FileSystemDestination:
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.storage_options = None
+        self.fs = fsspec.filesystem("file")
 
     def __truediv__(self, other: str):
         return FileSystemDestination(self.path / other)
@@ -17,7 +19,7 @@ class FileSystemDestination:
         self.path.mkdir(parents=True, exist_ok=True)
 
     def get_fs_path(self) -> tuple[fsspec.AbstractFileSystem, str]:
-        return (fsspec.filesystem("file"), str(self.path))
+        return (self.fs, str(self.path))
 
     def __str__(self):
         return str(self.path)
@@ -58,12 +60,19 @@ class FileSystemDestination:
     def with_suffix(self, suffix: str):
         return FileSystemDestination(self.path.with_suffix(suffix))
 
+    def path_rename(self, other: "FileSystemDestination"):
+        self.path.rename(other.path.absolute())
+
 
 class AzureDestination:
     def __init__(self, container: str, path: str, storage_options: dict):
         self.container = container
         self.path = path
         self.storage_options = storage_options
+        from .azure_utils import convert_options
+
+        opts = cast(dict[str, str], convert_options(self.storage_options, "fsspec"))
+        self.fs = fsspec.filesystem("az", **opts)
 
     def to_az_path(self):
         return f"az://{self.container}/{self.path}"
@@ -71,15 +80,12 @@ class AzureDestination:
     def mkdir(self):
         pass
 
-    def get_fs_path(self) -> tuple[adlfs.AzureBlobFileSystem, str]:
-        opts = cast(dict[str, str], convert_options(self.storage_options, "fsspec"))
-        return (fsspec.filesystem("az", **opts), self.to_az_path())
+    def get_fs_path(self) -> "tuple[adlfs.AzureBlobFileSystem, str]":
+
+        return (self.fs, self.to_az_path())
 
     def upload(self, data: bytes):
-        opts = cast(dict[str, str], convert_options(self.storage_options, "fsspec"))
-
-        fs: adlfs.AzureBlobFileSystem = fsspec.filesystem("az", **opts)
-        with fs.open(self.to_az_path(), "wb") as f:
+        with self.fs.open(self.to_az_path(), "wb") as f:
             f.write(data)  # type: ignore
 
     def modified_time(self):
@@ -114,12 +120,15 @@ class AzureDestination:
         fs.rm(path)
 
     def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
+        from .azure_utils import convert_options
+
         return self.to_az_path(), cast(
             dict[str, str], convert_options(self.storage_options, flavor)
         )
 
     def as_delta_table(self):
         from deltalake import DeltaTable
+        from .azure_utils import convert_options
 
         return DeltaTable(
             self.to_az_path(),
@@ -133,6 +142,14 @@ class AzureDestination:
         return AzureDestination(
             self.container, self.path + suffix, self.storage_options
         )
+
+    def path_rename(self, other: "AzureDestination"):
+        from .azure_utils import get_data_lake_client
+
+        with get_data_lake_client(self.storage_options) as client:
+            client.get_directory_client(self.container, self.path).rename_directory(
+                f"{other.container}/{other.path}"
+            )
 
 
 Destination = FileSystemDestination | AzureDestination
