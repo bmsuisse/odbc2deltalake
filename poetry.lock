@@ -659,13 +659,13 @@ pyspark = ["delta-spark", "numpy (==1.22.2)", "pyspark"]
 
 [[package]]
 name = "deltalake2db"
-version = "0.1.6"
+version = "0.1.7"
 description = ""
 optional = false
 python-versions = ">=3.10,<4.0"
 files = [
-    {file = "deltalake2db-0.1.6-py3-none-any.whl", hash = "sha256:fc8833ea453e3b4998da94dd398496c9e7a7d00c62d9a17de2a091869540f180"},
-    {file = "deltalake2db-0.1.6.tar.gz", hash = "sha256:7e3d8487e313d46fd5b7b69f7c5801f9e52f3afb65f9fdcba689ab79ec6be8da"},
+    {file = "deltalake2db-0.1.7-py3-none-any.whl", hash = "sha256:40865ce54efc7875c1861a6ca53e9bebba6999813e14e286266fdb32581a29bf"},
+    {file = "deltalake2db-0.1.7.tar.gz", hash = "sha256:7e7e3a15a3d333b2e0ebef766b7e822304afeb6a7676300199d9acd8d1ba3993"},
 ]
 
 [package.dependencies]
@@ -1440,13 +1440,13 @@ files = [
 
 [[package]]
 name = "pyright"
-version = "1.1.353"
+version = "1.1.354"
 description = "Command line wrapper for pyright"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pyright-1.1.353-py3-none-any.whl", hash = "sha256:8d7e6719d0be4fd9f4a37f010237c6a74d91ec1e7c81de634c2f3f9965f8ab43"},
-    {file = "pyright-1.1.353.tar.gz", hash = "sha256:24343bbc2a4f997563f966b6244a2e863473f1d85af6d24abcb366fcbb4abca9"},
+    {file = "pyright-1.1.354-py3-none-any.whl", hash = "sha256:f28d61ae8ae035fc52ded1070e8d9e786051a26a4127bbd7a4ba0399b81b37b5"},
+    {file = "pyright-1.1.354.tar.gz", hash = "sha256:b1070dc774ff2e79eb0523fe87f4ba9a90550de7e4b030a2bc9e031864029a1f"},
 ]
 
 [package.dependencies]
@@ -1773,4 +1773,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "be8dbdf4cbc609f11c15f117f6902ef9e7d76d769f8102493e5b0f056dd72c56"
+content-hash = "9c489189bc86eb75ef7b5822166c8b405343e4af1d83372f660900f5ea857a67"

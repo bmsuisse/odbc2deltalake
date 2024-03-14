@@ -104,8 +104,8 @@ async def test_delta(connection: "DB_Connection"):
 async def test_delta_sys(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
-    base_path = Path("tests/_data/dbo/company")
-    await write_db_to_delta(
+    base_path = Path("tests/_data/dbo/company2")
+    await write_db_to_delta(  # full load
         connection.conn_str, ("dbo", "company"), base_path, connection.conn
     )
     with connection.new_connection() as nc:
@@ -117,20 +117,31 @@ select 'c300',
     'The 300 company';
                    """
             )
-        with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[company]")
-            alls = cursor.fetchall()
-            print(alls)
-        with duckdb.connect() as con:
-            sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-            assert sql is not None
-            con.execute("CREATE VIEW v_company AS " + sql)
 
-            name_tuples = con.execute(
-                'SELECT name from v_company order by "id"'
-            ).fetchall()
-            assert name_tuples == [
-                ("The First company",),
-                ("The Second company",),
-                ("The 300 company",),
-            ]
+    await write_db_to_delta(  # delta load
+        connection.conn_str, ("dbo", "company"), base_path, connection.conn
+    )
+    with nc.cursor() as cursor:
+        cursor.execute("SELECT * FROM [dbo].[company]")
+        alls = cursor.fetchall()
+        print(alls)
+    with duckdb.connect() as con:
+        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
+        assert sql is not None
+        con.execute("CREATE VIEW v_company_scd2 AS " + sql)
+
+        con.execute(
+            f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
+        )
+        name_tuples = con.execute(
+            """SELECT lf.name from v_company_scd2 lf 
+                                inner join v_latest_pk s2 on s2."id"=lf."id" and s2."SysStartTime"=lf."SysStartTime"
+                qualify row_number() over (partition by s2."id" order by lf."SysStartTime" desc)=1
+                order by s2."id" 
+                """
+        ).fetchall()
+        assert name_tuples == [
+            ("The First company",),
+            ("The Second company",),
+            ("The 300 company",),
+        ]

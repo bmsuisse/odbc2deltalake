@@ -43,9 +43,6 @@ class DB_Connection:
                 logger.error("Error drop creating db", exc_info=e)
         with self.conn.cursor() as cursor:
             cursor.execute("USE db_to_delta_test")
-            cursor.execute("DROP TABLE IF EXISTS dbo.[user]")
-            cursor.execute("DROP TABLE IF EXISTS dbo.[company]")
-            cursor.execute("drop table if exists [long schema].[long table name]")
         with open("tests/sqls/init.sql", encoding="utf-8-sig") as f:
             sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
             for sql in sqls:

@@ -2,11 +2,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Literal, Sequence, TypeVar
 from deltalake import DeltaTable, WriterProperties, write_deltalake
-from deltalake.exceptions import TableNotFoundError
+from deltalake.exceptions import TableNotFoundError, DeltaError
 from arrow_odbc import read_arrow_batches_from_odbc
 from deltalake2db.duckdb import apply_storage_options
 import asyncio
-
+import sqlglot as sg
 from odbc2deltalake.destination import (
     AzureDestination,
     Destination,
@@ -190,11 +190,16 @@ async def write_db_to_delta(
             path + "/" + "delta_load_backup",
             recursive=True,
         )
-        fs.copy(
-            path + "/" + f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
-            path + "/" + f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}/",
-            recursive=True,
-        )
+        if (
+            destination / f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
+        ).exists():
+            fs.copy(
+                path
+                + "/"
+                + f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
+                path + "/" + f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}",
+                recursive=True,
+            )
     lock_file_path = destination / "meta/lock.txt"
 
     try:
@@ -278,7 +283,8 @@ def restore_last_pk(
             select=[ex.func("max", ex.column(VALID_FROM_COL_NAME))],
             conditions=[ex.column(IS_FULL_LOAD_COL_NAME).eq(True)],
         )
-        assert sq_valid_from is not None
+        if sq_valid_from is None:
+            return False
         cur.execute(sq_valid_from.sql(dialect="duckdb"))
         max_valid_from_res = cur.fetchone()
         latest_full_load_date = max_valid_from_res[0] if max_valid_from_res else None
@@ -341,6 +347,7 @@ def restore_last_pk(
         )
         cur.execute("create view delta_after_full_load as " + sq.sql("duckdb"))
     with local_con.cursor() as cur:
+
         sql = f"""create view v_last_pk_version as
                 with base as ( 
                 select df.* from delta_after_full_load df
@@ -874,8 +881,21 @@ async def _handle_additional_updates(
             connection=db_conn,
             schema=[p.as_field_type() for p in pk_cols],
         )
+
+        def _collate(c: InformationSchemaColInfo):
+            if c.data_type.lower() in [
+                "char",
+                "varchar",
+                "nchar",
+                "nvarchar",
+                "text",
+                "ntext",
+            ]:
+                return "COLLATE DATABASE_DEFAULT"
+            return ""
+
         criterion = f"""
-            inner join {temp_table_name} ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} = ttt.{sql_quote_name(c.column_name)}' for c in pk_cols])}"""
+            inner join {temp_table_name} ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.column_name)}' for c in pk_cols])}"""
 
         _load_updates_to_delta(
             connection_string=connection_string,
@@ -1024,16 +1044,25 @@ def do_full_load(
         old_paths = []
         dt = None
     dp, do = delta_path.as_path_options(flavor="object_store")
-    write_deltalake(
-        dp,
-        reader,
-        schema=_all_nullable(reader.schema),
-        mode=mode,
-        writer_properties=WRITER_PROPERTIES,
-        schema_mode="overwrite" if mode == "overwrite" else "merge",
-        engine="rust",
-        storage_options=do,
-    )
+    try:
+        write_deltalake(
+            dp,
+            reader,
+            schema=_all_nullable(reader.schema),
+            mode=mode,
+            writer_properties=WRITER_PROPERTIES,
+            schema_mode="overwrite" if mode == "overwrite" else "merge",
+            engine="rust",
+            storage_options=do,
+        )
+    except DeltaError as e:
+        if "No data source supplied to write command" in str(e):
+            if mode == "overwrite":
+                write_empty_delta_table(reader.schema, dp, do)
+            logger.warning(f"{table}: No data to write")
+        else:
+            raise e
+
     if delta_col is None:
         logger.info(f"{table}: Full Load done")
         return
@@ -1050,7 +1079,8 @@ def do_full_load(
             select=[pk for pk in pks] + ([delta_col.column_name] if delta_col else []),
             action_filter=lambda ac: ac["path"] not in old_paths,
         )
-        assert sql is not None
+        if sql is None:
+            return
         with local_con.cursor() as cur:
             cur.execute(sql.sql("duckdb"))
             dp, do = (
@@ -1065,3 +1095,15 @@ def do_full_load(
                 engine="rust",
                 storage_options=do,
             )
+
+
+def write_empty_delta_table(schema: pa.Schema, path: str | Path, storage_options: dict):
+    write_deltalake(
+        path,
+        [],
+        schema=_all_nullable(schema),
+        mode="overwrite",
+        schema_mode="overwrite",
+        engine="pyarrow",
+        storage_options=storage_options,
+    )
