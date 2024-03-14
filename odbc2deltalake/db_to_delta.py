@@ -1097,7 +1097,9 @@ def do_full_load(
             )
 
 
-def write_empty_delta_table(schema: pa.Schema, path: str | Path, storage_options: dict):
+def write_empty_delta_table(
+    schema: pa.Schema, path: str | Path, storage_options: dict[str, str] | None
+):
     write_deltalake(
         path,
         [],
