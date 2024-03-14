@@ -2,6 +2,9 @@ import pyodbc
 import pytest
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +43,6 @@ class DB_Connection:
                 logger.error("Error drop creating db", exc_info=e)
         with self.conn.cursor() as cursor:
             cursor.execute("USE db_to_delta_test")
-            cursor.execute("DROP TABLE IF EXISTS dbo.[user]")
-            cursor.execute("DROP TABLE IF EXISTS dbo.[company]")
-            cursor.execute("drop table if exists [long schema].[long table name]")
         with open("tests/sqls/init.sql", encoding="utf-8-sig") as f:
             sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
             for sql in sqls:
@@ -74,9 +74,6 @@ class DB_Connection:
 def spawn_sql():
     import test_server
     import os
-    from dotenv import load_dotenv
-
-    load_dotenv()
 
     if os.getenv("NO_SQL_SERVER", "0") == "1":
         yield None
@@ -92,3 +89,20 @@ def connection(spawn_sql):
     c = DB_Connection()
     yield c
     c.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def spawn_azurite():
+    import test_server
+    import os
+
+    if os.getenv("NO_AZURITE_DOCKER", "0") == "1":
+        test_server.create_test_blobstorage()
+        yield None
+    else:
+        azurite = test_server.start_azurite()
+        yield azurite
+        if (
+            os.getenv("KEEP_AZURITE_DOCKER", "0") == "0"
+        ):  # can be handy during development
+            azurite.stop()
