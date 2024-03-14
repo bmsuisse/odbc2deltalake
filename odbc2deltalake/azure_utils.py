@@ -62,6 +62,8 @@ def convert_options(
         flavor == "fsspec"
         and "account_key" not in options
         and "anon" not in options
+        and "sas_token" not in options
+        and "token" not in options
         and "account_name" in options
     ):  # anon is true by default in fsspec which makes no sense mostly
         return {"anon": False} | options
@@ -73,6 +75,8 @@ def convert_options(
     if (
         flavor == "object_store"
         and "account_key" not in options
+        and "sas_token" not in options
+        and "token" not in options
         and not use_emulator
         and not anon_value
     ):
