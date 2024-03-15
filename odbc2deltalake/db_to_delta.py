@@ -1,8 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Literal, Sequence, TypeVar
-from deltalake import DeltaTable, WriterProperties, write_deltalake
-from deltalake.exceptions import TableNotFoundError, DeltaError
 from arrow_odbc import read_arrow_batches_from_odbc
 from deltalake2db.duckdb import apply_storage_options
 import asyncio
@@ -12,6 +10,7 @@ from odbc2deltalake.destination import (
     Destination,
     FileSystemDestination,
 )
+from odbc2deltalake.reader import DataSourceReader
 from .sql_schema import get_sql_for_schema
 from .query import sql_quote_name
 import os
@@ -53,8 +52,6 @@ IS_FULL_LOAD_COL_INFO = InformationSchemaColInfo.from_name_type(
 
 T = TypeVar("T")
 
-WRITER_PROPERTIES = WriterProperties(compression="ZSTD")
-
 
 def _not_none(v: T | None) -> T:
     if v is None:
@@ -79,17 +76,6 @@ class DBDeltaPathConfigs:
       this will be identital to primary_keys file IF there are no updates in the source within the load. 
       this is unlikely, but possible
     """
-
-
-def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
-    import pyarrow.types as pat
-
-    sc = schema
-    for i, n in enumerate(schema.names):
-        f = schema.field(n)
-        if not f.nullable:
-            sc = sc.set(i, f.with_nullable(True))
-    return sc
 
 
 def _cast(
@@ -158,24 +144,19 @@ def get_delta_col(
 
 
 async def write_db_to_delta(
-    connection_string: str | dict,
+    source: DataSourceReader | str,
     table: tuple[str, str],
     destination: Destination | Path,
-    conn: pyodbc.Connection | None = None,
-    *,
-    odbc_driver: str | None = None,
 ):
     if isinstance(destination, Path):
         destination = FileSystemDestination(destination)
+    if isinstance(source, str):
+        from .reader import ODBCReader
+
+        source = ODBCReader(source)
     delta_path = destination / "delta"
     owns_con = False
-    connection_string = build_connection_string(
-        connection_string, odbc=True, odbc_driver=odbc_driver
-    )
-    if conn is None:
-        conn = pyodbc.connect(connection_string)
-        owns_con = True
-    cols = get_columns(conn, table)[table]
+    cols = get_columns(source, table)
 
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload(
@@ -206,12 +187,12 @@ async def write_db_to_delta(
         lock_file_path.upload(b"")
 
         delta_col = get_delta_col(cols)  # Use the imported function
-        pks = get_primary_keys(conn, table)[table]  # Use the imported functionä
+        pks = get_primary_keys(source, table)  # Use the imported function
 
         if not (delta_path / "_delta_log").exists():
             delta_path.mkdir()
             do_full_load(
-                connection_string,
+                source,
                 table,
                 delta_path,
                 mode="overwrite",
@@ -222,7 +203,7 @@ async def write_db_to_delta(
         else:
             if delta_col is None or len(pks) == 0:
                 do_full_load(
-                    connection_string,
+                    source,
                     table,
                     delta_path,
                     mode="append",
@@ -232,13 +213,12 @@ async def write_db_to_delta(
                 )
             else:
                 await do_delta_load(
-                    connection_string,
+                    source,
                     table,
                     destination=destination,
                     delta_col=delta_col,
                     cols=cols,
                     pks=pks,
-                    db_conn=conn,
                 )
         lock_file_path.remove()
     except Exception as e:
@@ -255,281 +235,230 @@ async def write_db_to_delta(
                 recursive=True,
             )
         raise e
-    finally:
-        if owns_con:
-            conn.close()
 
 
 def restore_last_pk(
-    local_con: duckdb.DuckDBPyConnection,
+    reader: DataSourceReader,
+    table: table_name_type,
     destination: Destination,
-    delta_table: DeltaTable,
     delta_col: InformationSchemaColInfo,
     pk_cols: list[InformationSchemaColInfo],
 ):
-    delta_table.update_incremental()
-    pks = [c.column_name for c in pk_cols]
-    with local_con.cursor() as cur:
-        sq_valid_from = get_sql_for_delta_expr(
-            delta_table,
-            select=[ex.func("max", ex.column(VALID_FROM_COL_NAME))],
-            conditions=[ex.column(IS_FULL_LOAD_COL_NAME).eq(True)],
-        )
-        if sq_valid_from is None:
-            return False
-        cur.execute(sq_valid_from.sql(dialect="duckdb"))
-        max_valid_from_res = cur.fetchone()
-        latest_full_load_date = max_valid_from_res[0] if max_valid_from_res else None
+    delta_path = destination / "delta"
+    reader.local_register_update_view(delta_path, _temp_table(table))
 
-        last_full_load_expr = get_sql_for_delta_expr(
-            delta_table,
-            select=_get_cols_select(
+    pks = [c.column_name for c in pk_cols]
+
+    sq_valid_from = reader.local_execute_sql_to_py(
+        sg.from_(_temp_table(table))
+        .select(ex.func("max", ex.column(VALID_FROM_COL_NAME)).as_(VALID_FROM_COL_NAME))
+        .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
+    )
+    if sq_valid_from is None or len(sq_valid_from) == 0:
+        return False
+    latest_full_load_date = sq_valid_from[0][VALID_FROM_COL_NAME]
+    reader.local_register_view(
+        sg.from_(ex.table_(_temp_table(table), alias="tr"))
+        .select(
+            *_get_cols_select(
                 cols=pk_cols + [delta_col],
                 table_alias="tr",
                 flavor="duckdb",
-            ),
-            conditions=[
-                ex.column(IS_FULL_LOAD_COL_NAME).eq(True),
-                ex.column(VALID_FROM_COL_NAME).eq(
-                    ex.Subquery(
-                        this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME)))
-                        .from_("tr")
-                        .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
-                    )
-                ),
-            ],
-            delta_table_cte_name="tr",
+            )
         )
-        assert last_full_load_expr is not None
-        cur.execute(
-            "create view last_full_load as " + last_full_load_expr.sql("duckdb")
-        )
-    with local_con.cursor() as cur:
-        sq = get_sql_for_delta_expr(
-            delta_table,
-            select=_get_cols_select(
+        .where(
+            ex.column(IS_FULL_LOAD_COL_NAME).eq(True)
+            and ex.column(VALID_FROM_COL_NAME).eq(
+                ex.Subquery(
+                    this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME)))
+                    .from_("tr")
+                    .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
+                )
+            )
+        ),
+        "last_full_load",
+    )
+
+    sq = (
+        sg.from_(ex.table_(_temp_table(table), alias="tr"))
+        .select(
+            *_get_cols_select(
                 cols=pk_cols + [delta_col, IS_DELETED_COL_INFO],
                 table_alias="tr",
                 flavor="duckdb",
-            ),
-            delta_table_cte_name="tr",
-            conditions=[
-                ex.column(VALID_FROM_COL_NAME) > ex.convert(latest_full_load_date)
-            ],
-        )
-        assert sq is not None
-        sq = sq.qualify(
-            ex.EQ(
-                this=ex.Window(
-                    this=ex.RowNumber(),
-                    partition_by=[ex.column(pk) for pk in pks],
-                    order=ex.Order(
-                        expressions=[
-                            ex.Ordered(
-                                this=ex.column(delta_col.column_name),
-                                desc=True,
-                                nulls_first=False,
-                            )
-                        ]
-                    ),
-                    over="OVER",
-                ),
-                expression=ex.convert(1),
             )
         )
-        cur.execute("create view delta_after_full_load as " + sq.sql("duckdb"))
-    with local_con.cursor() as cur:
-
-        sql = f"""create view v_last_pk_version as
-                with base as ( 
-                select df.* from delta_after_full_load df
-                union all
-                select f.*, False as {IS_DELETED_COL_NAME} from last_full_load f 
-                    anti join delta_after_full_load d on {' AND '.join([f"f.{sql_quote_name(c.column_name)} = d.{sql_quote_name(c.column_name)}" for c in pk_cols])}
-                )
-                select * EXCLUDE ({IS_DELETED_COL_NAME}) from base where {IS_DELETED_COL_NAME}
-                    """
-        cur.execute(sql)
-
-    with local_con.cursor() as cur:
-        cur.execute("select count(*) from v_last_pk_version")
-        res = cur.fetchone()
-        assert res is not None
-        res = res[0]
-        if res == 0:
-            return False
-    with local_con.cursor() as cur:
-        cur.execute("select * from v_last_pk_version")
-        rdr = cur.fetch_record_batch()
-        dp, do = (
-            destination / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}"
-        ).as_path_options(flavor="object_store")
-        write_deltalake(
-            dp,
-            rdr,
-            mode="overwrite",
-            schema_mode="overwrite",
-            writer_properties=WRITER_PROPERTIES,
-            engine="rust",
-            storage_options=do,
+        .where(ex.column(VALID_FROM_COL_NAME) > ex.convert(latest_full_load_date))
+    )
+    sq = sq.qualify(
+        ex.EQ(
+            this=ex.Window(
+                this=ex.RowNumber(),
+                partition_by=[ex.column(pk) for pk in pks],
+                order=ex.Order(
+                    expressions=[
+                        ex.Ordered(
+                            this=ex.column(delta_col.column_name),
+                            desc=True,
+                            nulls_first=False,
+                        )
+                    ]
+                ),
+                over="OVER",
+            ),
+            expression=ex.convert(1),
         )
-        return True
+    )
+    reader.local_register_view(sq, "delta_after_full_load")
+    reader.local_register_view(
+        sq.from_("base")
+        .where(ex.column(IS_DELETED_COL_NAME))
+        .with_(
+            "base",
+            as_=ex.union(
+                left=sq.from_("delta_after_full_load").select("*"),
+                right=sq.from_(ex.table_("last_full_load", "f")).join(
+                    ex.table_("delta_after_full_load", "d"),
+                    join_type="anti",
+                    on=ex.and_(
+                        *[
+                            ex.column(c.column_name, "f").eq(
+                                ex.column(c.column_name, "d")
+                            )
+                            for c in pk_cols
+                        ]
+                    ),
+                ),
+                distinct=False,
+            ),
+        )
+        .select(ex.Star(**{"except": [ex.column(IS_DELETED_COL_NAME)]})),
+        "v_last_pk_version",
+    )
+    cnt = reader.local_execute_sql_to_py(
+        "select count(*) as cnt from v_last_pk_version"
+    )[0]["cnt"]
+    if cnt == 0:
+        return False
+    reader.local_execute_sql_to_delta(
+        sq.from_("v_last_pk_version").select(ex.Star()),
+        destination / "delta_load" / DBDeltaPathConfigs.LAST_PK_VERSION,
+        mode="overwrite",
+    )
+    return True
 
 
 def create_replace_view(
-    conn: duckdb.DuckDBPyConnection,
+    reader: DataSourceReader,
     name: str,
-    format: Literal["parquet", "delta"],
     base_destination: Destination,
 ):
-    with conn.cursor() as cur:
-        if format == "parquet":
-            location = base_destination / f"delta_load/{name}.parquet"
-            cur.execute(
-                f"create or replace view {name} as select * from read_parquet('{str(location)}')"
-            )
-        else:
-            location = base_destination / f"delta_load/{name}"
-            cur.execute(
-                f"create or replace view {name} as "
-                + _not_none(get_sql_for_delta_expr(location.as_delta_table())).sql(
-                    "duckdb"
-                )
-            )
+    reader.local_register_update_view(base_destination / f"delta_load/{name}", name)
 
 
 def write_latest_pk(
+    reader: DataSourceReader,
     destination: Destination,
     pks: list[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
 ):
-    with duckdb.connect() as local_con:
-        fs_opts = destination.as_path_options("fsspec")[1]
-        if fs_opts:
-            apply_storage_options(local_con, fs_opts)
-        delta_1_path = (
-            destination / f"delta_load/{DBDeltaPathConfigs.DELTA_1_NAME}.parquet"
-        ).as_path_options("fsspec")[0]
-        delta_2_path = (
-            destination / f"delta_load/{DBDeltaPathConfigs.DELTA_2_NAME}.parquet"
-        )  # we don't always have this one
-        current_pk_path = (
-            destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}.parquet"
-        ).as_path_options("fsspec")[0]
+    reader.local_register_update_view(
+        destination / f"delta_load/{DBDeltaPathConfigs.DELTA_1_NAME}",
+        DBDeltaPathConfigs.DELTA_1_NAME,
+    )
 
-        with local_con.cursor() as cur:
-            select_expr = ex.select(
+    reader.local_register_update_view(
+        destination / f"delta_load/{DBDeltaPathConfigs.DELTA_2_NAME}",
+        DBDeltaPathConfigs.DELTA_2_NAME,
+    )
+    reader.local_register_update_view(
+        destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
+        DBDeltaPathConfigs.PRIMARY_KEYS_TS,
+    )
+
+    latest_pk_query = union(
+        [
+            ex.select(
                 *_get_cols_select(
                     cols=pks + [delta_col],
-                    table_alias="t",
+                    table_alias="au",
                     flavor="duckdb",
                 )
-            )
-            if delta_2_path.exists():
-                create_replace_view(
-                    local_con, DBDeltaPathConfigs.DELTA_2_NAME, "parquet", destination
+            ).from_(table_from_tuple("delta_2", alias="au")),
+            (
+                ex.select(
+                    *_get_cols_select(
+                        cols=pks + [delta_col],
+                        table_alias="d1",
+                        flavor="duckdb",
+                    )
                 )
-            else:
-                cur.execute(
-                    "create view delta_2 as "
-                    + select_expr.from_(read_parquet(delta_1_path).as_("t"))
-                    .where("1=0")
-                    .sql("duckdb")
+                .from_(ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="d1"))
+                .join(
+                    ex.table_("delta_2", alias="au2"),
+                    ex.and_(
+                        *[
+                            ex.column(c.column_name, "d1").eq(
+                                ex.column(c.column_name, "au2")
+                            )
+                            for c in pks
+                        ]
+                    ),
+                    join_type="anti",
                 )
-
-        with local_con.cursor() as cur:
-            latest_pk_query = union(
-                [
-                    ex.select(
-                        *_get_cols_select(
-                            cols=pks + [delta_col],
-                            table_alias="au",
-                            flavor="duckdb",
-                        )
-                    ).from_(table_from_tuple("delta_2", alias="au")),
-                    (
-                        ex.select(
-                            *_get_cols_select(
-                                cols=pks + [delta_col],
-                                table_alias="d1",
-                                flavor="duckdb",
+            ),
+            (
+                ex.select(
+                    *_get_cols_select(
+                        cols=pks + [delta_col],
+                        table_alias="cpk",
+                        flavor="duckdb",
+                    )
+                )
+                .from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="cpt"))
+                .join(
+                    ex.table_("delta_2", alias="au3"),
+                    ex.and_(
+                        *[
+                            ex.column(c.column_name, "cpk").eq(
+                                ex.column(c.column_name, "au3")
                             )
-                        )
-                        .from_(read_parquet(delta_1_path).as_("d1"))
-                        .join(
-                            ex.table_("delta_2", alias="au2"),
-                            ex.and_(
-                                *[
-                                    ex.column(c.column_name, "d1").eq(
-                                        ex.column(c.column_name, "au2")
-                                    )
-                                    for c in pks
-                                ]
-                            ),
-                            join_type="anti",
-                        )
+                            for c in pks
+                        ]
                     ),
-                    (
-                        ex.select(
-                            *_get_cols_select(
-                                cols=pks + [delta_col],
-                                table_alias="cpk",
-                                flavor="duckdb",
+                    join_type="anti",
+                )
+                .join(
+                    ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
+                    ex.and_(
+                        *[
+                            ex.column(c.column_name, "cpk").eq(
+                                ex.column(c.column_name, "au4")
                             )
-                        )
-                        .from_(read_parquet(current_pk_path).as_("cpk"))
-                        .join(
-                            ex.table_("delta_2", alias="au3"),
-                            ex.and_(
-                                *[
-                                    ex.column(c.column_name, "cpk").eq(
-                                        ex.column(c.column_name, "au3")
-                                    )
-                                    for c in pks
-                                ]
-                            ),
-                            join_type="anti",
-                        )
-                        .join(
-                            read_parquet(delta_1_path).as_("au4"),
-                            ex.and_(
-                                *[
-                                    ex.column(c.column_name, "cpk").eq(
-                                        ex.column(c.column_name, "au4")
-                                    )
-                                    for c in pks
-                                ]
-                            ),
-                            join_type="anti",
-                        )
+                            for c in pks
+                        ]
                     ),
-                ],
-                distinct=False,
-            )
-            cur.execute(latest_pk_query.sql("duckdb"))
-            dp, do = (
-                destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
-            ).as_path_options(flavor="object_store")
-            write_deltalake(
-                dp,
-                cur.fetch_record_batch(),
-                mode="overwrite",
-                schema_mode="overwrite",
-                writer_properties=WRITER_PROPERTIES,
-                engine="rust",
-                storage_options=do,
-            )
+                    join_type="anti",
+                )
+            ),
+        ],
+        distinct=False,
+    )
+    reader.local_execute_sql_to_delta(
+        latest_pk_query,
+        destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
+        mode="overwrite",
+    )
 
 
 async def do_delta_load(
-    connection_string: str,
+    reader: DataSourceReader,
     table: table_name_type,
     destination: Destination,
     *,
     delta_col: InformationSchemaColInfo,
     cols: list[InformationSchemaColInfo],
     pks: list[str],
-    db_conn: pyodbc.Connection,
 ):
     last_pk_path = destination / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}"
     logger.info(
@@ -544,6 +473,7 @@ async def do_delta_load(
         if not (last_pk_path / "_delta_log").exists():  # or do a full load?
             logger.warning(f"{table}: Primary keys missing, try to restore")
             if not restore_last_pk(
+                table,
                 local_con,
                 destination,
                 (destination / "delta").as_delta_table(),
@@ -552,7 +482,7 @@ async def do_delta_load(
             ):
                 logger.warning(f"{table}: No primary keys found, do a full load")
                 do_full_load(
-                    connection_string,
+                    reader,
                     table,
                     destination / "delta",
                     mode="append",
@@ -585,7 +515,7 @@ async def do_delta_load(
         if delta_load_value is None:
             logger.warning(f"{table}: No delta load value, do a full load")
             do_full_load(
-                connection_string,
+                reader,
                 table,
                 delta_path,
                 mode="append",
@@ -601,7 +531,7 @@ async def do_delta_load(
             f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
         )
         _retrieve_primary_key_data(
-            connection_string=connection_string,
+            reader=reader,
             table=table,
             delta_col=delta_col,
             pk_cols=pk_cols,
@@ -613,7 +543,7 @@ async def do_delta_load(
         ) > ex.convert(delta_load_value)
         logger.info(f"{table}: Start delta step 2, load updates by timestamp")
         _load_updates_to_delta(
-            connection_string,
+            reader,
             table,
             delta_path,
             cols=cols,
@@ -624,7 +554,7 @@ async def do_delta_load(
         dt.update_incremental()
 
         await _handle_additional_updates(
-            connection_string=connection_string,
+            reader=reader,
             table=table,
             delta_path=delta_path,
             db_conn=db_conn,
@@ -653,7 +583,7 @@ async def do_delta_load(
 def do_deletes(
     destination: Destination,
     local_con: duckdb.DuckDBPyConnection,
-    delta_table: DeltaTable,
+    # delta_table: DeltaTable,
     cols: list[InformationSchemaColInfo],
     pk_cols: list[InformationSchemaColInfo],
 ):
@@ -751,7 +681,7 @@ def do_deletes(
 
 
 def _retrieve_primary_key_data(
-    connection_string: str,
+    reader: DataSourceReader,
     table: table_name_type,
     delta_col: InformationSchemaColInfo,
     pk_cols: list[InformationSchemaColInfo],
@@ -770,9 +700,7 @@ def _retrieve_primary_key_data(
 
     pk_path = destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}.parquet"
 
-    write_sql_to_parquet(
-        sql=pk_ts_reader_sql, connection_string=connection_string, parquet_path=pk_path
-    )
+    reader.write_sql_to_parquet(sql=pk_ts_reader_sql, parquet_path=pk_path)
     return pk_path
 
     # todo: test
@@ -781,11 +709,9 @@ def _retrieve_primary_key_data(
 
 
 async def _handle_additional_updates(
-    connection_string: str,
+    reader: DataSourceReader,
     table: table_name_type,
     delta_path: Destination,
-    db_conn: pyodbc.Connection,
-    local_con: duckdb.DuckDBPyConnection,
     pk_cols: list[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
     cols: list[InformationSchemaColInfo],
@@ -793,65 +719,53 @@ async def _handle_additional_updates(
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
     folder = delta_path.parent
     pk_ds_cols = pk_cols + [delta_col]
-    create_replace_view(
-        local_con, DBDeltaPathConfigs.PRIMARY_KEYS_TS, "parquet", folder
-    )
-    create_replace_view(local_con, DBDeltaPathConfigs.LAST_PK_VERSION, "delta", folder)
-    with local_con.cursor() as cur:
-        cur.execute(
-            ex.except_(
-                left=ex.select(
-                    *_get_cols_select(
-                        cols=pk_ds_cols,
-                        table_alias="pk",
-                        flavor="duckdb",
-                    )
-                ).from_(
-                    table_from_tuple(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")
-                ),
-                right=ex.select(
-                    *_get_cols_select(
-                        cols=pk_ds_cols,
-                        table_alias="lpk",
-                        flavor="duckdb",
-                    )
-                ).from_(
-                    table_from_tuple(DBDeltaPathConfigs.LAST_PK_VERSION, alias="lpk")
-                ),
-            ).sql("duckdb")
-        )
-        rdr = cur.fetch_record_batch()
-        additional_updates_path = folder / "delta_load/additional_updates.parquet"
-        write_batch_to_parquet(additional_updates_path, rdr)
-    with local_con.cursor() as cur:
-        sql_query = ex.except_(
+    create_replace_view(reader, DBDeltaPathConfigs.PRIMARY_KEYS_TS, folder)
+    create_replace_view(reader, DBDeltaPathConfigs.LAST_PK_VERSION, folder)
+    reader.local_register_view(
+        ex.except_(
             left=ex.select(
                 *_get_cols_select(
-                    cols=pk_cols,
-                    table_alias="au",
+                    cols=pk_ds_cols,
+                    table_alias="pk",
                     flavor="duckdb",
                 )
-            ).from_(read_parquet(str(additional_updates_path)).as_("au")),
+            ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
             right=ex.select(
                 *_get_cols_select(
-                    cols=pk_cols,
-                    table_alias="d1",
+                    cols=pk_ds_cols,
+                    table_alias="lpk",
                     flavor="duckdb",
                 )
-            ).from_(table_from_tuple("delta_1", alias="d1")),
+            ).from_(table_from_tuple(DBDeltaPathConfigs.LAST_PK_VERSION, alias="lpk")),
+        ),
+        "additional_updates",
+    )
+
+    sql_query = ex.except_(
+        left=ex.select(
+            *_get_cols_select(
+                cols=pk_cols,
+                table_alias="au",
+                flavor="duckdb",
+            )
+        ).from_(ex.table_("additional_updates", alias="au")),
+        right=ex.select(
+            *_get_cols_select(
+                cols=pk_cols,
+                table_alias="d1",
+                flavor="duckdb",
+            )
+        ).from_(table_from_tuple("delta_1", alias="d1")),
+    )
+    reader.local_register_view(sql_query, "real_additional_updates")
+    cnt = reader.local_execute_sql_to_py(
+        sg.parse_one(
+            "select count(*) as cnt from (select * from real_additional_updates limit 1) s",
+            dialect="spark",
         )
-        cur.execute(
-            """create or replace view real_additional_updates as """
-            + sql_query.sql("duckdb")
-        )
-    with local_con.cursor() as cur:
-        cur.execute(
-            "select count(*) from (select * from real_additional_updates limit 1) s"
-        )
-        res = cur.fetchone()
-        assert res is not None
-        res = res[0]
-        has_additional_updates = res > 0
+    )[0]
+    has_additional_updates = cnt > 0
+
     if has_additional_updates:
         logger.warning(f"{table}: Start delta step 3, load strange updates")
         temp_table_name = "##temp_updates_" + str(hash(table[1]))[1:]
@@ -861,8 +775,7 @@ async def _handle_additional_updates(
             primary_keys=None,
             with_exist_check=False,
         )
-        with db_conn.cursor() as cur:
-            cur.execute(sql)
+        reader.source_sql_to_py(sql)
         from .odbc_insert import pyodbc_insert_into_table
 
         await pyodbc_insert_into_table(
@@ -890,7 +803,7 @@ async def _handle_additional_updates(
             inner join {temp_table_name} ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.column_name)}' for c in pk_cols])}"""
 
         _load_updates_to_delta(
-            connection_string=connection_string,
+            reader=reader,
             table=table,
             delta_path=delta_path,
             cols=cols,
@@ -904,11 +817,10 @@ async def _handle_additional_updates(
 
 
 def _load_updates_to_delta(
-    connection_string: str,
+    reader: DataSourceReader,
     table: table_name_type,
     delta_path: Destination,
     cols: list[InformationSchemaColInfo],
-    local_con: duckdb.DuckDBPyConnection,
     criterion: str | Sequence[str | ex.Expression] | ex.Expression,
     delta_name: str,
 ):
@@ -932,56 +844,19 @@ def _load_updates_to_delta(
     if isinstance(criterion, str):
         delta_sql += " " + criterion
 
-    delta_name_path = delta_path.parent / f"delta_load/{delta_name}.parquet"
-    write_sql_to_parquet(
-        sql=delta_sql, connection_string=connection_string, parquet_path=delta_name_path
-    )
-    with local_con.cursor() as cur:
-        cur.execute(
-            f'create view {delta_name} as select * from read_parquet("{str(delta_name_path)}")'
+    delta_name_path = delta_path.parent / f"delta_load/{delta_name}"
+    reader.source_write_sql_to_delta(delta_sql, delta_name_path, mode="overwrite")
+    reader.local_register_update_view(delta_name_path, delta_name)
+    count = reader.local_execute_sql_to_py(
+        sg.from_(sg.from_(delta_name).select(ex.Star()).limit(1).subquery()).select(
+            ex.Count(this=ex.Star()).as_("cnt")
         )
-
-    with local_con.cursor() as cur:
-        cur.execute(f"select count(*) from (select * from {delta_name} limit 1)")
-        res = cur.fetchone()
-        assert res is not None
-        res = res[0]
-        if res == 0:
-            return
-    with local_con.cursor() as cur:
-        cur.execute(f"select * from {delta_name}")
-        rdr = cur.fetch_record_batch()
-        dp, do = delta_path.as_path_options(flavor="object_store")
-        write_deltalake(
-            dp,
-            rdr,
-            storage_options=do,
-            schema=_all_nullable(rdr.schema),
-            mode="append",
-            writer_properties=WRITER_PROPERTIES,
-            engine="rust",
-            schema_mode="merge",
-        )
-
-
-def write_sql_to_parquet(connection_string: str, sql: str, parquet_path: Destination):
-    logger.debug(f"SQL for {parquet_path}: \n{sql}")
-    batch_reader = read_arrow_batches_from_odbc(
-        query=sql,
-        connection_string=connection_string,
-        max_binary_size=20000,
-        max_text_size=20000,
+    )[0]["cnt"]
+    if count == 0:
+        return
+    reader.local_execute_sql_to_delta(
+        sg.from_(delta_name).select(ex.Star()), delta_path, mode="append"
     )
-    temp_path = parquet_path.with_suffix(".tmp.parquet")
-    if temp_path.exists():
-        temp_path.remove()
-    fs, path = temp_path.get_fs_path()
-    with pq.ParquetWriter(path, filesystem=fs, schema=batch_reader.schema) as writer:
-        for batch in batch_reader:
-            writer.write_batch(batch)
-    if parquet_path.exists():
-        parquet_path.remove()
-    fs.move(path, str(parquet_path))
 
 
 def write_batch_to_parquet(
@@ -999,8 +874,14 @@ def write_batch_to_parquet(
     fs.move(path, str(parquet_path))
 
 
+def _temp_table(table: table_name_type):
+    if isinstance(table, str):
+        return "temp_" + table
+    return "temp_" + "_".join(table)
+
+
 def do_full_load(
-    connection_string: str,
+    reader: DataSourceReader,
     table: table_name_type,
     delta_path: Destination,
     mode: Literal["overwrite", "append"],
@@ -1022,82 +903,31 @@ def do_full_load(
         .from_(table_from_tuple(table))
         .sql("tsql")
     )
-    reader = read_arrow_batches_from_odbc(
-        query=sql,
-        connection_string=connection_string,
-        max_binary_size=20000,
-        max_text_size=20000,
-    )
-    try:
-        dt = delta_path.as_delta_table()
-        old_add_actions = dt.get_add_actions().to_pylist()
-        old_paths = [ac["path"] for ac in old_add_actions]
-    except TableNotFoundError:
-        old_paths = []
-        dt = None
-    dp, do = delta_path.as_path_options(flavor="object_store")
-    try:
-        write_deltalake(
-            dp,
-            reader,
-            schema=_all_nullable(reader.schema),
-            mode=mode,
-            writer_properties=WRITER_PROPERTIES,
-            schema_mode="overwrite" if mode == "overwrite" else "merge",
-            engine="rust",
-            storage_options=do,
+    if (delta_path / "_delta_log").exists():
+        reader.register_update_view(delta_path, _temp_table(table))
+        res = reader.execute_local_sql_to_py(
+            sg.from_(_temp_table(table)).select(
+                ex.func("max", ex.column(VALID_FROM_COL_NAME)).as_(VALID_FROM_COL_NAME)
+            )
         )
-    except DeltaError as e:
-        if "No data source supplied to write command" in str(e):
-            if mode == "overwrite":
-                write_empty_delta_table(reader.schema, dp, do)
-            logger.warning(f"{table}: No data to write")
-        else:
-            raise e
+        max_valid_from = res[0][VALID_FROM_COL_NAME] if res else None
 
+    reader.write_sql_to_delta(sql, delta_path, mode=mode)
     if delta_col is None:
         logger.info(f"{table}: Full Load done")
         return
     logger.info(f"{table}: Full Load done, write meta for delta load")
 
-    dt = dt or delta_path.as_delta_table()
-    dt.update_incremental()
+    reader.register_update_view(delta_path, _temp_table(table))
     (delta_path.parent / "delta_load").mkdir()
-    with duckdb.connect() as local_con:
-        if delta_path.storage_options is not None:
-            apply_storage_options(local_con, delta_path.storage_options)
-        sql = get_sql_for_delta_expr(
-            dt,
-            select=[pk for pk in pks] + ([delta_col.column_name] if delta_col else []),
-            action_filter=lambda ac: ac["path"] not in old_paths,
+    query = sg.from_(_temp_table(table)).select(
+        *(
+            [ex.column(pk) for pk in pks]
+            + ([ex.column(delta_col.column_name)] if delta_col else [])
         )
-        if sql is None:
-            return
-        with local_con.cursor() as cur:
-            cur.execute(sql.sql("duckdb"))
-            dp, do = (
-                delta_path.parent / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
-            ).as_path_options("object_store")
-            write_deltalake(
-                dp,
-                cur.fetch_record_batch(),
-                mode="overwrite",
-                schema_mode="overwrite",
-                writer_properties=WRITER_PROPERTIES,
-                engine="rust",
-                storage_options=do,
-            )
-
-
-def write_empty_delta_table(
-    schema: pa.Schema, path: str | Path, storage_options: dict[str, str] | None
-):
-    write_deltalake(
-        path,
-        [],
-        schema=_all_nullable(schema),
-        mode="overwrite",
-        schema_mode="overwrite",
-        engine="pyarrow",
-        storage_options=storage_options,
+    )
+    if max_valid_from:
+        query = query.where(ex.column(VALID_FROM_COL_NAME) > ex.convert(max_valid_from))
+    reader.local_execute_sql_to_delta(
+        query, delta_path.parent / "delta_load" / DBDeltaPathConfigs.LAST_PK_VERSION
     )
