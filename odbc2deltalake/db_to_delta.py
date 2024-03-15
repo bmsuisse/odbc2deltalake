@@ -188,15 +188,10 @@ async def write_db_to_delta(
         (destination / "delta_load").path_rename(destination / "delta_load_backup")  # type: ignore
 
         if (
-            destination / f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
+            destination / "delta_load_backup" / DBDeltaPathConfigs.LATEST_PK_VERSION
         ).exists():
-            fs.copy(
-                path
-                + "/"
-                + f"delta_load_backup/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
-                path + "/" + f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}",
-                recursive=True,
-            )
+            (destination / "delta_load_backup" / DBDeltaPathConfigs.LATEST_PK_VERSION).path_copy(destination / "delta_load" / DBDeltaPathConfigs.LAST_PK_VERSION)  # type: ignore
+
     lock_file_path = destination / "meta/lock.txt"
 
     try:

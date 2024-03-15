@@ -63,16 +63,23 @@ class FileSystemDestination:
     def path_rename(self, other: "FileSystemDestination"):
         self.path.rename(other.path.absolute())
 
+    def path_copy(self, other: "FileSystemDestination"):
+        import shutil
+
+        shutil.copytree(self.path, other.path)
+
 
 class AzureDestination:
     def __init__(self, container: str, path: str, storage_options: dict):
+        import adlfs
+
         self.container = container
         self.path = path
         self.storage_options = storage_options
         from .azure_utils import convert_options
 
         opts = cast(dict[str, str], convert_options(self.storage_options, "fsspec"))
-        self.fs = fsspec.filesystem("az", **opts)
+        self.fs = cast(adlfs.AzureBlobFileSystem, fsspec.filesystem("az", **opts))
 
     def to_az_path(self):
         return f"az://{self.container}/{self.path}"
@@ -150,6 +157,24 @@ class AzureDestination:
             client.get_directory_client(self.container, self.path).rename_directory(
                 f"{other.container}/{other.path}"
             )
+
+    def path_copy(self, other: "AzureDestination"):
+        from .azure_utils import get_data_lake_client
+
+        with get_data_lake_client(self.storage_options) as client:
+            with client.get_file_system_client(self.container) as fsc:
+                for path in fsc.get_paths(self.path, recursive=True):
+                    from azure.storage.filedatalake import PathProperties
+
+                    pp = cast(PathProperties, path)
+                    if pp.is_directory:
+                        continue
+                    name: str = pp.name
+                    relative_path = name[len(self.path) :].removeprefix("/")
+                    self.fs.cp_file(
+                        f"az://{self.container}/{pp.name}",
+                        f"az://{other.container}/{other.path}/{relative_path}",
+                    )
 
 
 Destination = FileSystemDestination | AzureDestination
