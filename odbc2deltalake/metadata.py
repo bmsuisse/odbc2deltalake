@@ -21,8 +21,8 @@ def get_primary_keys(
     )
     assert isinstance(query, ex.Select)
     query = query.where(
-        ex.column("ccu.TABLE_NAME").eq(table_name[1])
-        and ex.column("ccu.TABLE_SCHEMA").eq(table_name[0])
+        ex.column("TABLE_NAME", "ccu").eq(table_name[1])
+        and ex.column("TABLE_SCHEMA", "ccu").eq(table_name[0])
     )
     full_query = query.sql("tsql")
     return [d["COLUMN_NAME"] for d in reader.source_sql_to_py(full_query)]
@@ -90,7 +90,7 @@ def get_columns(
 ) -> list[InformationSchemaColInfo]:
     query = sqlglot.parse_one(
         """ SELECT  ccu.column_name, ccu.column_default,
-		cast(case when ccu.IS_NULLABLE=''YES'' THEN 1 ELSE 0 end as bit) as is_nullable,
+		cast(case when ccu.IS_NULLABLE='YES' THEN 1 ELSE 0 END as bit) as is_nullable,
 		data_type,
 		character_maximum_length,
 		numeric_precision,

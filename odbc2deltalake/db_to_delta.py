@@ -1,23 +1,13 @@
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Literal, Sequence, TypeVar
-from arrow_odbc import read_arrow_batches_from_odbc
-from deltalake2db.duckdb import apply_storage_options
 import asyncio
 import sqlglot as sg
 from odbc2deltalake.destination import (
-    AzureDestination,
     Destination,
-    FileSystemDestination,
 )
 from odbc2deltalake.reader import DataSourceReader
-from .sql_schema import get_sql_for_schema
 from .query import sql_quote_name
-import os
-import pyarrow as pa
-import pyarrow.dataset as ds
-import pyarrow.parquet as pq
-import pyodbc
 from .metadata import (
     get_primary_keys,
     get_columns,
@@ -25,14 +15,9 @@ from .metadata import (
     InformationSchemaColInfo,
 )
 import json
-from deltalake2db import get_sql_for_delta_expr
-import duckdb
 import time
 import sqlglot.expressions as ex
 from .sql_glot_utils import table_from_tuple, union, count_limit_one
-from deltalake2db.sql_utils import read_parquet
-from .odbc_utils import build_connection_string
-import shutil
 import logging
 
 logger = logging.getLogger(__name__)
@@ -149,6 +134,7 @@ async def write_db_to_delta(
     destination: Destination | Path,
 ):
     if isinstance(destination, Path):
+        from .destination import FileSystemDestination
         destination = FileSystemDestination(destination)
     if isinstance(source, str):
         from .reader import ODBCReader
@@ -449,6 +435,12 @@ def write_latest_pk(
     )
 
 
+def _temp_table(table: table_name_type):
+    if isinstance(table, str):
+        return "temp_" + table
+    return "temp_" + "_".join(table)
+
+
 async def do_delta_load(
     reader: DataSourceReader,
     table: table_name_type,
@@ -463,111 +455,100 @@ async def do_delta_load(
         f"{table}: Start Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join(pks)}"
     )
 
-    with duckdb.connect() as local_con:
-        fs_opts = destination.as_path_options("fsspec")[1]
-        if fs_opts:
-            apply_storage_options(local_con, fs_opts)
-
-        if not (last_pk_path / "_delta_log").exists():  # or do a full load?
-            logger.warning(f"{table}: Primary keys missing, try to restore")
-            if not restore_last_pk(
-                reader,
-                table,
-                destination,
-                delta_col,
-                [c for c in cols if c.column_name in pks],
-            ):
-                logger.warning(f"{table}: No primary keys found, do a full load")
-                do_full_load(
-                    reader,
-                    table,
-                    delta_path=destination / "delta",
-                    mode="append",
-                    cols=cols,
-                    pks=pks,
-                    delta_col=delta_col,
-                )
-                return
-        delta_path = destination / "delta"
-        dt = delta_path.as_delta_table()
-        sq = get_sql_for_delta_expr(
-            dt,
-            select=[
-                ex.func(
-                    "MAX",
-                    _cast(
-                        delta_col.column_name,
-                        delta_col.data_type,
-                        flavor="duckdb",
-                    ),
-                )
-            ],
-        )
-        assert sq is not None
-        sql = sq.sql("duckdb")
-        with local_con.cursor() as cur:
-            cur.execute(sql)
-            res = cur.fetchone()
-            delta_load_value = res[0] if res else None
-        if delta_load_value is None:
-            logger.warning(f"{table}: No delta load value, do a full load")
+    if not (last_pk_path / "_delta_log").exists():  # or do a full load?
+        logger.warning(f"{table}: Primary keys missing, try to restore")
+        if not restore_last_pk(
+            reader,
+            table,
+            destination,
+            delta_col,
+            [c for c in cols if c.column_name in pks],
+        ):
+            logger.warning(f"{table}: No primary keys found, do a full load")
             do_full_load(
                 reader,
                 table,
-                delta_path,
+                delta_path=destination / "delta",
                 mode="append",
                 cols=cols,
                 pks=pks,
                 delta_col=delta_col,
             )
             return
-        pk_cols = [c for c in cols if c.column_name in pks]
-        pk_ds_cols = pk_cols + [delta_col]
-        assert len(pk_ds_cols) == len(pks) + 1
-        logger.info(
-            f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
+    delta_path = destination / "delta"
+    reader.local_register_update_view(delta_path, _temp_table(table))
+    delta_load_value = reader.local_execute_sql_to_py(
+        sg.from_(_temp_table(table)).select(
+            ex.func(
+                "MAX",
+                _cast(
+                    delta_col.column_name,
+                    delta_col.data_type,
+                    flavor="duckdb",
+                ),
+            ).as_("max_ts")
         )
-        _retrieve_primary_key_data(
-            reader=reader,
-            table=table,
-            delta_col=delta_col,
-            pk_cols=pk_cols,
-            destination=destination,
-        )
+    )[0]["max_ts"]
 
-        criterion = _cast(
-            delta_col.column_name, delta_col.data_type, table_alias="t", flavor="tsql"
-        ) > ex.convert(delta_load_value)
-        logger.info(f"{table}: Start delta step 2, load updates by timestamp")
-        _load_updates_to_delta(
+    if delta_load_value is None:
+        logger.warning(f"{table}: No delta load value, do a full load")
+        do_full_load(
             reader,
-            sql=_get_update_sql(cols=cols, criterion=criterion, table=table),
-            delta_path=delta_path,
-            delta_name="delta_1",
-        )
-
-        await _handle_additional_updates(
-            reader=reader,
-            table=table,
-            delta_path=delta_path,
-            pk_cols=pk_cols,
+            table,
+            delta_path,
+            mode="append",
+            cols=cols,
+            pks=pks,
             delta_col=delta_col,
-            cols=cols,
         )
-        dt.update_incremental()
+        return
+    pk_cols = [c for c in cols if c.column_name in pks]
+    pk_ds_cols = pk_cols + [delta_col]
+    assert len(pk_ds_cols) == len(pks) + 1
+    logger.info(
+        f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
+    )
+    _retrieve_primary_key_data(
+        reader=reader,
+        table=table,
+        delta_col=delta_col,
+        pk_cols=pk_cols,
+        destination=destination,
+    )
 
-        logger.info(f"{table}: Start delta step 3.5, write meta for next delta load")
+    criterion = _cast(
+        delta_col.column_name, delta_col.data_type, table_alias="t", flavor="tsql"
+    ) > ex.convert(delta_load_value)
+    logger.info(f"{table}: Start delta step 2, load updates by timestamp")
+    _load_updates_to_delta(
+        reader,
+        sql=_get_update_sql(cols=cols, criterion=criterion, table=table),
+        delta_path=delta_path,
+        delta_name="delta_1",
+    )
 
-        write_latest_pk(reader, destination, pk_cols, delta_col)
+    await _handle_additional_updates(
+        reader=reader,
+        table=table,
+        delta_path=delta_path,
+        pk_cols=pk_cols,
+        delta_col=delta_col,
+        cols=cols,
+    )
+    reader.local_register_update_view(delta_path, _temp_table(table))
 
-        logger.info(f"{table}: Start delta step 4.5, write deletes")
-        do_deletes(
-            reader=reader,
-            destination=destination,
-            cols=cols,
-            pk_cols=pk_cols,
-        )
-        logger.info(f"{table}: Done delta load")
+    logger.info(f"{table}: Start delta step 3.5, write meta for next delta load")
+
+    write_latest_pk(reader, destination, pk_cols, delta_col)
+
+    logger.info(f"{table}: Start delta step 4.5, write deletes")
+    do_deletes(
+        reader=reader,
+        destination=destination,
+        cols=cols,
+        pk_cols=pk_cols,
+    )
+    logger.info(f"{table}: Done delta load")
 
 
 def do_deletes(
@@ -835,27 +816,6 @@ def _load_updates_to_delta(
     reader.local_execute_sql_to_delta(
         sg.from_(delta_name).select(ex.Star()), delta_path, mode="append"
     )
-
-
-def write_batch_to_parquet(
-    parquet_path: Destination, batch_reader: pa.RecordBatchReader
-):
-    temp_path = parquet_path.with_suffix(".tmp.parquet")
-    if temp_path.exists():
-        temp_path.remove()
-    fs, path = temp_path.get_fs_path()
-    with pq.ParquetWriter(path, filesystem=fs, schema=batch_reader.schema) as writer:
-        for batch in batch_reader:
-            writer.write_batch(batch)
-    if parquet_path.exists():
-        parquet_path.remove()
-    fs.move(path, str(parquet_path))
-
-
-def _temp_table(table: table_name_type):
-    if isinstance(table, str):
-        return "temp_" + table
-    return "temp_" + "_".join(table)
 
 
 def do_full_load(
