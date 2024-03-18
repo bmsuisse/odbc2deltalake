@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterable, Literal, Sequence, TypeVar
 import asyncio
 import sqlglot as sg
-from odbc2deltalake.destination import (
+from odbc2deltalake.destination.destination import (
     Destination,
 )
 from odbc2deltalake.reader import DataSourceReader
@@ -134,7 +134,8 @@ async def write_db_to_delta(
     destination: Destination | Path,
 ):
     if isinstance(destination, Path):
-        from .destination import FileSystemDestination
+        from .destination.file_system import FileSystemDestination
+
         destination = FileSystemDestination(destination)
     if isinstance(source, str):
         from .reader import ODBCReader
@@ -236,7 +237,7 @@ def restore_last_pk(
     pks = [c.column_name for c in pk_cols]
 
     sq_valid_from = reader.local_execute_sql_to_py(
-        sg.from_(_temp_table(table))
+        sg.from_(ex.to_identifier(_temp_table(table)))
         .select(ex.func("max", ex.column(VALID_FROM_COL_NAME)).as_(VALID_FROM_COL_NAME))
         .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
     )
@@ -244,7 +245,7 @@ def restore_last_pk(
         return False
     latest_full_load_date = sq_valid_from[0][VALID_FROM_COL_NAME]
     reader.local_register_view(
-        sg.from_(ex.table_(_temp_table(table), alias="tr"))
+        sg.from_(ex.table_(ex.to_identifier(_temp_table(table)), alias="tr"))
         .select(
             *_get_cols_select(
                 cols=pk_cols + [delta_col],
@@ -399,7 +400,7 @@ def write_latest_pk(
                         flavor="duckdb",
                     )
                 )
-                .from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="cpt"))
+                .from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="cpk"))
                 .join(
                     ex.table_("delta_2", alias="au3"),
                     ex.and_(
@@ -478,7 +479,7 @@ async def do_delta_load(
     delta_path = destination / "delta"
     reader.local_register_update_view(delta_path, _temp_table(table))
     delta_load_value = reader.local_execute_sql_to_py(
-        sg.from_(_temp_table(table)).select(
+        sg.from_(ex.to_identifier(_temp_table(table))).select(
             ex.func(
                 "MAX",
                 _cast(
@@ -721,7 +722,9 @@ async def _handle_additional_updates(
     from .sql_schema import _get_col_definition
     from .query import sql_quote_value
 
-    jsd = reader.source_sql_to_py(sg.from_("real_additional_updates").select(ex.Star()))
+    jsd = reader.local_execute_sql_to_py(
+        sg.from_("real_additional_updates").select(ex.Star())
+    )
     jsd = json.dumps(jsd)
     col_defs = ", ".join(
         [_get_col_definition(p.as_field_type(), True) for p in pk_cols]
@@ -844,7 +847,7 @@ def do_full_load(
     if (delta_path / "_delta_log").exists():
         reader.local_register_update_view(delta_path, _temp_table(table))
         res = reader.local_execute_sql_to_py(
-            sg.from_(_temp_table(table)).select(
+            sg.from_(ex.to_identifier(_temp_table(table))).select(
                 ex.func("max", ex.column(VALID_FROM_COL_NAME)).as_(VALID_FROM_COL_NAME)
             )
         )
@@ -859,7 +862,7 @@ def do_full_load(
 
     reader.local_register_update_view(delta_path, _temp_table(table))
     (delta_path.parent / "delta_load").mkdir()
-    query = sg.from_(_temp_table(table)).select(
+    query = sg.from_(ex.to_identifier(_temp_table(table))).select(
         *(
             [ex.column(pk) for pk in pks]
             + ([ex.column(delta_col.column_name)] if delta_col else [])
@@ -869,6 +872,6 @@ def do_full_load(
         query = query.where(ex.column(VALID_FROM_COL_NAME) > ex.convert(max_valid_from))
     reader.local_execute_sql_to_delta(
         query,
-        delta_path.parent / "delta_load" / DBDeltaPathConfigs.LAST_PK_VERSION,
+        delta_path.parent / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
     )

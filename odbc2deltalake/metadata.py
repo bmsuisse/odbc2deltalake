@@ -21,8 +21,9 @@ def get_primary_keys(
     )
     assert isinstance(query, ex.Select)
     query = query.where(
-        ex.column("TABLE_NAME", "ccu").eq(table_name[1])
-        and ex.column("TABLE_SCHEMA", "ccu").eq(table_name[0])
+        ex.column("TABLE_NAME", "ccu")
+        .eq(table_name[1])
+        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(table_name[0]))
     )
     full_query = query.sql("tsql")
     return [d["COLUMN_NAME"] for d in reader.source_sql_to_py(full_query)]
@@ -108,8 +109,9 @@ SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.gener
     )
     assert isinstance(query, ex.Select)
     full_query = query.where(
-        ex.column("TABLE_NAME", "ccu").eq(table_name[1])
-        and ex.column("TABLE_SCHEMA", "ccu").eq(table_name[0])
+        ex.column("TABLE_NAME", "ccu")
+        .eq(table_name[1])
+        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(table_name[0]))
     ).sql("tsql")
     dicts = reader.source_sql_to_py(full_query)
     return [InformationSchemaColInfo(**d) for d in dicts]

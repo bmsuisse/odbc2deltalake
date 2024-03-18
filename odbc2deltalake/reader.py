@@ -1,5 +1,5 @@
 from pathlib import Path
-from odbc2deltalake.destination import Destination
+from odbc2deltalake.destination.destination import Destination
 import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Literal
@@ -157,21 +157,32 @@ class ODBCReader(DataSourceReader):
     ):
         import duckdb
         from deltalake import write_deltalake
+        from deltalake.exceptions import DeltaError
 
         self.duck_con = self.duck_con or duckdb.connect()
 
         with self.duck_con.cursor() as cur:
             cur.execute(sql.sql("duckdb"))
             dp, do = delta_path.as_path_options("object_store")
-            write_deltalake(
-                dp,
-                cur.fetch_record_batch(),
-                mode=mode,
-                schema_mode="overwrite" if mode == "overwrite" else "merge",
-                writer_properties=self.writer_properties,
-                engine="rust",
-                storage_options=do,
-            )
+            batch_reader = cur.fetch_record_batch()
+            schema = batch_reader.schema
+            try:
+
+                write_deltalake(
+                    dp,
+                    batch_reader,
+                    mode=mode,
+                    schema_mode="overwrite" if mode == "overwrite" else "merge",
+                    writer_properties=self.writer_properties,
+                    engine="rust",
+                    storage_options=do,
+                )
+            except DeltaError as e:
+                if "No data source supplied to write command" in str(e):
+                    if mode == "overwrite":
+                        self._write_empty_delta_table(schema, dp, do)
+                else:
+                    raise e
 
     @property
     def query_dialect(self) -> str:
