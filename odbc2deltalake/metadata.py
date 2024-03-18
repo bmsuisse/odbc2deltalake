@@ -19,6 +19,7 @@ def get_primary_keys(
     WHERE tc.CONSTRAINT_TYPE = 'Primary Key'""",
         dialect="tsql",
     )
+    assert isinstance(query, ex.Select)
     query = query.where(
         ex.column("ccu.TABLE_NAME").eq(table_name[1])
         and ex.column("ccu.TABLE_SCHEMA").eq(table_name[0])

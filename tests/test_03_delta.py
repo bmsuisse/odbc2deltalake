@@ -18,9 +18,7 @@ async def test_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user2")
-    await write_db_to_delta(
-        connection.conn_str, ("dbo", "user2"), base_path, connection.conn
-    )
+    await write_db_to_delta(connection.conn_str, ("dbo", "user2"), base_path)
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(

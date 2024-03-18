@@ -22,14 +22,14 @@ class DataSourceReader(ABC):
         pass 
 
     @abstractmethod
-    def source_sql_to_py(self, sql: str) -> list[dict]:
+    def source_sql_to_py(self, sql: str | Query) -> list[dict]:
         pass
     @abstractmethod
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
         pass
     
     @abstractmethod
-    def local_execute_sql_to_delta(self, sql: Query, delta_path: Destination, mode:  Literal["overwrite", "append"]) -> list[dict]:
+    def local_execute_sql_to_delta(self, sql: Query, delta_path: Destination, mode:  Literal["overwrite", "append"]):
         pass
 
     @abstractmethod
@@ -43,10 +43,10 @@ class DataSourceReader(ABC):
 
 class SparkReader(DataSourceReader):
     def __init__(
-        self, spark, sql_config: dict[str, str] = None, linked_server_proxy: str | None= None
+        self, spark, sql_config: dict[str, str] | None = None, linked_server_proxy: str | None= None
     ):
         self.spark = spark
-        self.sql_config = sql_config
+        self.sql_config = sql_config or dict()
         self.linked_server_proxy = linked_server_proxy
     
     def local_register_update_view(self, delta_path: Destination, view_name: str):
@@ -59,7 +59,7 @@ class SparkReader(DataSourceReader):
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
         return self.spark.sql(sql.sql("databricks")).collect()
 
-    def local_execute_sql_to_delta(self, sql: Query, delta_path: Destination, mode:  Literal["overwrite", "append"]) -> list[dict]:
+    def local_execute_sql_to_delta(self, sql: Query, delta_path: Destination, mode:  Literal["overwrite", "append"]):
         self.spark.sql(sql.sql("databricks")).write.format("delta").option("mergeSchema" if mode =="append" else "overwriteSchema", "true").mode(mode).save(str(delta_path))
 
     @property
@@ -67,7 +67,9 @@ class SparkReader(DataSourceReader):
         return "databricks"
 
 
-    def _query(self, sql: str):
+    def _query(self, sql: str | Query):
+        if isinstance(sql, Query):
+            sql = sql.sql("tsql")
         if self.linked_server_proxy:
             assert "[" not in self.linked_server_proxy
             assert "]" not in self.linked_server_proxy
@@ -77,7 +79,7 @@ class SparkReader(DataSourceReader):
             return f"select * from openquery([{self.linked_server_proxy}], '{ sql.replace('\'', '\'\'') }')"
         return sql
     
-    def source_sql_to_py(self, sql: str) -> list[dict]:
+    def source_sql_to_py(self, sql: str | Query) -> list[dict]:
         reader = self.spark.read.format("sqlserver").option("query", self._query(sql))
         for k, v in self.sql_config.items():
             reader = reader.option(k, v)
@@ -122,17 +124,18 @@ class ODBCReader(DataSourceReader):
         self.duck_con = self.duck_con or duckdb.connect()
         with self.duck_con.cursor() as cursor:
             cursor.execute(sql.sql("duckdb"))
+            assert cursor.description is not None
             col_names = [desc[0] for desc in cursor.description]
             return [dict(zip(col_names, row)) for row in cursor.fetchall()]
 
     def local_register_view(self, sql: Query, view_name: str):
-        self.spark.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql('duckdb')}")
+        import duckdb 
+        self.duck_con = self.duck_con or duckdb.connect()
+        self.duck_con.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql('duckdb')}")
 
-    def local_execute_sql_to_delta(self, sql: Query, delta_path: Destination, mode:  Literal["overwrite", "append"]) -> list[dict]:
+    def local_execute_sql_to_delta(self, sql: Query, delta_path: Destination, mode:  Literal["overwrite", "append"]):
         import duckdb 
         from deltalake import write_deltalake
-        from deltalake2db import duckdb_apply_storage_options
-        duckdb_apply_storage_options
         self.duck_con = self.duck_con or duckdb.connect()
         
         with self.duck_con.cursor() as cur:
@@ -153,7 +156,9 @@ class ODBCReader(DataSourceReader):
         return "duckdb"
 
     
-    def source_sql_to_py(self, sql: str) -> list[dict]:
+    def source_sql_to_py(self, sql: str | Query) -> list[dict]:
+        if isinstance(sql, Query):
+            sql = sql.sql("tsql")
         from arrow_odbc import read_arrow_batches_from_odbc
         result = list()
         for batch in read_arrow_batches_from_odbc(sql, self.connection_string):
