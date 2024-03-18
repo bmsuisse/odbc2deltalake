@@ -106,3 +106,20 @@ def spawn_azurite():
             os.getenv("KEEP_AZURITE_DOCKER", "0") == "0"
         ):  # can be handy during development
             azurite.stop()
+
+
+@pytest.fixture(scope="session")
+def spark():
+    import pyspark
+    from delta import *
+
+    builder = (
+        pyspark.sql.SparkSession.builder.appName("testodbc2lake")
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config(
+            "spark.sql.catalog.spark_catalog",
+            "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
+    )
+
+    spark = configure_spark_with_delta_pip(builder).getOrCreate()
