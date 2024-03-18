@@ -22,7 +22,6 @@ async def test_first_load_timestamp(connection: "DB_Connection"):
         connection.conn_str,
         ("dbo", "user"),
         destination,
-        connection.conn,
     )
 
     with duckdb.connect() as con:

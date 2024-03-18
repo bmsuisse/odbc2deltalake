@@ -16,9 +16,7 @@ async def test_first_load_timestamp(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user")
-    await write_db_to_delta(
-        connection.conn_str, ("dbo", "user"), base_path, connection.conn
-    )
+    await write_db_to_delta(connection.conn_str, ("dbo", "user"), base_path)
 
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
@@ -47,9 +45,7 @@ async def test_first_load_sys_start(connection: "DB_Connection"):
 
     base_path = Path("tests/_data/dbo/company")
 
-    await write_db_to_delta(
-        connection.conn_str, ("dbo", "company"), base_path, connection.conn
-    )
+    await write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)
 
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
