@@ -1,10 +1,10 @@
-
 from pathlib import Path
 from typing import Sequence, Any, TypeVar
 import sqlglot.expressions as ex
+import sqlglot as sg
 
 
-def union(selects: Sequence[ex.Expression], *, distinct: bool) -> ex.Expression:
+def union(selects: Sequence[ex.Query], *, distinct: bool) -> ex.Query:
     if len(selects) == 0:
         raise ValueError("No selects to union")
     elif len(selects) == 1:
@@ -12,9 +12,20 @@ def union(selects: Sequence[ex.Expression], *, distinct: bool) -> ex.Expression:
     elif len(selects) == 2:
         return ex.union(selects[0], selects[1], distinct=distinct)
     else:
-        return ex.union(selects[0], union(selects[1:], distinct=distinct), distinct=distinct)
+        return ex.union(
+            selects[0], union(selects[1:], distinct=distinct), distinct=distinct
+        )
 
-def table_from_tuple(name: str | tuple[str, str] | tuple[str, str, str], alias: str | None = None) -> ex.Table:
+
+def count_limit_one(table_name: ex.Expression | str):
+    return sg.from_(sg.from_(table_name).select(ex.Star()).limit(1).subquery()).select(
+        ex.Count(this=ex.Star()).as_("cnt")
+    )
+
+
+def table_from_tuple(
+    name: str | tuple[str, str] | tuple[str, str, str], alias: str | None = None
+) -> ex.Table:
     if alias is not None:
         assert " " not in alias
         assert "-" not in alias

@@ -1,45 +1,32 @@
-from dataclasses import dataclass
 from typing import Callable, Literal, Union, Optional, Any, TYPE_CHECKING
 import logging
-
+from .reader import DataSourceReader
 from pydantic import BaseModel
-
+import sqlglot
+import sqlglot.expressions as ex
 
 table_name_type = Union[str, tuple[str, str]]
 
-if TYPE_CHECKING:
-    import pyodbc
-
 
 def get_primary_keys(
-    conn: "pyodbc.Connection", table_name: table_name_type | None
-) -> dict[table_name_type, list[str]]:
-    with conn.cursor() as cur:
-        cur.execute(
-            """            
-    exec sp_executesql N' SELECT ccu.TABLE_SCHEMA, ccu.TABLE_NAME, ccu.COLUMN_NAME
+    reader: DataSourceReader, table_name: table_name_type
+) -> list[str]:
+    assert isinstance(table_name, tuple)
+    query = sqlglot.parse_one(
+        """SELECT ccu.COLUMN_NAME
     FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc WITH(NOLOCK)
         JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu WITH(NOLOCK) ON tc.CONSTRAINT_NAME = ccu.Constraint_name
-    WHERE tc.CONSTRAINT_TYPE = ''Primary Key'' AND (ccu.Table_Name=@Table or @Table is null) AND (ccu.TABLE_SCHEMA=@Schema or @Schema is null) ', N'@Table varchar(100), @Schema varchar(100)',
-		@Schema=?, @Table=?
-""",
-            (
-                table_name[0] if table_name else None,
-                table_name[1] if table_name else None,
-            ),
-        )
-        res = cur.fetchall()
-        if res is None:
-            return {}
-        res_dict = {}
-        for r in res:
-            tn = r[0], r[1]
-            if tn not in res_dict:
-                res_dict[tn] = []
-            res_dict[tn].append(r[2])
-        if table_name and table_name not in res_dict:
-            res_dict[table_name] = []
-        return res_dict
+    WHERE tc.CONSTRAINT_TYPE = 'Primary Key'""",
+        dialect="tsql",
+    )
+    assert isinstance(query, ex.Select)
+    query = query.where(
+        ex.column("TABLE_NAME", "ccu")
+        .eq(table_name[1])
+        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(table_name[0]))
+    )
+    full_query = query.sql("tsql")
+    return [d["COLUMN_NAME"] for d in reader.source_sql_to_py(full_query)]
 
 
 class FieldWithType(BaseModel):
@@ -100,14 +87,11 @@ class InformationSchemaColInfo(BaseModel):
 
 
 def get_columns(
-    conn: "pyodbc.Connection", table_name: table_name_type | None
-) -> dict[table_name_type, list[InformationSchemaColInfo]]:
-    with conn.cursor() as cur:
-        cur.execute(
-            """            
-     exec sp_executesql N' SELECT  ccu.TABLE_SCHEMA, ccu.TABLE_NAME,
-		ccu.column_name, ccu.column_default,
-		cast(case when ccu.IS_NULLABLE=''YES'' THEN 1 ELSE 0 end as bit) as is_nullable,
+    reader: DataSourceReader, table_name: table_name_type
+) -> list[InformationSchemaColInfo]:
+    query = sqlglot.parse_one(
+        """ SELECT  ccu.column_name, ccu.column_default,
+		cast(case when ccu.IS_NULLABLE='YES' THEN 1 ELSE 0 END as bit) as is_nullable,
 		data_type,
 		character_maximum_length,
 		numeric_precision,
@@ -120,36 +104,20 @@ SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.gener
 	inner join sys.tables t on t.object_id=c.object_id
 	inner join sys.schemas sc on sc.schema_id=t.schema_id
 		) ci on ci.schema_name=ccu.TABLE_SCHEMA and ci.table_name=ccu.TABLE_NAME and ci.col_name=ccu.COLUMN_NAME
-		where (ccu.Table_Name=@Table or @Table is null) AND (ccu.TABLE_SCHEMA=@Schema or @Schema is null) ', N'@Table varchar(100), @Schema varchar(100)',
-		@Schema=?, @Table=?
-""",
-            (
-                table_name[0] if table_name else None,
-                table_name[1] if table_name else None,
-            ),
-        )
-        res = cur.fetchall()
-        if res is None:
-            return {}
-        res_dict = {}
-        assert cur.description is not None
-        col_names = [d[0] for d in cur.description]
-        for r in res:
-            r_dict = dict(zip(col_names, r))
-            tn = r_dict.pop("TABLE_SCHEMA"), r_dict.pop("TABLE_NAME")
-            if tn not in res_dict:
-                res_dict[tn] = []
-            res_dict[tn].append(InformationSchemaColInfo(**r_dict))
-        return res_dict
+		 """,
+        dialect="tsql",
+    )
+    assert isinstance(query, ex.Select)
+    full_query = query.where(
+        ex.column("TABLE_NAME", "ccu")
+        .eq(table_name[1])
+        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(table_name[0]))
+    ).sql("tsql")
+    dicts = reader.source_sql_to_py(full_query)
+    return [InformationSchemaColInfo(**d) for d in dicts]
 
 
-def get_compatibility_level(connection: "pyodbc.Connection") -> int:
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-    SELECT compatibility_level  
-    FROM sys.databases WHERE name =DB_NAME()"""
-        )
-        res = cur.fetchone()
-        assert res is not None
-        return res[0]
+def get_compatibility_level(reader: DataSourceReader) -> int:
+    return reader.source_sql_to_py(
+        "SELECT compatibility_level FROM sys.databases WHERE name =DB_NAME()"
+    )[0]["compatibility_level"]

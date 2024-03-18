@@ -17,9 +17,7 @@ async def test_strange_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user3")
-    await write_db_to_delta(
-        connection.conn_str, ("dbo", "user3"), base_path, connection.conn
-    )
+    await write_db_to_delta(connection.conn_str, ("dbo", "user3"), base_path)
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -44,9 +42,7 @@ async def test_strange_delta(connection: "DB_Connection"):
     import time
 
     time.sleep(2)
-    await write_db_to_delta(
-        connection.conn_str, ("dbo", "user3"), base_path, connection.conn
-    )
+    await write_db_to_delta(connection.conn_str, ("dbo", "user3"), base_path)
     # so far we have no strange data yet. But we make it happen ;)
     # we rename user4 to user3, which will through around timestamps especially for record Johniingham
     with connection.new_connection() as nc:
@@ -65,9 +61,7 @@ async def test_strange_delta(connection: "DB_Connection"):
         max_valid_from = res[0]
         assert max_valid_from is not None
 
-    await write_db_to_delta(
-        connection.conn_str, ("dbo", "user3"), base_path, connection.conn
-    )
+    await write_db_to_delta(connection.conn_str, ("dbo", "user3"), base_path)
 
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
@@ -105,7 +99,7 @@ async def test_strange_delta_sys(connection: "DB_Connection"):
 
     base_path = Path("tests/_data/dbo/company2_1")
     await write_db_to_delta(  # empty
-        connection.conn_str, ("dbo", "company2"), base_path, connection.conn
+        connection.conn_str, ("dbo", "company2"), base_path
     )
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
@@ -113,7 +107,7 @@ async def test_strange_delta_sys(connection: "DB_Connection"):
                 """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
             )
     await write_db_to_delta(  # normal full load
-        connection.conn_str, ("dbo", "company2"), base_path, connection.conn
+        connection.conn_str, ("dbo", "company2"), base_path
     )
 
     time.sleep(2)
@@ -148,9 +142,7 @@ async def test_strange_delta_sys(connection: "DB_Connection"):
             cursor.execute("SELECT * FROM [dbo].[company2]")
             alls = cursor.fetchall()
             print(alls)
-    await write_db_to_delta(
-        connection.conn_str, ("dbo", "company2"), base_path, connection.conn
-    )
+    await write_db_to_delta(connection.conn_str, ("dbo", "company2"), base_path)
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
