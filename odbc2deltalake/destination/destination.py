@@ -12,10 +12,6 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def get_fs_path(self) -> tuple[fsspec.AbstractFileSystem, str]:
-        pass
-
-    @abstractmethod
     def __truediv__(self, other: str) -> Self:
         pass
 

@@ -152,7 +152,6 @@ async def write_db_to_delta(
     if (destination / "delta_load_backup").exists():
         (destination / "delta_load_backup").rm_tree()
     if (destination / "delta_load").exists():
-        fs, path = destination.get_fs_path()
         (destination / "delta_load").path_rename(destination / "delta_load_backup")  # type: ignore
 
         if (
@@ -214,13 +213,8 @@ async def write_db_to_delta(
             lock_file_path.remove()
         if (destination / "delta_load").exists():
             (destination / "delta_load").rm_tree()
-        fs, path = destination.get_fs_path()
         if (destination / "delta_load_backup").exists():
-            fs.move(
-                path + "/" + "delta_load_backup",
-                path + "/" + "delta_load",
-                recursive=True,
-            )
+            (destination / "delta_load_backup").path_rename(destination / "delta_load")
         raise e
 
 
