@@ -1,7 +1,24 @@
-from .reader import DataSourceReader
+from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query
 from typing import Literal
+
+
+class SparkDeltaOps(DeltaOps):
+    def __init__(self, dest: Destination, spark):
+        from delta.tables import DeltaTable
+
+        self.dest = dest
+        self.table = DeltaTable.forPath(spark, str(dest))
+
+    def version(self) -> int:
+        return self.table.history(1).select("version").collect()[0].version
+
+    def vacuum(self, retention_hours: int | None = None):
+        self.table.vacuum(retention_hours)
+
+    def restore(self, target: int):
+        self.table.restoreToVersion(target)
 
 
 class SparkReader(DataSourceReader):
@@ -17,10 +34,13 @@ class SparkReader(DataSourceReader):
         self.linked_server_proxy = linked_server_proxy
         self.spark_format = spark_format
 
-    def local_register_update_view(self, delta_path: Destination, view_name: str):
-        self.spark.read.format("delta").load(str(delta_path)).createOrReplaceTempView(
-            view_name
-        )
+    def local_register_update_view(
+        self, delta_path: Destination, view_name: str, *, version: int | None = None
+    ):
+        read = self.spark.read.format("delta")
+        if version is not None:
+            read = read.option("versionAsOf", version)
+        read.load(str(delta_path)).createOrReplaceTempView(view_name)
 
     def local_register_view(self, sql: Query, view_name: str):
         self.spark.sql(
@@ -71,3 +91,6 @@ class SparkReader(DataSourceReader):
         for k, v in self.sql_config.items():
             reader = reader.option(k, v)
         reader.load().write.format("delta").mode(mode).save(str(delta_path))
+
+    def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
+        return SparkDeltaOps(delta_path, self.spark)

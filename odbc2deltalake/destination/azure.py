@@ -71,32 +71,6 @@ class AzureDestination(Destination):
             self.container, self.path + suffix, self.storage_options
         )
 
-    def path_rename(self, other: "AzureDestination"):
-        from .azure_utils import get_data_lake_client
-
-        with get_data_lake_client(self.storage_options) as client:
-            client.get_directory_client(self.container, self.path).rename_directory(
-                f"{other.container}/{other.path}"
-            )
-
-    def path_copy(self, other: "AzureDestination"):
-        from .azure_utils import get_data_lake_client
-        from azure.storage.filedatalake import PathProperties
-
-        with get_data_lake_client(self.storage_options) as client:
-            with client.get_file_system_client(self.container) as fsc:
-                for path in fsc.get_paths(self.path, recursive=True):
-
-                    pp = cast(PathProperties, path)
-                    if pp.is_directory:
-                        continue
-                    name: str = pp.name
-                    relative_path = name[len(self.path) :].removeprefix("/")
-                    self.fs.cp_file(
-                        f"az://{self.container}/{pp.name}",
-                        f"az://{other.container}/{other.path}/{relative_path}",
-                    )
-
     @property
     def parent(self):
         return self.__class__(

@@ -23,10 +23,6 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def rm_tree(self):
-        pass
-
-    @abstractmethod
     def exists(self) -> bool:
         pass
 
@@ -59,12 +55,4 @@ class Destination(ABC):
 
     @abstractmethod
     def with_suffix(self, suffix: str) -> Self:
-        pass
-
-    @abstractmethod
-    def path_rename(self, other: "Self"):
-        pass
-
-    @abstractmethod
-    def path_copy(self, other: "Self"):
         pass

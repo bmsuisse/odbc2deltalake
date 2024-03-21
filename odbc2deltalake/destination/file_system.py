@@ -58,12 +58,5 @@ class FileSystemDestination(Destination):
     def with_suffix(self, suffix: str):
         return FileSystemDestination(self.path.with_suffix(suffix))
 
-    def path_rename(self, other: "FileSystemDestination"):
-        self.path.rename(other.path.absolute())
-
-    def path_copy(self, other: "FileSystemDestination"):
-
-        shutil.copytree(self.path, other.path)
-
     def __truediv__(self, other: str):
         return FileSystemDestination(self.path / other)
