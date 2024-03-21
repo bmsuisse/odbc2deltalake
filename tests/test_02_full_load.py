@@ -59,7 +59,7 @@ async def test_first_load_always_full(connection: "DB_Connection"):
         con.execute("CREATE VIEW v_long_table_name AS " + sql)
 
         name_tuples = con.execute(
-            f'SELECT date from v_long_table_name where __timestamp>{sql_quote_value(max_valid_from)} order by "long column name"'
+            f'SELECT date from v_long_table_name where __timestamp>{sql_quote_value(max_valid_from)} order by "long_column_name"'
         ).fetchall()
         assert name_tuples == [
             (

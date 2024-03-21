@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Self
+from typing_extensions import Literal, Self
 from deltalake import DeltaTable
 import fsspec
 
@@ -9,10 +9,6 @@ import fsspec
 class Destination(ABC):
     @abstractmethod
     def mkdir(self):
-        pass
-
-    @abstractmethod
-    def get_fs_path(self) -> tuple[fsspec.AbstractFileSystem, str]:
         pass
 
     @abstractmethod
@@ -32,7 +28,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def upload(self, data: bytes):
+    def upload_str(self, data: str):
         pass
 
     @abstractmethod

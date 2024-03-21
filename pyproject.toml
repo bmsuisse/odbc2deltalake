@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odbc2deltalake"
-version = "0.3.0"
+version = "0.4.0"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
@@ -8,15 +8,15 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-deltalake = ">=0.16.0"
-deltalake2db = ">=0.1.9"
-duckdb = ">=0.10.0"
-pyodbc = "^5.1.0"
-arrow-odbc = "^4.1.0"
-pydantic = "^2.6.3"
-azure-identity = "^1.15.0"
-adlfs = "^2024.2.0"
-azure-storage-file-datalake = "^12.14.0"
+pydantic = ">=1.10.0"
+pyodbc = { version = "^5.1.0", optional = true }
+deltalake2db = { version = ">=0.2.0", optional = true }
+arrow-odbc = { version = "^4.1.0", optional = true }
+deltalake = { version = ">=0.16.1", optional = true }
+duckdb = { version = ">=0.10.1", optional = true }
+azure-identity = { version = "^1.15.0", optional = true }
+adlfs = { version = "^2024.2.0", optional = true }
+azure-storage-file-datalake = { version = "^12.14.0", optional = true }
 
 
 [tool.poetry.group.dev.dependencies]
@@ -33,6 +33,17 @@ docker = "^7.0.0"
 python-dotenv = "^1.0.1"
 azure-storage-blob = "^12.19.1"
 
+
+[tool.poetry.extras]
+local = ["pyodbc", "deltalake2db", "arrow-odbc", "deltalake", "duckdb"]
+local_azure = ["azure-identity", "adlfs", "azure-storage-file-datalake"]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+venv = ".venv"
+venvPath = "."
+pythonVersion = "3.10"
+typeCheckingMode = "basic"

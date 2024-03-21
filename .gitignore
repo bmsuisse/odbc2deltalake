@@ -163,3 +163,4 @@ tests/_data
 __azurite*
 __blob*
 debug.sql
+requirements.txt
