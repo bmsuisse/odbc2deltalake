@@ -756,10 +756,9 @@ async def _handle_additional_updates(
         return ""
 
     join_cond = f"""
-        inner join update_data ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.compat_name)}' for c in pk_cols])}"""
+        inner join (SELECT *FROM OPENJSON({sql_quote_value(jsd)}) with ({col_defs}) ) ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.compat_name)}' for c in pk_cols])}"""
 
-    sql = f"""WITH update_data AS (SELECT *FROM OPENJSON({sql_quote_value(jsd)}) with ({col_defs}) )
-        {sql}
+    sql = f"""{sql}
         {join_cond}
         """
 
@@ -811,6 +810,7 @@ def _load_updates_to_delta(
         sql = sql.sql("tsql")
 
     delta_name_path = delta_path.parent / f"delta_load/{delta_name}"
+    logger.info(f"Executing {sql}")
     reader.source_write_sql_to_delta(sql, delta_name_path, mode="overwrite")
     reader.local_register_update_view(delta_name_path, delta_name)
     count = reader.local_execute_sql_to_py(count_limit_one(delta_name))[0]["cnt"]
