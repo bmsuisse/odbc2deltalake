@@ -2,8 +2,10 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing_extensions import Literal, Self
-from deltalake import DeltaTable
-import fsspec
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from deltalake import DeltaTable
 
 
 class Destination(ABC):
@@ -51,7 +53,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def as_delta_table(self) -> DeltaTable:
+    def as_delta_table(self) -> "DeltaTable":
         pass
 
     @abstractmethod

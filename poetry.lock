@@ -1636,7 +1636,7 @@ files = [
 name = "sqlglot"
 version = "23.0.5"
 description = "An easily customizable SQL parser and transpiler"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "sqlglot-23.0.5-py3-none-any.whl", hash = "sha256:12aadd50775209573e7dfa0136f5769da865de3d5954e8e88a02eb0081d1ad6b"},
@@ -1796,4 +1796,4 @@ local-azure = ["adlfs", "azure-identity", "azure-storage-file-datalake"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "9fbd874175c16ce1358a5e8cb9ae9a45621aeb282f0ae83dec3ba59af58ffc98"
+content-hash = "614927c4173470bd52a55e23d7f533e95d7e1e17db46d99e56d59e718415ba4e"

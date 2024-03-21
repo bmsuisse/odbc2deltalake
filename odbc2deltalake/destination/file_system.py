@@ -1,19 +1,23 @@
-from typing import Literal
+from typing import Literal, TYPE_CHECKING
 from .destination import Destination
 from pathlib import Path
-import fsspec
 import shutil
+
+if TYPE_CHECKING:
+    import fsspec
 
 
 class FileSystemDestination(Destination):
     def __init__(self, path: str | Path):
         self.path = Path(path)
+        import fsspec
+
         self.fs = fsspec.filesystem("file")
 
     def mkdir(self):
         self.path.mkdir(parents=True, exist_ok=True)
 
-    def get_fs_path(self) -> tuple[fsspec.AbstractFileSystem, str]:
+    def get_fs_path(self) -> "tuple[fsspec.AbstractFileSystem, str]":
         return (self.fs, str(self.path))
 
     def __str__(self):
