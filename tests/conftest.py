@@ -106,10 +106,3 @@ def spawn_azurite():
             os.getenv("KEEP_AZURITE_DOCKER", "0") == "0"
         ):  # can be handy during development
             azurite.stop()
-
-
-@pytest.fixture(scope="session")
-def spark():
-    from databricks.connect import DatabricksSession
-    spark = DatabricksSession.builder.getOrCreate()
-    return spark

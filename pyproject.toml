@@ -13,7 +13,7 @@ deltalake2db = ">=0.2.0"
 duckdb = ">=0.10.1"
 pyodbc = "^5.1.0"
 arrow-odbc = "^4.1.0"
-pydantic = "^2.6.3"
+pydantic = ">=1.10.0"
 azure-identity = "^1.15.0"
 adlfs = "^2024.2.0"
 azure-storage-file-datalake = "^12.14.0"
@@ -40,3 +40,9 @@ databricks-connect = "^14.3.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pyright]
+venv = ".venv"
+venvPath = "."
+pythonVersion = "3.10"
+typeCheckingMode = "basic"

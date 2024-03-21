@@ -13,8 +13,8 @@ class DatabricksDestination(Destination):
             account = account + ".dfs.core.windows.net"
         self.account = account
         self.container = container
-        self.storage_options = storage_options
         self.dbutils = dbutils
+        self.scheme = scheme
         self.fs = None
 
     def __truediv__(self, other: str):
@@ -32,9 +32,8 @@ class DatabricksDestination(Destination):
     def mkdir(self):
         self.dbutils.fs.mkdirs(self.to_az_path())
 
-    def upload(self, data: bytes):
-        with self.fs.open(self.to_az_path(), "wb") as f:
-            f.write(data)  # type: ignore
+    def upload_str(self, data: str):
+        self.dbutils.fs.put(self.to_az_path(), data, overwrite=True)
 
     def modified_time(self):
         res = self.dbutils.fs.ls(self.to_az_path())
@@ -89,4 +88,4 @@ class DatabricksDestination(Destination):
             return False
 
     def rm_tree(self):
-        self.dbutils.fs.rm(path, recurse=True)
+        self.dbutils.fs.rm(self.to_az_path(), recurse=True)

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Literal, Sequence, TypeVar
+from typing import Iterable, Literal, Sequence, TypeVar, cast
 import asyncio
 import sqlglot as sg
 from odbc2deltalake.destination.destination import (
@@ -136,18 +136,17 @@ async def write_db_to_delta(
     if isinstance(destination, Path):
         from .destination.file_system import FileSystemDestination
 
-        destination = FileSystemDestination(destination)
+        destination = cast(Destination, FileSystemDestination(destination))
     if isinstance(source, str):
         from .reader import ODBCReader
 
         source = ODBCReader(source)
     delta_path = destination / "delta"
-    owns_con = False
     cols = get_columns(source, table)
 
     (destination / "meta").mkdir()
-    (destination / "meta/schema.json").upload(
-        json.dumps([c.model_dump() for c in cols], indent=4).encode("utf-8")
+    (destination / "meta/schema.json").upload_str(
+        json.dumps([c.model_dump() for c in cols], indent=4)
     )
     if (destination / "delta_load_backup").exists():
         (destination / "delta_load_backup").rm_tree()
@@ -170,7 +169,7 @@ async def write_db_to_delta(
             > 60 * 60
         ):
             lock_file_path.remove()
-        lock_file_path.upload(b"")
+        lock_file_path.upload_str("")
 
         delta_col = get_delta_col(cols)  # Use the imported function
         pks = get_primary_keys(source, table)  # Use the imported function

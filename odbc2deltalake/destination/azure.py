@@ -32,8 +32,8 @@ class AzureDestination(Destination):
     def get_fs_path(self) -> tuple[adlfs.AzureBlobFileSystem, str]:
         return (self.fs, self.to_az_path())
 
-    def upload(self, data: bytes):
-        with self.fs.open(self.to_az_path(), "wb") as f:
+    def upload_str(self, data: str):
+        with self.fs.open(self.to_az_path(), "w", encoding="utf-8") as f:
             f.write(data)  # type: ignore
 
     def modified_time(self):
