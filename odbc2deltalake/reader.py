@@ -58,8 +58,8 @@ class SparkReader(DataSourceReader):
         self.linked_server_proxy = linked_server_proxy
 
     def local_register_update_view(self, delta_path: Destination, view_name: str):
-        self.spark.sql(
-            f"CREATE OR REPLACE TEMPORARY VIEW {view_name} USING DELTA LOCATION '{str(delta_path)}'"
+        self.spark.read.format("delta").load(str(delta_path)).createOrReplaceTempView(
+            view_name
         )
 
     def local_register_view(self, sql: Query, view_name: str):

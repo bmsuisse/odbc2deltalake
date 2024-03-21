@@ -454,13 +454,18 @@ async def do_delta_load(
 
     if not (last_pk_path / "_delta_log").exists():  # or do a full load?
         logger.warning(f"{table}: Primary keys missing, try to restore")
-        if not restore_last_pk(
-            reader,
-            table,
-            destination,
-            delta_col,
-            pk_cols,
-        ):
+        try:
+            restore_sucess = restore_last_pk(
+                reader,
+                table,
+                destination,
+                delta_col,
+                pk_cols,
+            )
+        except Exception as e:
+            logger.warning(f"{table}: Could not restore primary keys: {e}")
+            restore_sucess = False
+        if not restore_sucess:
             logger.warning(f"{table}: No primary keys found, do a full load")
             do_full_load(
                 reader,
