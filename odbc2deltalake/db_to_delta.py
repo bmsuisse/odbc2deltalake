@@ -158,7 +158,7 @@ def write_db_to_delta(
 
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload_str(
-        json.dumps([c.model_dump() for c in cols], indent=4)
+        json.dumps([c.dict() for c in cols], indent=4)
     )
     if (destination / "delta_load_backup").exists():
         (destination / "delta_load_backup").rm_tree()
@@ -188,7 +188,9 @@ def write_db_to_delta(
             if write_config.delta_col
             else get_delta_col(cols)
         )
-        pks = write_config.primary_keys or get_primary_keys(source, table, dialect=write_config.dialect)
+        pks = write_config.primary_keys or get_primary_keys(
+            source, table, dialect=write_config.dialect
+        )
         pk_cols = [c for c in cols if c.column_name in pks]
         assert len(pks) == len(pk_cols), f"Primary keys not found: {pks}"
         if (
