@@ -44,6 +44,7 @@ class WriteConfig(BaseModel):
     primary_keys: list[str] | None = None
     delta_col: str | None = None
     load_mode: Literal["overwrite", "append", "force_full"] = "append"
+    decimal_as_double: bool = False # TODO: implement
 
 
 def _not_none(v: T | None) -> T:
