@@ -1,7 +1,8 @@
 from .destination import Destination
-from typing import Literal, cast
-import fsspec
-import adlfs
+from typing import Literal, cast, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import adlfs
 
 
 class AzureDestination(Destination):
@@ -12,6 +13,8 @@ class AzureDestination(Destination):
 
         self.container = container
         self.storage_options = storage_options
+        import adlfs
+        import fsspec
 
         opts = cast(dict[str, str], convert_options(self.storage_options, "fsspec"))
         self.fs = cast(adlfs.AzureBlobFileSystem, fsspec.filesystem("az", **opts))
@@ -29,7 +32,7 @@ class AzureDestination(Destination):
     def mkdir(self):
         pass
 
-    def get_fs_path(self) -> tuple[adlfs.AzureBlobFileSystem, str]:
+    def get_fs_path(self) -> "tuple[adlfs.AzureBlobFileSystem, str]":
         return (self.fs, self.to_az_path())
 
     def upload_str(self, data: str):
