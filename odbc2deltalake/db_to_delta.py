@@ -142,7 +142,7 @@ async def write_db_to_delta(
 
         destination = cast(Destination, FileSystemDestination(destination))
     if isinstance(source, str):
-        from .reader import ODBCReader
+        from .reader.odbc_reader import ODBCReader
 
         source = ODBCReader(source)
     delta_path = destination / "delta"
