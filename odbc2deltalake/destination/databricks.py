@@ -48,6 +48,7 @@ class DatabricksDestination(Destination):
         raise NotImplementedError("not an option for databricks")
 
     def as_delta_table(self):
+
         raise NotImplementedError("not an option for databricks")
 
     def __str__(self):
@@ -61,12 +62,6 @@ class DatabricksDestination(Destination):
             account=self.account,
             scheme=self.scheme,
         )
-
-    def path_rename(self, other: "DatabricksDestination"):
-        self.dbutils.fs.mv(self.to_az_path(), other.to_az_path(), recurse=True)
-
-    def path_copy(self, other: "DatabricksDestination"):
-        self.dbutils.fs.cp(self.to_az_path(), other.to_az_path(), recurse=True)
 
     @property
     def parent(self):

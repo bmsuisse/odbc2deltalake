@@ -59,10 +59,6 @@ class DBDeltaPathConfigs:
     """delta 2 is data where timestamp is different for whatever reason, eg restore"""
     PRIMARY_KEYS_TS = "primary_keys_ts"
     """file with primary keys and timestamps as of now, before load"""
-    LAST_PK_VERSION = "last_pk_version"
-    """
-    file with primary keys and timestamps as of last load
-    """
 
     LATEST_PK_VERSION = "latest_pk_version"
     """file with primary keys and timestamps as of after load. 
@@ -137,6 +133,11 @@ def get_delta_col(
     return row_start_col
 
 
+def _vacuum(source: DataSourceReader, dest: Destination):
+    if dest.exists():
+        source.get_local_delta_ops(dest).vacuum()
+
+
 def write_db_to_delta(
     source: DataSourceReader | str,
     table: tuple[str, str],
@@ -160,16 +161,12 @@ def write_db_to_delta(
     (destination / "meta/schema.json").upload_str(
         json.dumps([c.dict() for c in cols], indent=4)
     )
-    if (destination / "delta_load_backup").exists():
-        (destination / "delta_load_backup").rm_tree()
-    if (destination / "delta_load").exists():
-        (destination / "delta_load").path_rename(destination / "delta_load_backup")  # type: ignore
-
-        if (
-            destination / "delta_load_backup" / DBDeltaPathConfigs.LATEST_PK_VERSION
-        ).exists():
-            (destination / "delta_load_backup" / DBDeltaPathConfigs.LATEST_PK_VERSION).path_copy(destination / "delta_load" / DBDeltaPathConfigs.LAST_PK_VERSION)  # type: ignore
-
+    if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
+        last_version_pk = source.get_local_delta_ops(
+            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+        ).version()
+    else:
+        last_version_pk = None
     lock_file_path = destination / "meta/lock.txt"
 
     try:
@@ -235,14 +232,20 @@ def write_db_to_delta(
                     write_config=write_config,
                 )
         lock_file_path.remove()
+        _vacuum(
+            source, destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+        )
+        _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.DELTA_1_NAME)
+        _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.DELTA_2_NAME)
+        _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS)
     except Exception as e:
         # restore files
         if lock_file_path.exists():
             lock_file_path.remove()
-        if (destination / "delta_load").exists():
-            (destination / "delta_load").rm_tree()
-        if (destination / "delta_load_backup").exists():
-            (destination / "delta_load_backup").path_rename(destination / "delta_load")
+        if last_version_pk is not None:
+            source.get_local_delta_ops(
+                destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).restore(last_version_pk)
         raise e
 
 
@@ -349,7 +352,7 @@ def restore_last_pk(
         return False
     reader.local_execute_sql_to_delta(
         sq.from_("v_last_pk_version").select(ex.Star()),
-        destination / "delta_load" / DBDeltaPathConfigs.LAST_PK_VERSION,
+        destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
     )
     return True
@@ -359,8 +362,12 @@ def create_replace_view(
     reader: DataSourceReader,
     name: str,
     base_destination: Destination,
+    *,
+    version: int | None = None,
 ):
-    reader.local_register_update_view(base_destination / f"delta_load/{name}", name)
+    reader.local_register_update_view(
+        base_destination / f"delta_load/{name}", name, version=version
+    )
 
 
 def write_latest_pk(
@@ -477,7 +484,7 @@ def do_delta_load(
     pk_cols: list[InformationSchemaColInfo],
     write_config: WriteConfig,
 ):
-    last_pk_path = destination / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}"
+    last_pk_path = destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
     logger.info(
         f"{table}: Start Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in pk_cols))}"
     )
@@ -508,6 +515,9 @@ def do_delta_load(
                 write_config=write_config,
             )
             return
+    old_pk_version = reader.get_local_delta_ops(
+        destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+    ).version()
     delta_path = destination / "delta"
     reader.local_register_update_view(delta_path, _temp_table(table))
     delta_load_value = reader.local_execute_sql_to_py(
@@ -573,6 +583,7 @@ def do_delta_load(
         delta_col=delta_col,
         cols=cols,
         write_config=write_config,
+        old_pk_version=old_pk_version,
     )
     reader.local_register_update_view(delta_path, _temp_table(table))
 
@@ -586,6 +597,7 @@ def do_delta_load(
         destination=destination,
         cols=cols,
         pk_cols=pk_cols,
+        old_pk_version=old_pk_version,
     )
     logger.info(f"{table}: Done delta load")
 
@@ -596,9 +608,18 @@ def do_deletes(
     # delta_table: DeltaTable,
     cols: list[InformationSchemaColInfo],
     pk_cols: list[InformationSchemaColInfo],
+    old_pk_version: int,
 ):
-    create_replace_view(reader, DBDeltaPathConfigs.LATEST_PK_VERSION, destination)
-    create_replace_view(reader, DBDeltaPathConfigs.LAST_PK_VERSION, destination)
+    reader.local_register_update_view(
+        destination / f"delta_load/{ DBDeltaPathConfigs.LATEST_PK_VERSION}",
+        DBDeltaPathConfigs.LATEST_PK_VERSION,
+    )
+    LAST_PK_VERSION = "LAST_PK_VERSION"
+    reader.local_register_update_view(
+        destination / f"delta_load/{ DBDeltaPathConfigs.LATEST_PK_VERSION}",
+        LAST_PK_VERSION,
+        version=old_pk_version,
+    )
     delete_query = ex.except_(
         left=ex.select(
             *_get_cols_select(
@@ -607,7 +628,7 @@ def do_deletes(
                 flavor=reader.query_dialect,
                 source_uses_compat=True,
             )
-        ).from_(table_from_tuple(DBDeltaPathConfigs.LAST_PK_VERSION, alias="lpk")),
+        ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
         right=ex.select(
             *_get_cols_select(
                 pk_cols,
@@ -719,12 +740,22 @@ def _handle_additional_updates(
     delta_col: InformationSchemaColInfo,
     cols: list[InformationSchemaColInfo],
     write_config: WriteConfig,
+    old_pk_version: int,
 ):
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
     folder = delta_path.parent
     pk_ds_cols = pk_cols + [delta_col]
-    create_replace_view(reader, DBDeltaPathConfigs.PRIMARY_KEYS_TS, folder)
-    create_replace_view(reader, DBDeltaPathConfigs.LAST_PK_VERSION, folder)
+    reader.local_register_update_view(
+        folder / f"delta_load/{ DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
+        DBDeltaPathConfigs.PRIMARY_KEYS_TS,
+    )
+    LAST_PK_VERSION = "LAST_PK_VERSION"
+    reader.local_register_update_view(
+        folder / f"delta_load/{ DBDeltaPathConfigs.LATEST_PK_VERSION}",
+        LAST_PK_VERSION,
+        version=old_pk_version,
+    )
+
     reader.local_register_view(
         ex.except_(
             left=ex.select(
@@ -742,7 +773,7 @@ def _handle_additional_updates(
                     flavor=reader.query_dialect,
                     source_uses_compat=True,
                 )
-            ).from_(table_from_tuple(DBDeltaPathConfigs.LAST_PK_VERSION, alias="lpk")),
+            ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
         ),
         "additional_updates",
     )

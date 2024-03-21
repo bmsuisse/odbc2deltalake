@@ -1,5 +1,6 @@
 from pathlib import Path
 from odbc2deltalake.destination.destination import Destination
+from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
 from typing import TYPE_CHECKING, Literal
 from sqlglot.expressions import Query
@@ -28,14 +29,17 @@ class ODBCReader(DataSourceReader):
         self.duck_con = None
         pass
 
-    def local_register_update_view(self, delta_path: Destination, view_name: str):
+    def local_register_update_view(
+        self, delta_path: Destination, view_name: str, *, version: int | None = None
+    ):
         import duckdb
         from deltalake2db import duckdb_create_view_for_delta
 
         self.duck_con = self.duck_con or duckdb.connect()
-        duckdb_create_view_for_delta(
-            self.duck_con, delta_path.as_delta_table(), view_name
-        )
+        dt = delta_path.as_delta_table()
+        if version is not None:
+            dt.load_as_version(version)
+        duckdb_create_view_for_delta(self.duck_con, dt, view_name)
 
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
         import duckdb
@@ -148,3 +152,7 @@ class ODBCReader(DataSourceReader):
             engine="pyarrow",
             storage_options=storage_options,
         )
+
+    def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
+        dt = delta_path.as_delta_table()
+        return dt

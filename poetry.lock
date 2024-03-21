@@ -268,26 +268,6 @@ typing-extensions = ">=4.3.0"
 aio = ["azure-core[aio] (>=1.28.0,<2.0.0)"]
 
 [[package]]
-name = "azure-storage-file-datalake"
-version = "12.14.0"
-description = "Microsoft Azure File DataLake Storage Client Library for Python"
-optional = true
-python-versions = ">=3.7"
-files = [
-    {file = "azure-storage-file-datalake-12.14.0.tar.gz", hash = "sha256:358f1616db479b8272b74fb7d5f10f93dfc695a264137dd1959b50b50dcd6346"},
-    {file = "azure_storage_file_datalake-12.14.0-py3-none-any.whl", hash = "sha256:736b565e8c46fc0a36f64102d5fa63e1367b698496d845b7572fc7cad4925cec"},
-]
-
-[package.dependencies]
-azure-core = ">=1.28.0,<2.0.0"
-azure-storage-blob = ">=12.19.0,<13.0.0"
-isodate = ">=0.6.1"
-typing-extensions = ">=4.3.0"
-
-[package.extras]
-aio = ["azure-core[aio] (>=1.28.0,<2.0.0)"]
-
-[[package]]
 name = "black"
 version = "24.3.0"
 description = "The uncompromising code formatter."
@@ -654,18 +634,33 @@ test = ["certifi", "pretend", "pytest (>=6.2.0)", "pytest-benchmark", "pytest-co
 test-randomorder = ["pytest-randomly"]
 
 [[package]]
+name = "delta-spark"
+version = "3.1.0"
+description = "Python APIs for using Delta Lake with Apache Spark"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "delta-spark-3.1.0.tar.gz", hash = "sha256:dca2d48d53de8061612a7b1860cd7dd5f9b3b4a1f29a06d1f19f047c4dc6afb9"},
+    {file = "delta_spark-3.1.0-py3-none-any.whl", hash = "sha256:a35cc90b456f02ffad9c5960d6c961cea1526d98fb0928f6989305572696ff72"},
+]
+
+[package.dependencies]
+importlib-metadata = ">=1.0.0"
+pyspark = ">=3.5.0,<3.6.0"
+
+[[package]]
 name = "deltalake"
-version = "0.16.1"
+version = "0.16.2"
 description = "Native Delta Lake Python binding based on delta-rs with Pandas integration"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "deltalake-0.16.1-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:e116e59bbaff0ea29f6a4f12f9fa1c0fd6860d0a8487d6ab2e8656b614cdc1d3"},
-    {file = "deltalake-0.16.1-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:373e225f41c3d533cab298546eba2dca508f7a3a94613fd0625b19bd1bf3e23e"},
-    {file = "deltalake-0.16.1-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d9c4fccd5b0d45445807c30a3cfd0cdceaf663795ea56a8ec90d786eee9deacc"},
-    {file = "deltalake-0.16.1-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:472901bd3efd5976bf4c485175bc828845c94c0380a9ddfc8ddef96efddbc6b0"},
-    {file = "deltalake-0.16.1-cp38-abi3-win_amd64.whl", hash = "sha256:480632bbe1ed82e745be4c43e2928fbd1f44eb66f0b4d48e3cdb03e9e15984ad"},
-    {file = "deltalake-0.16.1.tar.gz", hash = "sha256:0662aacf98e486e8a2449773d7165b5b6af8b19631912a4231ad9ddfd63fadba"},
+    {file = "deltalake-0.16.2-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:5afe957335cf6af00cb9d1ab5b7d1715bc9df18a8d49cc94808db7d4bba81716"},
+    {file = "deltalake-0.16.2-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:fdb68ce8629fc66118e06c67f5c8ace7af37c380232b5e50f58bf7c10b1c7803"},
+    {file = "deltalake-0.16.2-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ca8ca49f31782259fac7e2987277ca8a8114da34fbde28f622b5b39c5049eb28"},
+    {file = "deltalake-0.16.2-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:959c378f5f462d30a33768f73081108622f67617d84b2e54abf8290941cc2ff0"},
+    {file = "deltalake-0.16.2-cp38-abi3-win_amd64.whl", hash = "sha256:8cfdf412c2d82ae352ce792d57c26d706eac8d3b9aa46357f2cdbc89ac842766"},
+    {file = "deltalake-0.16.2.tar.gz", hash = "sha256:2df55ee56df6271685a877ca5c06edb0b2f94e38177857ed1a44016314a63b50"},
 ]
 
 [package.dependencies]
@@ -679,13 +674,13 @@ pyspark = ["delta-spark", "numpy (==1.22.2)", "pyspark"]
 
 [[package]]
 name = "deltalake2db"
-version = "0.2.0"
+version = "0.2.1"
 description = ""
 optional = true
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 files = [
-    {file = "deltalake2db-0.2.0-py3-none-any.whl", hash = "sha256:3e8cb566021a7bebb762e48b62fd676dbfe1680764888c66d302a6ec927fd7dd"},
-    {file = "deltalake2db-0.2.0.tar.gz", hash = "sha256:dba75be8ef3019a7f0cf4c0fc269324da8d90475a88a8b83027ba7219dda8746"},
+    {file = "deltalake2db-0.2.1-py3-none-any.whl", hash = "sha256:713ecaa5bafa2e54388af6db5a9dc08b13c0eafa0a41fe15cabed89f412e9bb0"},
+    {file = "deltalake2db-0.2.1.tar.gz", hash = "sha256:51f6a3c00146aee43e50adc13b5e4b3548d62e60a86f4bb2d009d62e86150fe5"},
 ]
 
 [package.dependencies]
@@ -913,6 +908,25 @@ files = [
     {file = "idna-3.6-py3-none-any.whl", hash = "sha256:c05567e9c24a6b9faaa835c4821bad0590fbb9d5779e7caa6e1cc4978e7eb24f"},
     {file = "idna-3.6.tar.gz", hash = "sha256:9ecdbbd083b06798ae1e86adcbfe8ab1479cf864e4ee30fe4e46a003d12491ca"},
 ]
+
+[[package]]
+name = "importlib-metadata"
+version = "7.1.0"
+description = "Read metadata from Python packages"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "importlib_metadata-7.1.0-py3-none-any.whl", hash = "sha256:30962b96c0c223483ed6cc7280e7f0199feb01a0e40cfae4d4450fc6fab1f570"},
+    {file = "importlib_metadata-7.1.0.tar.gz", hash = "sha256:b78938b926ee8d5f020fc4772d487045805a55ddbad2ecf21c6d60938dc7fcd2"},
+]
+
+[package.dependencies]
+zipp = ">=0.5"
+
+[package.extras]
+docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
+perf = ["ipython"]
+testing = ["flufl.flake8", "importlib-resources (>=1.3)", "jaraco.test (>=5.4)", "packaging", "pyfakefs", "pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy", "pytest-perf (>=0.9.2)", "pytest-ruff (>=0.2.1)"]
 
 [[package]]
 name = "iniconfig"
@@ -1218,6 +1232,17 @@ redis = ["redis"]
 tests = ["pytest (>=5.4.1)", "pytest-cov (>=2.8.1)", "pytest-mypy (>=0.8.0)", "pytest-timeout (>=2.1.0)", "redis", "sphinx (>=6.0.0)", "types-redis"]
 
 [[package]]
+name = "py4j"
+version = "0.10.9.7"
+description = "Enables Python programs to dynamically access arbitrary Java objects"
+optional = false
+python-versions = "*"
+files = [
+    {file = "py4j-0.10.9.7-py2.py3-none-any.whl", hash = "sha256:85defdfd2b2376eb3abf5ca6474b51ab7e0de341c75a02f46dc9b5976f5a5c1b"},
+    {file = "py4j-0.10.9.7.tar.gz", hash = "sha256:0b6e5315bb3ada5cf62ac651d107bb2ebc02def3dee9d9548e3baac644ea8dbb"},
+]
+
+[[package]]
 name = "pyarrow"
 version = "15.0.2"
 description = "Python library for Apache Arrow"
@@ -1474,6 +1499,26 @@ nodeenv = ">=1.6.0"
 [package.extras]
 all = ["twine (>=3.4.1)"]
 dev = ["twine (>=3.4.1)"]
+
+[[package]]
+name = "pyspark"
+version = "3.5.1"
+description = "Apache Spark Python API"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "pyspark-3.5.1.tar.gz", hash = "sha256:dd6569e547365eadc4f887bf57f153e4d582a68c4b490de475d55b9981664910"},
+]
+
+[package.dependencies]
+py4j = "0.10.9.7"
+
+[package.extras]
+connect = ["googleapis-common-protos (>=1.56.4)", "grpcio (>=1.56.0)", "grpcio-status (>=1.56.0)", "numpy (>=1.15)", "pandas (>=1.0.5)", "pyarrow (>=4.0.0)"]
+ml = ["numpy (>=1.15)"]
+mllib = ["numpy (>=1.15)"]
+pandas-on-spark = ["numpy (>=1.15)", "pandas (>=1.0.5)", "pyarrow (>=4.0.0)"]
+sql = ["numpy (>=1.15)", "pandas (>=1.0.5)", "pyarrow (>=4.0.0)"]
 
 [[package]]
 name = "pytest"
@@ -1789,11 +1834,26 @@ files = [
 idna = ">=2.0"
 multidict = ">=4.0"
 
+[[package]]
+name = "zipp"
+version = "3.18.1"
+description = "Backport of pathlib-compatible object wrapper for zip files"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "zipp-3.18.1-py3-none-any.whl", hash = "sha256:206f5a15f2af3dbaee80769fb7dc6f249695e940acca08dfb2a4769fe61e538b"},
+    {file = "zipp-3.18.1.tar.gz", hash = "sha256:2884ed22e7d8961de1c9a05142eb69a247f120291bc0206a00a7642f09b5b715"},
+]
+
+[package.extras]
+docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
+testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-ignore-flaky", "pytest-mypy", "pytest-ruff (>=0.2.1)"]
+
 [extras]
 local = ["arrow-odbc", "deltalake", "deltalake2db", "duckdb", "pyodbc"]
-local-azure = ["adlfs", "azure-identity", "azure-storage-file-datalake"]
+local-azure = ["adlfs", "azure-identity"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "614927c4173470bd52a55e23d7f533e95d7e1e17db46d99e56d59e718415ba4e"
+content-hash = "d06bdde40973da957ed8c210426f4ce9da7fa0a6433f5c947b8675f44d47dc73"

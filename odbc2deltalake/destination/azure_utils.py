@@ -47,33 +47,6 @@ def _get_default_token(**kwargs) -> str:
     return _token_state["token"]
 
 
-def get_data_lake_client(options: dict):
-    from azure.storage.filedatalake import DataLakeServiceClient
-    from azure.identity import DefaultAzureCredential
-
-    account_url = options.get("account_url")
-    if not account_url and "account_name" in options:
-        account_url = f"https://{options['account_name']}.dfs.core.windows.net"
-    if "connection_string" in options:
-        return DataLakeServiceClient.from_connection_string(
-            options["connection_string"]
-        )
-    assert (
-        account_url is not None
-    ), "account_url is required for Azure Data Lake access."
-    if "account_name" in options and "account_key" in options:
-        return DataLakeServiceClient(
-            account_url=account_url, credential=options["account_key"]
-        )
-    if "account_name" in options and "sas_token" in options:
-        return DataLakeServiceClient(
-            account_url=account_url, credential=options["sas_token"]
-        )
-    return DataLakeServiceClient(
-        account_url=account_url, credential=DefaultAzureCredential()
-    )
-
-
 def convert_options(
     options: dict | None,
     flavor: Literal["fsspec", "object_store"],
