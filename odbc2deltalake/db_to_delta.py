@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Literal, Sequence, TypeVar, cast
 import asyncio
+from pydantic import BaseModel
 import sqlglot as sg
 from odbc2deltalake.destination.destination import (
     Destination,
@@ -38,6 +39,13 @@ IS_FULL_LOAD_COL_INFO = InformationSchemaColInfo.from_name_type(
 T = TypeVar("T")
 
 
+class WriteConfig(BaseModel):
+    dialect: str = "tsql"
+    primary_keys: list[str] | None = None
+    delta_col: str | None = None
+    load_mode: Literal["overwrite", "append", "force_full"] = "append"
+
+
 def _not_none(v: T | None) -> T:
     if v is None:
         raise ValueError("Value is None")
@@ -68,7 +76,7 @@ def _cast(
     data_type: str,
     *,
     table_alias: str | None = None,
-    flavor: Literal["tsql", "duckdb"],
+    flavor: str,
 ):
     if data_type in ["datetime", "datetime2"] and flavor == "tsql":
         return ex.cast(ex.column(name, table_alias), ex.DataType(this="datetime2(6)"))
@@ -90,12 +98,9 @@ def _get_cols_select(
     is_full: bool | None = None,
     with_valid_from: bool = False,
     table_alias: str | None = None,
-    flavor: Literal["tsql", "duckdb"],
-    source_uses_compat: bool | None = None,
+    flavor: str,
+    source_uses_compat: bool,
 ) -> Sequence[ex.Expression]:
-    if source_uses_compat is None:
-        source_uses_compat = flavor != "tsql"
-
     return (
         [
             _cast(
@@ -132,11 +137,14 @@ def get_delta_col(
     return row_start_col
 
 
-async def write_db_to_delta(
+def write_db_to_delta(
     source: DataSourceReader | str,
     table: tuple[str, str],
     destination: Destination | Path,
+    write_config: WriteConfig | None = None,
 ):
+    if write_config is None:
+        write_config = WriteConfig()
     if isinstance(destination, Path):
         from .destination.file_system import FileSystemDestination
 
@@ -146,7 +154,7 @@ async def write_db_to_delta(
 
         source = ODBCReader(source)
     delta_path = destination / "delta"
-    cols = get_columns(source, table)
+    cols = get_columns(source, table, dialect=write_config.dialect)
 
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload_str(
@@ -175,11 +183,18 @@ async def write_db_to_delta(
             lock_file_path.remove()
         lock_file_path.upload_str("")
 
-        delta_col = get_delta_col(cols)  # Use the imported function
-        pks = get_primary_keys(source, table)  # Use the imported function
+        delta_col = (
+            next((c for c in cols if c.column_name == write_config.delta_col))
+            if write_config.delta_col
+            else get_delta_col(cols)
+        )
+        pks = write_config.primary_keys or get_primary_keys(source, table, dialect=write_config.dialect)
         pk_cols = [c for c in cols if c.column_name in pks]
         assert len(pks) == len(pk_cols), f"Primary keys not found: {pks}"
-        if not (delta_path / "_delta_log").exists():
+        if (
+            not (delta_path / "_delta_log").exists()
+            or write_config.load_mode == "overwrite"
+        ):
             delta_path.mkdir()
             do_full_load(
                 source,
@@ -189,9 +204,14 @@ async def write_db_to_delta(
                 cols=cols,
                 pk_cols=pk_cols,
                 delta_col=delta_col,
+                write_config=write_config,
             )
         else:
-            if delta_col is None or len(pks) == 0:
+            if (
+                delta_col is None
+                or len(pks) == 0
+                or write_config.load_mode == "force_full"
+            ):
                 do_full_load(
                     source,
                     table,
@@ -200,15 +220,17 @@ async def write_db_to_delta(
                     cols=cols,
                     pk_cols=pk_cols,
                     delta_col=delta_col,
+                    write_config=write_config,
                 )
             else:
-                await do_delta_load(
+                do_delta_load(
                     source,
                     table,
                     destination=destination,
                     delta_col=delta_col,
                     cols=cols,
                     pk_cols=pk_cols,
+                    write_config=write_config,
                 )
         lock_file_path.remove()
     except Exception as e:
@@ -246,7 +268,8 @@ def restore_last_pk(
             *_get_cols_select(
                 cols=pk_cols + [delta_col],
                 table_alias="tr",
-                flavor="duckdb",
+                flavor=reader.query_dialect,
+                source_uses_compat=True,
             )
         )
         .where(
@@ -268,7 +291,8 @@ def restore_last_pk(
             *_get_cols_select(
                 cols=pk_cols + [delta_col, IS_DELETED_COL_INFO],
                 table_alias="tr",
-                flavor="duckdb",
+                flavor=reader.query_dialect,
+                source_uses_compat=True,
             )
         )
         .where(ex.column(VALID_FROM_COL_NAME) > ex.convert(latest_full_load_date))
@@ -363,7 +387,8 @@ def write_latest_pk(
                 *_get_cols_select(
                     cols=pks + [delta_col],
                     table_alias="au",
-                    flavor="duckdb",
+                    flavor=reader.query_dialect,
+                    source_uses_compat=True,
                 )
             ).from_(table_from_tuple("delta_2", alias="au")),
             (
@@ -371,7 +396,8 @@ def write_latest_pk(
                     *_get_cols_select(
                         cols=pks + [delta_col],
                         table_alias="d1",
-                        flavor="duckdb",
+                        flavor=reader.query_dialect,
+                        source_uses_compat=True,
                     )
                 )
                 .from_(ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="d1"))
@@ -393,7 +419,8 @@ def write_latest_pk(
                     *_get_cols_select(
                         cols=pks + [delta_col],
                         table_alias="cpk",
-                        flavor="duckdb",
+                        flavor=reader.query_dialect,
+                        source_uses_compat=True,
                     )
                 )
                 .from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="cpk"))
@@ -438,7 +465,7 @@ def _temp_table(table: table_name_type):
     return "temp_" + "_".join(table)
 
 
-async def do_delta_load(
+def do_delta_load(
     reader: DataSourceReader,
     table: table_name_type,
     destination: Destination,
@@ -446,6 +473,7 @@ async def do_delta_load(
     delta_col: InformationSchemaColInfo,
     cols: list[InformationSchemaColInfo],
     pk_cols: list[InformationSchemaColInfo],
+    write_config: WriteConfig,
 ):
     last_pk_path = destination / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}"
     logger.info(
@@ -475,6 +503,7 @@ async def do_delta_load(
                 cols=cols,
                 pk_cols=pk_cols,
                 delta_col=delta_col,
+                write_config=write_config,
             )
             return
     delta_path = destination / "delta"
@@ -486,7 +515,7 @@ async def do_delta_load(
                 _cast(
                     delta_col.compat_name,
                     delta_col.data_type,
-                    flavor="duckdb",
+                    flavor=reader.query_dialect,
                 ),
             ).as_("max_ts")
         )
@@ -502,6 +531,7 @@ async def do_delta_load(
             cols=cols,
             pk_cols=pk_cols,
             delta_col=delta_col,
+            write_config=write_config,
         )
         return
     logger.info(
@@ -513,26 +543,34 @@ async def do_delta_load(
         delta_col=delta_col,
         pk_cols=pk_cols,
         destination=destination,
+        write_config=write_config,
     )
 
     criterion = _cast(
-        delta_col.column_name, delta_col.data_type, table_alias="t", flavor="tsql"
+        delta_col.column_name,
+        delta_col.data_type,
+        table_alias="t",
+        flavor=write_config.dialect,
     ) > ex.convert(delta_load_value)
     logger.info(f"{table}: Start delta step 2, load updates by timestamp")
     _load_updates_to_delta(
         reader,
-        sql=_get_update_sql(cols=cols, criterion=criterion, table=table),
+        sql=_get_update_sql(
+            cols=cols, criterion=criterion, table=table, write_config=write_config
+        ),
         delta_path=delta_path,
         delta_name="delta_1",
+        write_config=write_config,
     )
 
-    await _handle_additional_updates(
+    _handle_additional_updates(
         reader=reader,
         table=table,
         delta_path=delta_path,
         pk_cols=pk_cols,
         delta_col=delta_col,
         cols=cols,
+        write_config=write_config,
     )
     reader.local_register_update_view(delta_path, _temp_table(table))
 
@@ -561,10 +599,20 @@ def do_deletes(
     create_replace_view(reader, DBDeltaPathConfigs.LAST_PK_VERSION, destination)
     delete_query = ex.except_(
         left=ex.select(
-            *_get_cols_select(pk_cols, table_alias="lpk", flavor="duckdb")
+            *_get_cols_select(
+                pk_cols,
+                table_alias="lpk",
+                flavor=reader.query_dialect,
+                source_uses_compat=True,
+            )
         ).from_(table_from_tuple(DBDeltaPathConfigs.LAST_PK_VERSION, alias="lpk")),
         right=ex.select(
-            *_get_cols_select(pk_cols, table_alias="cpk", flavor="duckdb")
+            *_get_cols_select(
+                pk_cols,
+                table_alias="cpk",
+                flavor=reader.query_dialect,
+                source_uses_compat=True,
+            )
         ).from_(table_from_tuple(DBDeltaPathConfigs.LATEST_PK_VERSION, alias="cpk")),
     )
 
@@ -576,14 +624,16 @@ def do_deletes(
                 *_get_cols_select(
                     pk_cols,
                     table_alias="d1",
-                    flavor="duckdb",
+                    flavor=reader.query_dialect,
+                    source_uses_compat=True,
                 )
             )
             .select(
                 *_get_cols_select(
                     non_pk_cols,
                     table_alias="d1",
-                    flavor="duckdb",
+                    flavor=reader.query_dialect,
+                    source_uses_compat=True,
                 ),
                 append=True,
             )
@@ -633,6 +683,7 @@ def _retrieve_primary_key_data(
     delta_col: InformationSchemaColInfo,
     pk_cols: list[InformationSchemaColInfo],
     destination: Destination,
+    write_config: WriteConfig,
 ):
     pk_ts_col_select = ex.select(
         *_get_cols_select(
@@ -640,10 +691,11 @@ def _retrieve_primary_key_data(
             is_deleted=None,
             cols=pk_cols + [delta_col],
             with_valid_from=False,
-            flavor="tsql",
+            flavor=write_config.dialect,
+            source_uses_compat=False,
         )
     ).from_(table_from_tuple(table))
-    pk_ts_reader_sql = pk_ts_col_select.sql("tsql")
+    pk_ts_reader_sql = pk_ts_col_select.sql(write_config.dialect)
 
     pk_path = destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
 
@@ -657,13 +709,14 @@ def _retrieve_primary_key_data(
     # todo: persist latest ts per pk?
 
 
-async def _handle_additional_updates(
+def _handle_additional_updates(
     reader: DataSourceReader,
     table: table_name_type,
     delta_path: Destination,
     pk_cols: list[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
     cols: list[InformationSchemaColInfo],
+    write_config: WriteConfig,
 ):
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
     folder = delta_path.parent
@@ -676,14 +729,16 @@ async def _handle_additional_updates(
                 *_get_cols_select(
                     cols=pk_ds_cols,
                     table_alias="pk",
-                    flavor="duckdb",
+                    flavor=reader.query_dialect,
+                    source_uses_compat=True,
                 )
             ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
             right=ex.select(
                 *_get_cols_select(
                     cols=pk_ds_cols,
                     table_alias="lpk",
-                    flavor="duckdb",
+                    flavor=reader.query_dialect,
+                    source_uses_compat=True,
                 )
             ).from_(table_from_tuple(DBDeltaPathConfigs.LAST_PK_VERSION, alias="lpk")),
         ),
@@ -695,14 +750,16 @@ async def _handle_additional_updates(
             *_get_cols_select(
                 cols=pk_cols,
                 table_alias="au",
-                flavor="duckdb",
+                flavor=reader.query_dialect,
+                source_uses_compat=True,
             )
         ).from_(ex.table_("additional_updates", alias="au")),
         right=ex.select(
             *_get_cols_select(
                 cols=pk_cols,
                 table_alias="d1",
-                flavor="duckdb",
+                flavor=reader.query_dialect,
+                source_uses_compat=True,
             )
         ).from_(table_from_tuple("delta_1", alias="d1")),
     )
@@ -735,12 +792,12 @@ async def _handle_additional_updates(
                 is_deleted=False,
                 with_valid_from=True,
                 table_alias="t",
-                flavor="tsql",
+                flavor=write_config.dialect,
                 source_uses_compat=False,
             )
         )
         .from_(table_from_tuple(table, alias="t"))
-        .sql("tsql")
+        .sql(write_config.dialect)
     )
 
     def _collate(c: InformationSchemaColInfo):
@@ -767,6 +824,7 @@ async def _handle_additional_updates(
         delta_path=delta_path,
         sql=sql,
         delta_name="delta_2",
+        write_config=write_config,
     )
 
 
@@ -774,6 +832,7 @@ def _get_update_sql(
     cols: list[InformationSchemaColInfo],
     criterion: str | Sequence[str | ex.Expression] | ex.Expression,
     table: table_name_type,
+    write_config: WriteConfig,
 ):
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
@@ -787,13 +846,16 @@ def _get_update_sql(
                 is_deleted=False,
                 with_valid_from=True,
                 table_alias="t",
-                flavor="tsql",
+                flavor=write_config.dialect,
                 source_uses_compat=False,
             )
         )
-        .where(*(criterion if not isinstance(criterion, str) else []), dialect="tsql")
+        .where(
+            *(criterion if not isinstance(criterion, str) else []),
+            dialect=write_config.dialect,
+        )
         .from_(table_from_tuple(table, alias="t"))
-        .sql("tsql")
+        .sql(write_config.dialect)
     )
     if isinstance(criterion, str):
         delta_sql += " " + criterion
@@ -805,9 +867,10 @@ def _load_updates_to_delta(
     delta_path: Destination,
     sql: str | ex.Query,
     delta_name: str,
+    write_config: WriteConfig,
 ):
     if isinstance(sql, ex.Query):
-        sql = sql.sql("tsql")
+        sql = sql.sql(write_config.dialect)
 
     delta_name_path = delta_path.parent / f"delta_load/{delta_name}"
     logger.info(f"Executing {sql}")
@@ -829,6 +892,7 @@ def do_full_load(
     cols: list[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo | None,
     pk_cols: list[InformationSchemaColInfo],
+    write_config: WriteConfig,
 ):
     logger.info(f"{table}: Start Full Load")
     sql = (
@@ -838,11 +902,12 @@ def do_full_load(
                 is_full=True,
                 cols=cols,
                 with_valid_from=True,
-                flavor="tsql",
+                flavor=write_config.dialect,
+                source_uses_compat=False,
             )
         )
         .from_(table_from_tuple(table))
-        .sql("tsql")
+        .sql(write_config.dialect)
     )
     if (delta_path / "_delta_log").exists():
         reader.local_register_update_view(delta_path, _temp_table(table))

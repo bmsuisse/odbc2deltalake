@@ -14,15 +14,14 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.order(4)
-@pytest.mark.asyncio
-async def test_first_load_always_full(connection: "DB_Connection"):
+def test_first_load_always_full(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path(
         "tests/_data/long_schema/long_table_name2"
     )  # spaces in file names cause trouble with delta-rs
 
-    await write_db_to_delta(
+    write_db_to_delta(
         connection.conn_str,
         ("long schema", "long table name"),
         base_path,
@@ -47,7 +46,7 @@ async def test_first_load_always_full(connection: "DB_Connection"):
         '2025-01-01'"""
             )
 
-    await write_db_to_delta(
+    write_db_to_delta(
         connection.conn_str,
         ("long schema", "long table name"),
         base_path,

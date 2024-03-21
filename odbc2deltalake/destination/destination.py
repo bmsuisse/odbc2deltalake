@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 
 class Destination(ABC):
+
     @abstractmethod
     def mkdir(self):
         pass

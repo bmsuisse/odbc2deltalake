@@ -13,12 +13,11 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.order(5)
-@pytest.mark.asyncio
-async def test_delta(connection: "DB_Connection"):
+def test_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user2")
-    await write_db_to_delta(connection.conn_str, ("dbo", "user2"), base_path)
+    write_db_to_delta(connection.conn_str, ("dbo", "user2"), base_path)
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -46,7 +45,7 @@ async def test_delta(connection: "DB_Connection"):
         max_valid_from = res[0]
         assert max_valid_from is not None
 
-    await write_db_to_delta(connection.conn_str, ("dbo", "user2"), base_path)
+    write_db_to_delta(connection.conn_str, ("dbo", "user2"), base_path)
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
         assert sql is not None
@@ -96,14 +95,11 @@ async def test_delta(connection: "DB_Connection"):
 
 
 @pytest.mark.order(5)
-@pytest.mark.asyncio
-async def test_delta_sys(connection: "DB_Connection"):
+def test_delta_sys(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/company2")
-    await write_db_to_delta(  # full load
-        connection.conn_str, ("dbo", "company"), base_path
-    )
+    write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)  # full load
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -114,9 +110,7 @@ select 'c300',
                    """
             )
 
-    await write_db_to_delta(  # delta load
-        connection.conn_str, ("dbo", "company"), base_path
-    )
+    write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)  # delta load
     with nc.cursor() as cursor:
         cursor.execute("SELECT * FROM [dbo].[company]")
         alls = cursor.fetchall()
