@@ -11,12 +11,11 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.order(1)
-@pytest.mark.asyncio
-async def test_first_load_timestamp(connection: "DB_Connection"):
+def test_first_load_timestamp(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user")
-    await write_db_to_delta(connection.conn_str, ("dbo", "user"), base_path)
+    write_db_to_delta(connection.conn_str, ("dbo", "user"), base_path)
 
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
@@ -39,13 +38,12 @@ async def test_first_load_timestamp(connection: "DB_Connection"):
 
 
 @pytest.mark.order(2)
-@pytest.mark.asyncio
-async def test_first_load_sys_start(connection: "DB_Connection"):
+def test_first_load_sys_start(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/company")
 
-    await write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)
+    write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)
 
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
@@ -63,14 +61,13 @@ async def test_first_load_sys_start(connection: "DB_Connection"):
 
 
 @pytest.mark.order(3)
-@pytest.mark.asyncio
-async def test_first_load_always_full(connection: "DB_Connection"):
+def test_first_load_always_full(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path(
         "tests/_data/long_schema/long_table_name"
     )  # spaces in file names cause trouble with delta-rs
-    await write_db_to_delta(
+    write_db_to_delta(
         connection.conn_str,
         ("long schema", "long table name"),
         base_path,

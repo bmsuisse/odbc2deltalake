@@ -21,7 +21,7 @@ It's as simple as this:
 ```python
 from odbc2deltalake import write_db_to_delta
 
-await write_db_to_delta(
+write_db_to_delta(
     your_odbc_connection_string,
     (your_db_schema, your_table_name),
     Path("YOUR_TARGET_PATH")
@@ -49,5 +49,5 @@ reader = SparkReader(spark=spark, sql_config={ # see https://docs.databricks.com
     "database": "mypage"
 }, spark_format="sqlserver")
 
-await write_db_to_delta(reader, ("dbo", "user"), dest)
+write_db_to_delta(reader, ("dbo", "user"), dest)
 ```

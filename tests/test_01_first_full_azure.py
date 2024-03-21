@@ -11,15 +11,14 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.order(1)
-@pytest.mark.asyncio
-async def test_first_load_timestamp(connection: "DB_Connection"):
+def test_first_load_timestamp(connection: "DB_Connection"):
 
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
     from odbc2deltalake.destination.azure import AzureDestination
     from deltalake2db.duckdb import apply_storage_options
 
     destination = AzureDestination("testlakeodbc", "dbo/user", {"use_emulator": "true"})
-    await write_db_to_delta(
+    write_db_to_delta(
         connection.conn_str,
         ("dbo", "user"),
         destination,
