@@ -53,7 +53,7 @@ async def test_delta(connection: "DB_Connection"):
         con.execute("CREATE VIEW v_user_scd2 AS " + sql)
 
         name_tuples = con.execute(
-            'SELECT FirstName, LastName, __is_deleted  from v_user_scd2 order by "User - iD", __timestamp'
+            'SELECT FirstName, LastName, __is_deleted  from v_user_scd2 order by "User_-_iD", __timestamp'
         ).fetchall()
         assert name_tuples == [
             ("John", "Anders", False),
@@ -68,7 +68,7 @@ async def test_delta(connection: "DB_Connection"):
         name_tuples2 = con.execute(
             f"""SELECT FirstName, LastName  from v_user_scd2 
                 where __timestamp>{sql_quote_value(max_valid_from)} and not __is_deleted
-                order by "User - iD", __timestamp"""
+                order by "User_-_iD", __timestamp"""
         ).fetchall()
         assert name_tuples2 == [
             ("Petra", "wayne-hösch"),
@@ -82,9 +82,9 @@ async def test_delta(connection: "DB_Connection"):
 
         id_tuples = con.execute(
             """SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
-                                inner join v_user_scd2 s2 on s2."User - iD"=lf."User - iD" and s2."time stämp"=lf."time stämp"
-                qualify row_number() over (partition by s2."User - iD" order by lf."time stämp" desc)=1
-                order by s2."User - iD" 
+                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stämp"=lf."time_stämp"
+                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stämp" desc)=1
+                order by s2."User_-_iD" 
                 """
         ).fetchall()
         assert id_tuples == [

@@ -91,15 +91,19 @@ def _get_cols_select(
     with_valid_from: bool = False,
     table_alias: str | None = None,
     flavor: Literal["tsql", "duckdb"],
+    source_uses_compat: bool | None = None,
 ) -> Sequence[ex.Expression]:
+    if source_uses_compat is None:
+        source_uses_compat = flavor != "tsql"
+
     return (
         [
             _cast(
-                c.column_name,
+                c.compat_name if source_uses_compat else c.column_name,
                 c.data_type,
                 table_alias=table_alias,
                 flavor=flavor,
-            ).as_(c.column_name)
+            ).as_(c.compat_name)
             for c in cols
         ]
         + ([valid_from_expr] if with_valid_from else [])
@@ -173,7 +177,8 @@ async def write_db_to_delta(
 
         delta_col = get_delta_col(cols)  # Use the imported function
         pks = get_primary_keys(source, table)  # Use the imported function
-
+        pk_cols = [c for c in cols if c.column_name in pks]
+        assert len(pks) == len(pk_cols), f"Primary keys not found: {pks}"
         if not (delta_path / "_delta_log").exists():
             delta_path.mkdir()
             do_full_load(
@@ -182,7 +187,7 @@ async def write_db_to_delta(
                 delta_path,
                 mode="overwrite",
                 cols=cols,
-                pks=pks,
+                pk_cols=pk_cols,
                 delta_col=delta_col,
             )
         else:
@@ -193,7 +198,7 @@ async def write_db_to_delta(
                     delta_path,
                     mode="append",
                     cols=cols,
-                    pks=pks,
+                    pk_cols=pk_cols,
                     delta_col=delta_col,
                 )
             else:
@@ -203,7 +208,7 @@ async def write_db_to_delta(
                     destination=destination,
                     delta_col=delta_col,
                     cols=cols,
-                    pks=pks,
+                    pk_cols=pk_cols,
                 )
         lock_file_path.remove()
     except Exception as e:
@@ -226,8 +231,6 @@ def restore_last_pk(
 ):
     delta_path = destination / "delta"
     reader.local_register_update_view(delta_path, _temp_table(table))
-
-    pks = [c.column_name for c in pk_cols]
 
     sq_valid_from = reader.local_execute_sql_to_py(
         sg.from_(ex.to_identifier(_temp_table(table)))
@@ -274,11 +277,11 @@ def restore_last_pk(
         ex.EQ(
             this=ex.Window(
                 this=ex.RowNumber(),
-                partition_by=[ex.column(pk) for pk in pks],
+                partition_by=[ex.column(pk.compat_name) for pk in pk_cols],
                 order=ex.Order(
                     expressions=[
                         ex.Ordered(
-                            this=ex.column(delta_col.column_name),
+                            this=ex.column(delta_col.compat_name),
                             desc=True,
                             nulls_first=False,
                         )
@@ -302,8 +305,8 @@ def restore_last_pk(
                     join_type="anti",
                     on=ex.and_(
                         *[
-                            ex.column(c.column_name, "f").eq(
-                                ex.column(c.column_name, "d")
+                            ex.column(c.compat_name, "f").eq(
+                                ex.column(c.compat_name, "d")
                             )
                             for c in pk_cols
                         ]
@@ -376,8 +379,8 @@ def write_latest_pk(
                     ex.table_("delta_2", alias="au2"),
                     ex.and_(
                         *[
-                            ex.column(c.column_name, "d1").eq(
-                                ex.column(c.column_name, "au2")
+                            ex.column(c.compat_name, "d1").eq(
+                                ex.column(c.compat_name, "au2")
                             )
                             for c in pks
                         ]
@@ -398,8 +401,8 @@ def write_latest_pk(
                     ex.table_("delta_2", alias="au3"),
                     ex.and_(
                         *[
-                            ex.column(c.column_name, "cpk").eq(
-                                ex.column(c.column_name, "au3")
+                            ex.column(c.compat_name, "cpk").eq(
+                                ex.column(c.compat_name, "au3")
                             )
                             for c in pks
                         ]
@@ -410,8 +413,8 @@ def write_latest_pk(
                     ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
                     ex.and_(
                         *[
-                            ex.column(c.column_name, "cpk").eq(
-                                ex.column(c.column_name, "au4")
+                            ex.column(c.compat_name, "cpk").eq(
+                                ex.column(c.compat_name, "au4")
                             )
                             for c in pks
                         ]
@@ -442,11 +445,11 @@ async def do_delta_load(
     *,
     delta_col: InformationSchemaColInfo,
     cols: list[InformationSchemaColInfo],
-    pks: list[str],
+    pk_cols: list[InformationSchemaColInfo],
 ):
     last_pk_path = destination / f"delta_load/{DBDeltaPathConfigs.LAST_PK_VERSION}"
     logger.info(
-        f"{table}: Start Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join(pks)}"
+        f"{table}: Start Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in pk_cols))}"
     )
 
     if not (last_pk_path / "_delta_log").exists():  # or do a full load?
@@ -456,7 +459,7 @@ async def do_delta_load(
             table,
             destination,
             delta_col,
-            [c for c in cols if c.column_name in pks],
+            pk_cols,
         ):
             logger.warning(f"{table}: No primary keys found, do a full load")
             do_full_load(
@@ -465,7 +468,7 @@ async def do_delta_load(
                 delta_path=destination / "delta",
                 mode="append",
                 cols=cols,
-                pks=pks,
+                pk_cols=pk_cols,
                 delta_col=delta_col,
             )
             return
@@ -476,7 +479,7 @@ async def do_delta_load(
             ex.func(
                 "MAX",
                 _cast(
-                    delta_col.column_name,
+                    delta_col.compat_name,
                     delta_col.data_type,
                     flavor="duckdb",
                 ),
@@ -492,13 +495,10 @@ async def do_delta_load(
             delta_path,
             mode="append",
             cols=cols,
-            pks=pks,
+            pk_cols=pk_cols,
             delta_col=delta_col,
         )
         return
-    pk_cols = [c for c in cols if c.column_name in pks]
-    pk_ds_cols = pk_cols + [delta_col]
-    assert len(pk_ds_cols) == len(pks) + 1
     logger.info(
         f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
     )
@@ -564,7 +564,7 @@ def do_deletes(
     )
 
     non_pk_cols = [c for c in cols if c not in pk_cols]
-    non_pk_select = [ex.Null().as_(c.column_name) for c in non_pk_cols]
+    non_pk_select = [ex.Null().as_(c.compat_name) for c in non_pk_cols]
     deletes_with_schema = union(
         [
             ex.select(
@@ -720,7 +720,7 @@ async def _handle_additional_updates(
     )
     jsd = json.dumps(jsd)
     col_defs = ", ".join(
-        [_get_col_definition(p.as_field_type(), True) for p in pk_cols]
+        [_get_col_definition(p.as_field_type(compat=True), True) for p in pk_cols]
     )
     sql = (
         ex.select(
@@ -731,6 +731,7 @@ async def _handle_additional_updates(
                 with_valid_from=True,
                 table_alias="t",
                 flavor="tsql",
+                source_uses_compat=False,
             )
         )
         .from_(table_from_tuple(table, alias="t"))
@@ -750,7 +751,7 @@ async def _handle_additional_updates(
         return ""
 
     join_cond = f"""
-        inner join update_data ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.column_name)}' for c in pk_cols])}"""
+        inner join update_data ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.compat_name)}' for c in pk_cols])}"""
 
     sql = f"""WITH update_data AS (SELECT *FROM OPENJSON({sql_quote_value(jsd)}) with ({col_defs}) )
         {sql}
@@ -783,6 +784,7 @@ def _get_update_sql(
                 with_valid_from=True,
                 table_alias="t",
                 flavor="tsql",
+                source_uses_compat=False,
             )
         )
         .where(*(criterion if not isinstance(criterion, str) else []), dialect="tsql")
@@ -821,7 +823,7 @@ def do_full_load(
     mode: Literal["overwrite", "append"],
     cols: list[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo | None,
-    pks: list[str],
+    pk_cols: list[InformationSchemaColInfo],
 ):
     logger.info(f"{table}: Start Full Load")
     sql = (
@@ -857,8 +859,8 @@ def do_full_load(
     (delta_path.parent / "delta_load").mkdir()
     query = sg.from_(ex.to_identifier(_temp_table(table))).select(
         *(
-            [ex.column(pk) for pk in pks]
-            + ([ex.column(delta_col.column_name)] if delta_col else [])
+            [ex.column(pk.compat_name) for pk in pk_cols]
+            + ([ex.column(delta_col.compat_name)] if delta_col else [])
         )
     )
     if max_valid_from:
