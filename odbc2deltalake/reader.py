@@ -68,7 +68,8 @@ class SparkReader(DataSourceReader):
         )
 
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
-        return self.spark.sql(sql.sql("databricks")).collect()
+        spark_rows = self.spark.sql(sql.sql("databricks")).collect()
+        return [row.asDict() for row in spark_rows]
 
     def local_execute_sql_to_delta(
         self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
@@ -96,7 +97,8 @@ class SparkReader(DataSourceReader):
         reader = self.spark.read.format("sqlserver").option("query", self._query(sql))
         for k, v in self.sql_config.items():
             reader = reader.option(k, v)
-        return reader.load().collect()
+        rows = reader.load().collect()
+        return [row.asDict() for row in rows]
 
     def source_write_sql_to_delta(
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
