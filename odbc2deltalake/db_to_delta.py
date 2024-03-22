@@ -738,9 +738,19 @@ def _retrieve_primary_key_data(
     )
     return pk_path
 
-    # todo: test
-    # todo: deletes
-    # todo: persist latest ts per pk?
+
+T = TypeVar("T")
+
+
+def _list_to_chunks(input: Iterable[T], chunk_size: int):
+    chunk: list[T] = list()
+    for item in input:
+        chunk.append(item)
+        if len(chunk) >= chunk_size:
+            yield chunk
+            chunk = list()
+    if len(chunk) > 0:
+        yield chunk
 
 
 def _handle_additional_updates(
@@ -820,24 +830,8 @@ def _handle_additional_updates(
     jsd = reader.local_execute_sql_to_py(
         sg.from_("real_additional_updates").select(ex.Star())
     )
-    jsd = json.dumps(jsd)
     col_defs = ", ".join(
         [_get_col_definition(p.as_field_type(compat=True), True) for p in pk_cols]
-    )
-    sql = (
-        ex.select(
-            *_get_cols_select(
-                cols,
-                is_full=False,
-                is_deleted=False,
-                with_valid_from=True,
-                table_alias="t",
-                data_type_map=write_config.data_type_map,
-                source_uses_compat=False,
-            )
-        )
-        .from_(table_from_tuple(table, alias="t"))
-        .sql(write_config.dialect)
     )
 
     def _collate(c: InformationSchemaColInfo):
@@ -852,20 +846,52 @@ def _handle_additional_updates(
             return "COLLATE Latin1_General_100_BIN "
         return ""
 
-    join_cond = f"""
-        inner join (SELECT *FROM OPENJSON({sql_quote_value(jsd)}) with ({col_defs}) ) ttt on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.compat_name)}' for c in pk_cols])}"""
+    delta_2_path = folder / "delta_load/delta_2"
 
-    sql = f"""{sql}
-        {join_cond}
+    def full_sql(js: str):
+        selects = list(
+            _get_cols_select(
+                cols,
+                is_full=False,
+                is_deleted=False,
+                with_valid_from=True,
+                table_alias="t",
+                data_type_map=write_config.data_type_map,
+                source_uses_compat=False,
+            )
+        )
+        sql = (
+            ex.select(*selects)
+            .from_(table_from_tuple(table, alias="t"))
+            .sql(write_config.dialect)
+        )
+        return f"""{sql}
+        inner join (SELECT *FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
+             on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.compat_name)}' for c in pk_cols])}
         """
 
-    _load_updates_to_delta(
-        reader=reader,
-        delta_path=delta_path,
-        sql=sql,
-        delta_name="delta_2",
-        write_config=write_config,
-    )
+    if has_additional_updates == 0:
+        reader.source_write_sql_to_delta(
+            full_sql("[]"), delta_2_path, mode="overwrite"
+        )
+    else:
+        first = True
+        for chunk in _list_to_chunks(jsd, max(10, int(7000 / len(pk_cols) / 20))):
+            # we don't want to overshoot 8000 chars here because of spark. we calculate 20 chars per pk value
+
+            reader.source_write_sql_to_delta(
+                full_sql(json.dumps(chunk)),
+                delta_2_path,
+                mode="overwrite" if first else "append",
+            )
+            first = False
+        reader.local_register_update_view(delta_2_path, "delta_2")
+        reader.local_execute_sql_to_delta(
+            sg.from_("delta_2")
+            .select(ex.Star()),
+            delta_path,
+            mode="append",
+        )
 
 
 def _get_update_sql(
