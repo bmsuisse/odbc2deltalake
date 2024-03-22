@@ -53,12 +53,21 @@ DEFAULT_DATA_TYPE_MAP: Mapping[str, ex.DATA_TYPE] = _default_type_map
 class WriteConfig:
 
     dialect: str = "tsql"
+    """The sqlglot dialect to use for the SQL generation against the source"""
+
     primary_keys: list[str] | None = None
+    """A list of primary keys to use for the delta load. If None, the primary keys will be determined from the source"""
+
     delta_col: str | None = None
+    """The column to use for the delta load. If None, the column will be determined from the source. Should be mostly increasing to make load efficient"""
+
     load_mode: Literal["overwrite", "append", "force_full"] = "append"
+    """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only"""
+
     data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
         default_factory=lambda: _default_type_map.copy()
     )
+    """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
 
 
 def _not_none(v: T | None) -> T:
@@ -256,10 +265,11 @@ def write_db_to_delta(
         if lock_file_path.exists():
             lock_file_path.remove()
         if last_version_pk is not None:
-
-            source.get_local_delta_ops(
+            o = source.get_local_delta_ops(
                 destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).restore(last_version_pk)
+            )
+            if o.version() > last_version_pk:
+                o.restore(last_version_pk)
         raise e
 
 
@@ -814,24 +824,20 @@ def _handle_additional_updates(
         ).from_(table_from_tuple("delta_1", alias="d1")),
     )
     reader.local_register_view(sql_query, "real_additional_updates")
-    has_additional_updates = (
-        reader.local_execute_sql_to_py(count_limit_one("real_additional_updates"))[0][
-            "cnt"
-        ]
-        > 0
-    )
+    update_count: int = reader.local_execute_sql_to_py(
+        sg.from_("real_additional_updates").select(ex.Count(this=ex.Star()).as_("cnt"))
+    )[0]["cnt"]
 
-    if has_additional_updates:
-        logger.warning(f"{table}: Start delta step 3, load strange updates")
-
-    from .sql_schema import _get_col_definition
+    from .sql_schema import get_sql_type
     from .query import sql_quote_value
 
     jsd = reader.local_execute_sql_to_py(
-        sg.from_("real_additional_updates").select(ex.Star())
-    )
-    col_defs = ", ".join(
-        [_get_col_definition(p.as_field_type(compat=True), True) for p in pk_cols]
+        sg.from_("real_additional_updates").select(
+            *[
+                ex.column(c.compat_name).as_("p" + str(i), quoted=False)
+                for i, c in enumerate(pk_cols)
+            ]
+        )
     )
 
     def _collate(c: InformationSchemaColInfo):
@@ -849,6 +855,13 @@ def _handle_additional_updates(
     delta_2_path = folder / "delta_load/delta_2"
 
     def full_sql(js: str):
+        col_defs = ", ".join(
+            [
+                f"p{i} {get_sql_type(p.data_type, p.character_maximum_length)}"
+                for i, p in enumerate(pk_cols)
+            ]
+        )
+
         selects = list(
             _get_cols_select(
                 cols,
@@ -865,19 +878,69 @@ def _handle_additional_updates(
             .from_(table_from_tuple(table, alias="t"))
             .sql(write_config.dialect)
         )
+        pk_map = ", ".join(
+            [
+                "p" + str(i) + " as " + sql_quote_name(c.compat_name)
+                for i, c in enumerate(pk_cols)
+            ]
+        )
         return f"""{sql}
-        inner join (SELECT *FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
+        inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
              on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.compat_name)}' for c in pk_cols])}
         """
 
-    if has_additional_updates == 0:
-        reader.source_write_sql_to_delta(
-            full_sql("[]"), delta_2_path, mode="overwrite"
+    if update_count == 0:
+        reader.source_write_sql_to_delta(full_sql("[]"), delta_2_path, mode="overwrite")
+    elif (
+        update_count > 1000
+    ):  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
+
+        logger.warning(
+            f"{table}: Start delta step 3, load {update_count} strange updates via normal delta load"
+        )
+        delta_load_value = reader.local_execute_sql_to_py(
+            ex.select(
+                ex.func("MIN", ex.column(delta_col.compat_name)).as_("min_ts")
+            ).from_(ex.table_("additional_updates", alias="rau"))
+        )[0]["min_ts"]
+        criterion = _cast(
+            delta_col.column_name,
+            delta_col.data_type,
+            table_alias="t",
+            type_map=write_config.data_type_map,
+        ) > ex.convert(delta_load_value)
+        logger.info(f"{table}: Start delta step 2, load updates by timestamp")
+        _load_updates_to_delta(
+            reader,
+            sql=_get_update_sql(
+                cols=cols, criterion=criterion, table=table, write_config=write_config
+            ),
+            delta_path=delta_path,
+            delta_name="delta_1",
+            write_config=write_config,
         )
     else:
         first = True
-        for chunk in _list_to_chunks(jsd, max(10, int(7000 / len(pk_cols) / 20))):
-            # we don't want to overshoot 8000 chars here because of spark. we calculate 20 chars per pk value
+        # we don't want to overshoot 8000 chars here because of spark. we estimate how much space in json a record of pk's will take
+
+        char_size_pks = sum(
+            [
+                5
+                + (
+                    4
+                    if p.data_type
+                    in ["bit", "int", "bigint", "tinyint", "bool", "smallint"]
+                    else 10
+                )
+                for p in pk_cols
+            ]
+        )
+        batch_size = max(10, int(7000 / char_size_pks))
+
+        logger.warning(
+            f"{table}: Start delta step 3, load {update_count} strange updates via {min(1,int(len(jsd)/batch_size))} batches"
+        )
+        for chunk in _list_to_chunks(jsd, batch_size):
 
             reader.source_write_sql_to_delta(
                 full_sql(json.dumps(chunk)),
@@ -887,8 +950,7 @@ def _handle_additional_updates(
             first = False
         reader.local_register_update_view(delta_2_path, "delta_2")
         reader.local_execute_sql_to_delta(
-            sg.from_("delta_2")
-            .select(ex.Star()),
+            sg.from_("delta_2").select(ex.Star()),
             delta_path,
             mode="append",
         )
