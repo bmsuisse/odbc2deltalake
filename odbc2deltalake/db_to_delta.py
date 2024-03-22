@@ -848,7 +848,7 @@ def _handle_additional_updates(
 
     delta_2_path = folder / "delta_load/delta_2"
 
-    def full_sql(js: str, chunk_name: str):
+    def full_sql(js: str):
         selects = list(
             _get_cols_select(
                 cols,
@@ -859,7 +859,7 @@ def _handle_additional_updates(
                 data_type_map=write_config.data_type_map,
                 source_uses_compat=False,
             )
-        ) + [ex.convert(chunk_name).as_("_chunk_name")]
+        )
         sql = (
             ex.select(*selects)
             .from_(table_from_tuple(table, alias="t"))
@@ -872,29 +872,26 @@ def _handle_additional_updates(
 
     if has_additional_updates == 0:
         reader.source_write_sql_to_delta(
-            full_sql("[]", "none"), delta_2_path, mode="overwrite"
+            full_sql("[]"), delta_2_path, mode="overwrite"
         )
     else:
         first = True
-        chunk_id = 0
-        for chunk in _list_to_chunks(jsd, max(10,int(7000/len(pk_cols)/20))):
+        for chunk in _list_to_chunks(jsd, max(10, int(7000 / len(pk_cols) / 20))):
             # we don't want to overshoot 8000 chars here because of spark. we calculate 20 chars per pk value
-            chunk_id += 1
-            chunk_name = "chunk_" + str(chunk_id)
+
             reader.source_write_sql_to_delta(
-                full_sql(json.dumps(chunk), chunk_name),
+                full_sql(json.dumps(chunk)),
                 delta_2_path,
                 mode="overwrite" if first else "append",
             )
             first = False
-            reader.local_register_update_view(delta_2_path, "delta_2")
-            reader.local_execute_sql_to_delta(
-                sg.from_("delta_2")
-                .select(ex.Star(**{"except": [ex.column("_chunk_name")]}))
-                .where(ex.column("_chunk_name").eq(ex.convert(chunk_name))),
-                delta_path,
-                mode="append",
-            )
+        reader.local_register_update_view(delta_2_path, "delta_2")
+        reader.local_execute_sql_to_delta(
+            sg.from_("delta_2")
+            .select(ex.Star()),
+            delta_path,
+            mode="append",
+        )
 
 
 def _get_update_sql(
