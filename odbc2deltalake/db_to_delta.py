@@ -69,6 +69,9 @@ class WriteConfig:
     )
     """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
 
+    no_complex_entries_load: bool = False
+    """If true, will not load 'strange updates' via OPENJSON. Use if your db does not support OPENJSON or you're fine to get some additional updates in order to reduce complexity"""
+
 
 def _not_none(v: T | None) -> T:
     if v is None:
@@ -893,7 +896,7 @@ def _handle_additional_updates(
         reader.source_write_sql_to_delta(full_sql("[]"), delta_2_path, mode="overwrite")
     elif (
         update_count > 1000
-    ):  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
+    ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
 
         logger.warning(
             f"{table}: Start delta step 3, load {update_count} strange updates via normal delta load"
@@ -920,17 +923,16 @@ def _handle_additional_updates(
             write_config=write_config,
         )
     else:
-        first = True
         # we don't want to overshoot 8000 chars here because of spark. we estimate how much space in json a record of pk's will take
 
         char_size_pks = sum(
             [
                 5
                 + (
-                    4
+                    10
                     if p.data_type
                     in ["bit", "int", "bigint", "tinyint", "bool", "smallint"]
-                    else 10
+                    else 40
                 )
                 for p in pk_cols
             ]
@@ -938,15 +940,33 @@ def _handle_additional_updates(
         batch_size = max(10, int(7000 / char_size_pks))
 
         logger.warning(
-            f"{table}: Start delta step 3, load {update_count} strange updates via {min(1,int(len(jsd)/batch_size))} batches"
+            f"{table}: Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
         )
+        first = True
         for chunk in _list_to_chunks(jsd, batch_size):
-
-            reader.source_write_sql_to_delta(
-                full_sql(json.dumps(chunk)),
-                delta_2_path,
-                mode="overwrite" if first else "append",
-            )
+            sql = full_sql(json.dumps(chunk))
+            if (
+                len(sql) > 7000
+            ):  ## oops, spark will not like this (actually the limit is 8000, but spark might use something on it's own)
+                ch_split = len(chunk) // 2
+                chunk_1 = chunk[:ch_split]
+                chunk_2 = chunk[ch_split:]
+                reader.source_write_sql_to_delta(
+                    full_sql(json.dumps(chunk_1)),
+                    delta_2_path,
+                    mode="overwrite" if first else "append",
+                )
+                reader.source_write_sql_to_delta(
+                    full_sql(json.dumps(chunk_2)),
+                    delta_2_path,
+                    mode="append",
+                )
+            else:
+                reader.source_write_sql_to_delta(
+                    sql,
+                    delta_2_path,
+                    mode="overwrite" if first else "append",
+                )
             first = False
         reader.local_register_update_view(delta_2_path, "delta_2")
         reader.local_execute_sql_to_delta(
