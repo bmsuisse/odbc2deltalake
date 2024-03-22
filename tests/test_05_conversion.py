@@ -21,7 +21,7 @@ def test_first_load_timestamp(connection: "DB_Connection"):
     )
 
     write_config = WriteConfig(
-        data_type_map={"decimal": "double"} | DEFAULT_DATA_TYPE_MAP
+        data_type_map={"decimal": "double"} | dict(DEFAULT_DATA_TYPE_MAP)
     )
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
