@@ -51,3 +51,30 @@ reader = SparkReader(spark=spark, sql_config={ # see https://docs.databricks.com
 
 write_db_to_delta(reader, ("dbo", "user"), dest)
 ```
+
+### Advanced Scenarios
+
+See class WriteConfig, of which you can pass an instance to `write_db_to_delta`
+
+```python
+class WriteConfig:
+
+    dialect: str = "tsql"
+    """The sqlglot dialect to use for the SQL generation against the source"""
+
+    primary_keys: list[str] | None = None
+    """A list of primary keys to use for the delta load. If None, the primary keys will be determined from the source"""
+
+    delta_col: str | None = None
+    """The column to use for the delta load. If None, the column will be determined from the source. Should be mostly increasing to make load efficient"""
+
+    load_mode: Literal["overwrite", "append", "force_full"] = "append"
+    """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only"""
+
+    data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
+        default_factory=lambda: _default_type_map.copy()
+    )
+    """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
+
+
+```

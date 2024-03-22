@@ -5,7 +5,7 @@ from odbc2deltalake.metadata import FieldWithType
 table_name_type = Union[str, tuple[str, str]]
 
 
-def _get_sql_type(type_str: str, max_str_length: int | None) -> str:
+def get_sql_type(type_str: str, max_str_length: int | None) -> str:
     if type_str in ["binary", "varbinary", "large_binary"]:
         real_max_length = max_str_length or 8000
         if real_max_length > 8000:
@@ -39,7 +39,7 @@ def sql_quote_value_with_type(
             return f"CAST(0 as bit)"
     if value is not None and type_str.lower() in ["string", "int32", "varchar", "int"]:
         return sql_quote_value(value)  # string / int32 are defaults for sql server
-    sql_type = _get_sql_type(type_str, max_str_length)
+    sql_type = get_sql_type(type_str, max_str_length)
     if value is not None:
         return f"CAST({sql_quote_value(value)} as {sql_type})"
     else:
@@ -50,7 +50,7 @@ def _get_col_definition(
     field: FieldWithType,
     nullable: bool,
 ) -> str:
-    sql_type = _get_sql_type(field.type, field.max_str_length)
+    sql_type = get_sql_type(field.type, field.max_str_length)
     definit = (
         sql_quote_name(field.name)
         + " "
