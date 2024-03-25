@@ -29,10 +29,10 @@ create table dbo.[company2](
 create table dbo.[company3](
         id varchar(10) collate Icelandic_100_CI_AI_SC primary key,
         name varchar(100),
-        SysStartTime datetime2 GENERATED ALWAYS AS ROW START,
-        SysEndTime datetime2 GENERATED ALWAYS AS ROW
+        [Start] datetime2 GENERATED ALWAYS AS ROW START,
+        [End] datetime2 GENERATED ALWAYS AS ROW
     END,
-    PERIOD FOR SYSTEM_TIME(SysStartTime, SysEndTime)
+    PERIOD FOR SYSTEM_TIME([Start], [End])
 );
 insert into dbo.[company](id, name)
 select 'c1',

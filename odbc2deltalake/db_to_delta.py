@@ -108,8 +108,8 @@ def _cast(
 ):
     mapped_type = type_map.get(data_type) if type_map else None
     if mapped_type:
-        return ex.cast(ex.column(name, table_alias), mapped_type)
-    return ex.column(name, table_alias)
+        return ex.cast(ex.column(name, table_alias, quoted=True), mapped_type)
+    return ex.column(name, table_alias, quoted=True)
 
 
 valid_from_expr = ex.cast(
@@ -134,7 +134,7 @@ def _get_cols_select(
                 c.data_type,
                 table_alias=table_alias,
                 type_map=data_type_map,
-            ).as_(c.compat_name)
+            ).as_(c.compat_name, quoted=True)
             for c in cols
         ]
         + ([valid_from_expr] if with_valid_from else [])
@@ -353,8 +353,8 @@ def write_latest_pk(
                     ex.table_("delta_2", alias="au2"),
                     ex.and_(
                         *[
-                            ex.column(c.compat_name, "d1").eq(
-                                ex.column(c.compat_name, "au2")
+                            ex.column(c.compat_name, "d1", quoted=True).eq(
+                                ex.column(c.compat_name, "au2", quoted=True)
                             )
                             for c in pks
                         ]
@@ -375,8 +375,8 @@ def write_latest_pk(
                     ex.table_("delta_2", alias="au3"),
                     ex.and_(
                         *[
-                            ex.column(c.compat_name, "cpk").eq(
-                                ex.column(c.compat_name, "au3")
+                            ex.column(c.compat_name, "cpk", quoted=True).eq(
+                                ex.column(c.compat_name, "au3", quoted=True)
                             )
                             for c in pks
                         ]
@@ -387,8 +387,8 @@ def write_latest_pk(
                     ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
                     ex.and_(
                         *[
-                            ex.column(c.compat_name, "cpk").eq(
-                                ex.column(c.compat_name, "au4")
+                            ex.column(c.compat_name, "cpk", quoted=True).eq(
+                                ex.column(c.compat_name, "au4", quoted=True)
                             )
                             for c in pks
                         ]
@@ -547,9 +547,9 @@ def do_delta_load(
         logger.info(f"{table}: Done delta load")
     else:
         if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
-            (
-                destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).remove(True)
+            (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).remove(
+                True
+            )
 
 
 def do_append_inserts_load(
@@ -649,7 +649,7 @@ def do_deletes(
     )
 
     non_pk_cols = [c for c in cols if c not in pk_cols]
-    non_pk_select = [ex.Null().as_(c.compat_name) for c in non_pk_cols]
+    non_pk_select = [ex.Null().as_(c.compat_name, quoted=True) for c in non_pk_cols]
     deletes_with_schema = union(
         [
             ex.select(
@@ -886,7 +886,9 @@ def _handle_additional_updates(
         )
         delta_load_value = reader.local_execute_sql_to_py(
             ex.select(
-                ex.func("MIN", ex.column(delta_col.compat_name)).as_("min_ts")
+                ex.func("MIN", ex.column(delta_col.compat_name, quoted=True)).as_(
+                    "min_ts"
+                )
             ).from_(ex.table_("additional_updates", alias="rau"))
         )[0]["min_ts"]
         criterion = _cast(
@@ -1064,12 +1066,14 @@ def do_full_load(
     (delta_path.parent / "delta_load").mkdir()
     query = sg.from_(ex.to_identifier(_temp_table(table))).select(
         *(
-            [ex.column(pk.compat_name) for pk in pk_cols]
-            + ([ex.column(delta_col.compat_name)] if delta_col else [])
+            [ex.column(pk.compat_name, quoted=True) for pk in pk_cols]
+            + ([ex.column(delta_col.compat_name, quoted=True)] if delta_col else [])
         )
     )
     if max_valid_from:
-        query = query.where(ex.column(VALID_FROM_COL_NAME) > ex.convert(max_valid_from))
+        query = query.where(
+            ex.column(VALID_FROM_COL_NAME, quoted=True) > ex.convert(max_valid_from)
+        )
     reader.local_execute_sql_to_delta(
         query,
         delta_path.parent / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
