@@ -52,7 +52,7 @@ select 'c300',
         )
         name_tuples = con.execute(
             """SELECT lf.name from v_company_scd2 lf 
-                qualify row_number() over (partition by lf."id" order by lf."SysStartTime" desc)=1
+                qualify row_number() over (partition by lf."id" order by lf."Start" desc)=1
                 order by lf."id" 
                 """
         ).fetchall()
@@ -64,4 +64,6 @@ select 'c300',
     import time
 
     time.sleep(1)
-    write_db_to_delta(connection.conn_str, ("dbo", "company3"), base_path)
+    write_db_to_delta(
+        connection.conn_str, ("dbo", "company3"), base_path
+    )  # if you switch to full delta later on, that's ok. It will just recalc the latest_pk thing
