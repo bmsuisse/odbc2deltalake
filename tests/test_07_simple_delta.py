@@ -22,6 +22,9 @@ def test_delta_sys(connection: "DB_Connection"):
     write_db_to_delta(
         connection.conn_str, ("dbo", "company3"), base_path, cfg
     )  # full load
+    t = DeltaTable(base_path / "delta")
+    col_names = [f.name for f in t.schema().fields]
+    assert "__timestamp" in col_names
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -36,6 +39,9 @@ select 'c300',
     write_db_to_delta(
         connection.conn_str, ("dbo", "company3"), base_path, cfg
     )  # delta load
+    t.update_incremental()
+    col_names = [f.name for f in t.schema().fields]
+    assert "__timestamp" in col_names
     with nc.cursor() as cursor:
         cursor.execute("SELECT * FROM [dbo].[company3]")
         alls = cursor.fetchall()
@@ -55,3 +61,7 @@ select 'c300',
             ("Die zwooti firma",),
             ("The 300 company",),
         ]
+    import time
+
+    time.sleep(1)
+    write_db_to_delta(connection.conn_str, ("dbo", "company3"), base_path)

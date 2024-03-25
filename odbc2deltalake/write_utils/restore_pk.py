@@ -54,7 +54,7 @@ def restore_last_pk(
             and ex.column(VALID_FROM_COL_NAME).eq(
                 ex.Subquery(
                     this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME)))
-                    .from_("tr")
+                    .from_(ex.table_(ex.to_identifier(_temp_table(table)), alias="tr"))
                     .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
                 )
             )

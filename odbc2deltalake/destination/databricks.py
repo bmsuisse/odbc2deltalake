@@ -41,8 +41,8 @@ class DatabricksDestination(Destination):
         mod_time: int = res[0].modificationTime
         return datetime.fromtimestamp(mod_time / 1000, tz=timezone.utc)
 
-    def remove(self):
-        self.dbutils.fs.rm(self.to_az_path())
+    def remove(self, recurse: bool = False):
+        self.dbutils.fs.rm(self.to_az_path(), recurse=recurse)
 
     def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
         raise NotImplementedError("not an option for databricks")
@@ -81,6 +81,3 @@ class DatabricksDestination(Destination):
             return True
         except Exception:
             return False
-
-    def rm_tree(self):
-        self.dbutils.fs.rm(self.to_az_path(), recurse=True)

@@ -1,7 +1,6 @@
 from typing import Literal, TYPE_CHECKING
 from .destination import Destination
 from pathlib import Path
-import shutil
 
 if TYPE_CHECKING:
     import fsspec
@@ -23,12 +22,6 @@ class FileSystemDestination(Destination):
     def __str__(self):
         return str(self.path)
 
-    def rm_tree(self):
-        if not self.path.exists():
-            return
-
-        shutil.rmtree(self.path)
-
     def exists(self):
         return self.path.exists()
 
@@ -40,8 +33,13 @@ class FileSystemDestination(Destination):
         fs, path = self.get_fs_path()
         return fs.modified(path)
 
-    def remove(self):
-        self.path.unlink()
+    def remove(self, recurse: bool = False):
+        if recurse:
+            import shutil
+
+            shutil.rmtree(self.path)
+        else:
+            self.path.unlink()
 
     @property
     def parent(self):

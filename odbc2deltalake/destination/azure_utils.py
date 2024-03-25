@@ -30,21 +30,13 @@ _token_state = dict()
 
 def _get_default_token(**kwargs) -> str:
     global _token_state
-    token_expiry: datetime | None = _token_state.get("token_expiry", None)
-    if not token_expiry or (token_expiry - datetime.now(tz=timezone.utc)) < timedelta(
-        minutes=2
-    ):
-        from azure.identity import DefaultAzureCredential
+    from azure.identity import DefaultAzureCredential
 
-        tk = DefaultAzureCredential(**kwargs).get_token(
-            "https://storage.azure.com/.default"
-        )
-        _token_state["token_dt"] = tk
-        _token_state["token_expiry"] = datetime.fromtimestamp(
-            tk.expires_on, tz=timezone.utc
-        )
-        _token_state["token"] = tk.token
-    return _token_state["token"]
+    cred: DefaultAzureCredential | None = _token_state.get("cred", None)
+    if not cred:
+        cred = DefaultAzureCredential(**kwargs)
+        _token_state["cred"] = cred
+    return cred.get_token("https://storage.azure.com/.default").token
 
 
 def convert_options(

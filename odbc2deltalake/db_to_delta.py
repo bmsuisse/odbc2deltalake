@@ -545,6 +545,11 @@ def do_delta_load(
             write_config=write_config,
         )
         logger.info(f"{table}: Done delta load")
+    else:
+        if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
+            (
+                destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).remove(True)
 
 
 def do_append_inserts_load(

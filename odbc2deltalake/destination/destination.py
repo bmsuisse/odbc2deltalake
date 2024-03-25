@@ -35,7 +35,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def remove(self):
+    def remove(self, recurse: bool = False):
         pass
 
     @property
