@@ -61,8 +61,13 @@ class WriteConfig:
     delta_col: str | None = None
     """The column to use for the delta load. If None, the column will be determined from the source. Should be mostly increasing to make load efficient"""
 
-    load_mode: Literal["overwrite", "append", "force_full"] = "append"
-    """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only"""
+    load_mode: Literal[
+        "overwrite", "append", "force_full", "append_inserts", "simple_delta"
+    ] = "append"
+    """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only
+        append_inserts is for when you have a delta column which is strictly increasing and you want to append new rows only. No deletes of rows. might be good for logs
+        simple_delta is for sources where the delta col is a datetime and you can be sure that there are no deletes or additional updates
+    """
 
     data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
         default_factory=lambda: _default_type_map.copy()
@@ -210,6 +215,7 @@ def write_db_to_delta(
             if write_config.delta_col
             else get_delta_col(cols)
         )
+
         pks = write_config.primary_keys or get_primary_keys(
             source, table, dialect=write_config.dialect
         )
@@ -220,6 +226,7 @@ def write_db_to_delta(
             or write_config.load_mode == "overwrite"
         ):
             delta_path.mkdir()
+            logger.info(f"{table}: Start Full Load")
             do_full_load(
                 source,
                 table,
@@ -228,6 +235,20 @@ def write_db_to_delta(
                 cols=cols,
                 pk_cols=pk_cols,
                 delta_col=delta_col,
+                write_config=write_config,
+            )
+        elif write_config.load_mode == "append_inserts":
+            if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
+                delta_col = pk_cols[0]  # identity columns are usually increasing
+            assert (
+                delta_col is not None
+            ), "Must provide delta column for append_inserts load"
+            do_append_inserts_load(
+                source,
+                table,
+                destination=destination,
+                delta_col=delta_col,
+                cols=cols,
                 write_config=write_config,
             )
         else:
@@ -255,6 +276,7 @@ def write_db_to_delta(
                     cols=cols,
                     pk_cols=pk_cols,
                     write_config=write_config,
+                    simple=write_config.load_mode == "simple_delta",
                 )
         lock_file_path.remove()
         _vacuum(
@@ -274,116 +296,6 @@ def write_db_to_delta(
             if o.version() > last_version_pk:
                 o.restore(last_version_pk)
         raise e
-
-
-def restore_last_pk(
-    reader: DataSourceReader,
-    table: table_name_type,
-    destination: Destination,
-    delta_col: InformationSchemaColInfo,
-    pk_cols: list[InformationSchemaColInfo],
-    write_config: WriteConfig,
-):
-    delta_path = destination / "delta"
-    reader.local_register_update_view(delta_path, _temp_table(table))
-
-    sq_valid_from = reader.local_execute_sql_to_py(
-        sg.from_(ex.to_identifier(_temp_table(table)))
-        .select(ex.func("max", ex.column(VALID_FROM_COL_NAME)).as_(VALID_FROM_COL_NAME))
-        .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
-    )
-    if sq_valid_from is None or len(sq_valid_from) == 0:
-        return False
-    latest_full_load_date = sq_valid_from[0][VALID_FROM_COL_NAME]
-    reader.local_register_view(
-        sg.from_(ex.table_(ex.to_identifier(_temp_table(table)), alias="tr"))
-        .select(
-            *_get_cols_select(
-                cols=pk_cols + [delta_col],
-                table_alias="tr",
-                source_uses_compat=True,
-                data_type_map=write_config.data_type_map,
-            )
-        )
-        .where(
-            ex.column(IS_FULL_LOAD_COL_NAME).eq(True)
-            and ex.column(VALID_FROM_COL_NAME).eq(
-                ex.Subquery(
-                    this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME)))
-                    .from_("tr")
-                    .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
-                )
-            )
-        ),
-        "last_full_load",
-    )
-
-    sq = (
-        sg.from_(ex.table_(_temp_table(table), alias="tr"))
-        .select(
-            *_get_cols_select(
-                cols=pk_cols + [delta_col, IS_DELETED_COL_INFO],
-                table_alias="tr",
-                source_uses_compat=True,
-                data_type_map=write_config.data_type_map,
-            )
-        )
-        .where(ex.column(VALID_FROM_COL_NAME) > ex.convert(latest_full_load_date))
-    )
-    sq = sq.qualify(
-        ex.EQ(
-            this=ex.Window(
-                this=ex.RowNumber(),
-                partition_by=[ex.column(pk.compat_name) for pk in pk_cols],
-                order=ex.Order(
-                    expressions=[
-                        ex.Ordered(
-                            this=ex.column(delta_col.compat_name),
-                            desc=True,
-                            nulls_first=False,
-                        )
-                    ]
-                ),
-                over="OVER",
-            ),
-            expression=ex.convert(1),
-        )
-    )
-    reader.local_register_view(sq, "delta_after_full_load")
-    reader.local_register_view(
-        sq.from_("base")
-        .where(ex.column(IS_DELETED_COL_NAME))
-        .with_(
-            "base",
-            as_=ex.union(
-                left=sq.from_("delta_after_full_load").select("*"),
-                right=sq.from_(ex.table_("last_full_load", "f")).join(
-                    ex.table_("delta_after_full_load", "d"),
-                    join_type="anti",
-                    on=ex.and_(
-                        *[
-                            ex.column(c.compat_name, "f").eq(
-                                ex.column(c.compat_name, "d")
-                            )
-                            for c in pk_cols
-                        ]
-                    ),
-                ),
-                distinct=False,
-            ),
-        )
-        .select(ex.Star(**{"except": [ex.column(IS_DELETED_COL_NAME)]})),
-        "v_last_pk_version",
-    )
-    cnt = reader.local_execute_sql_to_py(count_limit_one("v_last_pk_version"))[0]["cnt"]
-    if cnt == 0:
-        return False
-    reader.local_execute_sql_to_delta(
-        sq.from_("v_last_pk_version").select(ex.Star()),
-        destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
-        mode="overwrite",
-    )
-    return True
 
 
 def create_replace_view(
@@ -509,15 +421,24 @@ def do_delta_load(
     cols: list[InformationSchemaColInfo],
     pk_cols: list[InformationSchemaColInfo],
     write_config: WriteConfig,
+    simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
 ):
-    last_pk_path = destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
+    last_pk_path = (
+        destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
+        if not simple
+        else None
+    )
     logger.info(
-        f"{table}: Start Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in pk_cols))}"
+        f"{table}: Start { 'SIMPLE ' if simple else '' }Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in pk_cols))}"
     )
 
-    if not (last_pk_path / "_delta_log").exists():  # or do a full load?
+    if (
+        last_pk_path and not (last_pk_path / "_delta_log").exists()
+    ):  # or do a full load?
         logger.warning(f"{table}: Primary keys missing, try to restore")
         try:
+            from .write_utils.restore_pk import restore_last_pk
+
             restore_sucess = restore_last_pk(
                 reader,
                 table,
@@ -542,22 +463,15 @@ def do_delta_load(
                 write_config=write_config,
             )
             return
-    old_pk_version = reader.get_local_delta_ops(
-        destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-    ).version()
+    old_pk_version = (
+        reader.get_local_delta_ops(
+            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+        ).version()
+        if not simple
+        else None
+    )
     delta_path = destination / "delta"
-    reader.local_register_update_view(delta_path, _temp_table(table))
-    delta_load_value = reader.local_execute_sql_to_py(
-        sg.from_(ex.to_identifier(_temp_table(table))).select(
-            ex.func(
-                "MAX",
-                _cast(
-                    delta_col.compat_name,
-                    delta_col.data_type,
-                ),
-            ).as_("max_ts")
-        )
-    )[0]["max_ts"]
+    delta_load_value = _get_latest_delta_value(reader, delta_path, table, delta_col)
 
     if delta_load_value is None:
         logger.warning(f"{table}: No delta load value, do a full load")
@@ -575,14 +489,15 @@ def do_delta_load(
     logger.info(
         f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
     )
-    _retrieve_primary_key_data(
-        reader=reader,
-        table=table,
-        delta_col=delta_col,
-        pk_cols=pk_cols,
-        destination=destination,
-        write_config=write_config,
-    )
+    if not simple:
+        _retrieve_primary_key_data(
+            reader=reader,
+            table=table,
+            delta_col=delta_col,
+            pk_cols=pk_cols,
+            destination=destination,
+            write_config=write_config,
+        )
 
     criterion = _cast(
         delta_col.column_name,
@@ -600,33 +515,101 @@ def do_delta_load(
         delta_name="delta_1",
         write_config=write_config,
     )
+    if not simple:
+        assert old_pk_version is not None
+        _handle_additional_updates(
+            reader=reader,
+            table=table,
+            delta_path=delta_path,
+            pk_cols=pk_cols,
+            delta_col=delta_col,
+            cols=cols,
+            write_config=write_config,
+            old_pk_version=old_pk_version,
+        )
+        reader.local_register_update_view(delta_path, _temp_table(table))
 
-    _handle_additional_updates(
-        reader=reader,
-        table=table,
+        logger.info(f"{table}: Start delta step 3.5, write meta for next delta load")
+
+        write_latest_pk(
+            reader, destination, pk_cols, delta_col, write_config=write_config
+        )
+
+        logger.info(f"{table}: Start delta step 4.5, write deletes")
+        do_deletes(
+            reader=reader,
+            destination=destination,
+            cols=cols,
+            pk_cols=pk_cols,
+            old_pk_version=old_pk_version,
+            write_config=write_config,
+        )
+        logger.info(f"{table}: Done delta load")
+    else:
+        if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
+            (
+                destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).remove(True)
+
+
+def do_append_inserts_load(
+    reader: DataSourceReader,
+    table: table_name_type,
+    destination: Destination,
+    *,
+    delta_col: InformationSchemaColInfo,
+    cols: list[InformationSchemaColInfo],
+    write_config: WriteConfig,
+):
+    logger.info(
+        f"{table}: Start Append Only Load with Delta Column {delta_col.column_name}"
+    )
+    delta_path = destination / "delta"
+    delta_load_value = _get_latest_delta_value(reader, delta_path, table, delta_col)
+
+    criterion = (
+        _cast(
+            delta_col.column_name,
+            delta_col.data_type,
+            table_alias="t",
+            type_map=write_config.data_type_map,
+        )
+        > ex.convert(delta_load_value)
+        if delta_load_value
+        else None
+    )
+    logger.info(f"{table}: Start delta step 2, load updates by timestamp")
+    _load_updates_to_delta(
+        reader,
+        sql=_get_update_sql(
+            cols=cols, criterion=criterion, table=table, write_config=write_config
+        ),
         delta_path=delta_path,
-        pk_cols=pk_cols,
-        delta_col=delta_col,
-        cols=cols,
+        delta_name="delta_1",
         write_config=write_config,
-        old_pk_version=old_pk_version,
     )
+
+    logger.info(f"{table}: Done Append only load")
+
+
+def _get_latest_delta_value(
+    reader: DataSourceReader,
+    delta_path: Destination,
+    table: table_name_type,
+    delta_col: InformationSchemaColInfo,
+):
     reader.local_register_update_view(delta_path, _temp_table(table))
-
-    logger.info(f"{table}: Start delta step 3.5, write meta for next delta load")
-
-    write_latest_pk(reader, destination, pk_cols, delta_col, write_config=write_config)
-
-    logger.info(f"{table}: Start delta step 4.5, write deletes")
-    do_deletes(
-        reader=reader,
-        destination=destination,
-        cols=cols,
-        pk_cols=pk_cols,
-        old_pk_version=old_pk_version,
-        write_config=write_config,
-    )
-    logger.info(f"{table}: Done delta load")
+    return reader.local_execute_sql_to_py(
+        sg.from_(ex.to_identifier(_temp_table(table))).select(
+            ex.func(
+                "MAX",
+                _cast(
+                    delta_col.compat_name,
+                    delta_col.data_type,
+                ),
+            ).as_("max_ts")
+        )
+    )[0]["max_ts"]
 
 
 def do_deletes(
@@ -978,7 +961,7 @@ def _handle_additional_updates(
 
 def _get_update_sql(
     cols: list[InformationSchemaColInfo],
-    criterion: str | Sequence[str | ex.Expression] | ex.Expression,
+    criterion: str | Sequence[str | ex.Expression] | ex.Expression | None,
     table: table_name_type,
     write_config: WriteConfig,
 ):
@@ -999,7 +982,11 @@ def _get_update_sql(
             )
         )
         .where(
-            *(criterion if not isinstance(criterion, str) else []),
+            *(
+                criterion
+                if criterion is not None and not isinstance(criterion, str)
+                else []
+            ),
             dialect=write_config.dialect,
         )
         .from_(table_from_tuple(table, alias="t"))

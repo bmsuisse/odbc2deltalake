@@ -43,9 +43,9 @@ class AzureDestination(Destination):
         fs, path = self.get_fs_path()
         return fs.modified(path)
 
-    def remove(self):
+    def remove(self, recurse: bool = False):
         fs, path = self.get_fs_path()
-        fs.rm(path)
+        fs.rm(path, recursive=recurse)
 
     def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
         from .azure_utils import convert_options
@@ -82,7 +82,3 @@ class AzureDestination(Destination):
     def exists(self):
         fs, path = self.get_fs_path()
         return cast(bool, fs.exists(path))
-
-    def rm_tree(self):
-        fs, path = self.get_fs_path()
-        fs.rm(path, recursive=True)

@@ -5,8 +5,11 @@ drop table if exists dbo.[user4];
 drop table if exists dbo.[user];
 drop table if exists dbo.[company];
 drop table if exists dbo.[company2];
+drop table if exists dbo.[company3];
 drop table if exists [long schema].[long table name];
+drop table if exists dbo.[log];
 GO
+create table dbo.[log] (id int primary key identity(1, 1), message nvarchar(max), [inserted_at] datetime not null default(getdate()));
 create table dbo.[company](
         id varchar(10) collate Icelandic_100_CI_AI_SC primary key,
         name varchar(100),
@@ -23,12 +26,22 @@ create table dbo.[company2](
     END,
     PERIOD FOR SYSTEM_TIME(SysStartTime, SysEndTime)
 );
+create table dbo.[company3](
+        id varchar(10) collate Icelandic_100_CI_AI_SC primary key,
+        name varchar(100),
+        SysStartTime datetime2 GENERATED ALWAYS AS ROW START,
+        SysEndTime datetime2 GENERATED ALWAYS AS ROW
+    END,
+    PERIOD FOR SYSTEM_TIME(SysStartTime, SysEndTime)
+);
 insert into dbo.[company](id, name)
 select 'c1',
     'The First company';
 insert into dbo.[company](id, name)
 select 'c2',
     'The Second company';
+insert into dbo.[company3](id, name)
+select id, name from dbo.[company];
 create table dbo.[user](
     [User - iD] bigint primary key identity(1, 1),
     FirstName varchar(100),
@@ -107,3 +120,6 @@ union all
 SELECT 2,
     '<root><child>text 2345asdf</child></root>',
     '2024-01-01';
+;
+insert into dbo.[log](message)
+select 'The first log message';
