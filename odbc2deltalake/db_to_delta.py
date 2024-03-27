@@ -880,7 +880,7 @@ def _handle_additional_updates(
     elif (
         update_count > 1000
     ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
-
+        reader.source_write_sql_to_delta(full_sql("[]"), delta_2_path, mode="overwrite") # still need to create delta_2_path
         logger.warning(
             f"{table}: Start delta step 3, load {update_count} strange updates via normal delta load"
         )
