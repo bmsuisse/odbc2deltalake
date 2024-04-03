@@ -72,9 +72,14 @@ class WriteConfig:
     """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only"""
 
     data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
-        default_factory=lambda: _default_type_map.copy()
+        default_factory=lambda: _default_type_map.copy() # defaults to some simple sql server related maps
     )
     """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
 
+    get_target_name: Callable[[InformationSchemaColInfo], str] = dataclasses.field(
+        default_factory=lambda: compat_name # defaults to removing spaces and other characters not allowed by spark
+    )
+    """A method that returns the target name of a column. This is used to map the source column names to the target column names.
+    Use if you want to apply some naming convention or avoid special characters in the target. """
 
 ```

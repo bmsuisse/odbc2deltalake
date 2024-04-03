@@ -46,14 +46,6 @@ class FieldWithType(BaseModel):
 class InformationSchemaColInfo(BaseModel):
     column_name: str
 
-    @property
-    def compat_name(self):
-        invalid_chars = " ,;{}()\n\t="
-        res = self.column_name
-        for ic in invalid_chars:
-            res = res.replace(ic, "_")
-        return res
-
     data_type: str
     column_default: str | None = None
     is_nullable: bool = True
@@ -66,10 +58,10 @@ class InformationSchemaColInfo(BaseModel):
     ] = "NOT_APPLICABLE"
     is_identity: bool = False
 
-    def as_field_type(self, *, compat: bool):
+    def as_field_type(self, *, col_name: Optional[str] = None):
 
         return FieldWithType(
-            name=self.column_name if not compat else self.compat_name,
+            name=col_name or self.column_name,
             type=self.data_type,
             max_str_length=self.character_maximum_length,
         )

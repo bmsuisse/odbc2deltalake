@@ -2,9 +2,7 @@ from dataclasses import dataclass
 import dataclasses
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Literal, Mapping, Sequence, TypeVar, cast
-import asyncio
-from pydantic import BaseModel
+from typing import Callable, Iterable, Literal, Mapping, Sequence, TypeVar, cast
 import sqlglot as sg
 from odbc2deltalake.destination.destination import (
     Destination,
@@ -22,6 +20,9 @@ import time
 import sqlglot.expressions as ex
 from .sql_glot_utils import table_from_tuple, union, count_limit_one
 import logging
+import pydantic
+
+is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,14 @@ _default_type_map = {
     "timestamp": ex.DataType.Type.BIGINT,
 }
 DEFAULT_DATA_TYPE_MAP: Mapping[str, ex.DATA_TYPE] = _default_type_map
+
+
+def compat_name(inf: InformationSchemaColInfo) -> str:
+    invalid_chars = " ,;{}()\n\t="
+    res = inf.column_name
+    for ic in invalid_chars:
+        res = res.replace(ic, "_")
+    return res
 
 
 @dataclass(frozen=True)
@@ -76,6 +85,12 @@ class WriteConfig:
 
     no_complex_entries_load: bool = False
     """If true, will not load 'strange updates' via OPENJSON. Use if your db does not support OPENJSON or you're fine to get some additional updates in order to reduce complexity"""
+
+    get_target_name: Callable[[InformationSchemaColInfo], str] = dataclasses.field(
+        default_factory=lambda: compat_name
+    )
+    """A method that returns the target name of a column. This is used to map the source column names to the target column names.
+    Use if you want to apply some naming convention or avoid special characters in the target. """
 
 
 def _not_none(v: T | None) -> T:
@@ -126,15 +141,18 @@ def _get_cols_select(
     table_alias: str | None = None,
     source_uses_compat: bool,
     data_type_map: Mapping[str, ex.DATA_TYPE] | None = None,
+    get_target_name: Callable[[InformationSchemaColInfo], str] | None,
 ) -> Sequence[ex.Expression]:
+    if get_target_name is None:
+        get_target_name = lambda c: c.column_name
     return (
         [
             _cast(
-                c.compat_name if source_uses_compat else c.column_name,
+                get_target_name(c) if source_uses_compat else c.column_name,
                 c.data_type,
                 table_alias=table_alias,
                 type_map=data_type_map,
-            ).as_(c.compat_name, quoted=True)
+            ).as_(get_target_name(c), quoted=True)
             for c in cols
         ]
         + ([valid_from_expr] if with_valid_from else [])
@@ -189,7 +207,9 @@ def write_db_to_delta(
 
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload_str(
-        json.dumps([c.dict() for c in cols], indent=4)
+        json.dumps(
+            [c.model_dump() if is_pydantic_2 else c.dict() for c in cols], indent=4
+        )
     )
     if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
         last_version_pk = source.get_local_delta_ops(
@@ -210,17 +230,40 @@ def write_db_to_delta(
             lock_file_path.remove()
         lock_file_path.upload_str("")
 
-        delta_col = (
-            next((c for c in cols if c.column_name == write_config.delta_col))
-            if write_config.delta_col
-            else get_delta_col(cols)
-        )
+        if write_config.delta_col:
+            delta_col = next(
+                (c for c in cols if c.column_name == write_config.delta_col), None
+            )
+            if delta_col is None:
+                delta_col = next(
+                    (
+                        c
+                        for c in cols
+                        if write_config.get_target_name(c) == write_config.delta_col
+                    ),
+                    None,
+                )
+            if delta_col is None:
+                raise ValueError(
+                    f"Delta column {write_config.delta_col} not found in source"
+                )
+        else:
+            delta_col = get_delta_col(cols)
 
-        pks = write_config.primary_keys or get_primary_keys(
+        _pks = write_config.primary_keys or get_primary_keys(
             source, table, dialect=write_config.dialect
         )
-        pk_cols = [c for c in cols if c.column_name in pks]
-        assert len(pks) == len(pk_cols), f"Primary keys not found: {pks}"
+        pk_cols: list[InformationSchemaColInfo] = []
+        for pk in _pks:
+            pk_col = next((c for c in cols if c.column_name == pk), None)
+            if pk_col is None:
+                pk_col = next(
+                    (c for c in cols if write_config.get_target_name(c) == pk), None
+                )
+            if pk_col is None:
+                raise ValueError(f"Primary key {pk} not found in source")
+            pk_cols.append(pk_col)
+        assert len(_pks) == len(pk_cols), f"Primary keys not found: {_pks}"
         if (
             not (delta_path / "_delta_log").exists()
             or write_config.load_mode == "overwrite"
@@ -254,7 +297,7 @@ def write_db_to_delta(
         else:
             if (
                 delta_col is None
-                or len(pks) == 0
+                or len(pk_cols) == 0
                 or write_config.load_mode == "force_full"
             ):
                 do_full_load(
@@ -338,6 +381,7 @@ def write_latest_pk(
                     cols=pks + [delta_col],
                     table_alias="au",
                     source_uses_compat=True,
+                    get_target_name=write_config.get_target_name,
                 )
             ).from_(table_from_tuple("delta_2", alias="au")),
             (
@@ -346,6 +390,7 @@ def write_latest_pk(
                         cols=pks + [delta_col],
                         table_alias="d1",
                         source_uses_compat=True,
+                        get_target_name=write_config.get_target_name,
                     )
                 )
                 .from_(ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="d1"))
@@ -353,8 +398,12 @@ def write_latest_pk(
                     ex.table_("delta_2", alias="au2"),
                     ex.and_(
                         *[
-                            ex.column(c.compat_name, "d1", quoted=True).eq(
-                                ex.column(c.compat_name, "au2", quoted=True)
+                            ex.column(
+                                write_config.get_target_name(c), "d1", quoted=True
+                            ).eq(
+                                ex.column(
+                                    write_config.get_target_name(c), "au2", quoted=True
+                                )
                             )
                             for c in pks
                         ]
@@ -368,6 +417,7 @@ def write_latest_pk(
                         cols=pks + [delta_col],
                         table_alias="cpk",
                         source_uses_compat=True,
+                        get_target_name=write_config.get_target_name,
                     )
                 )
                 .from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="cpk"))
@@ -375,8 +425,12 @@ def write_latest_pk(
                     ex.table_("delta_2", alias="au3"),
                     ex.and_(
                         *[
-                            ex.column(c.compat_name, "cpk", quoted=True).eq(
-                                ex.column(c.compat_name, "au3", quoted=True)
+                            ex.column(
+                                write_config.get_target_name(c), "cpk", quoted=True
+                            ).eq(
+                                ex.column(
+                                    write_config.get_target_name(c), "au3", quoted=True
+                                )
                             )
                             for c in pks
                         ]
@@ -387,8 +441,12 @@ def write_latest_pk(
                     ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
                     ex.and_(
                         *[
-                            ex.column(c.compat_name, "cpk", quoted=True).eq(
-                                ex.column(c.compat_name, "au4", quoted=True)
+                            ex.column(
+                                write_config.get_target_name(c), "cpk", quoted=True
+                            ).eq(
+                                ex.column(
+                                    write_config.get_target_name(c), "au4", quoted=True
+                                )
                             )
                             for c in pks
                         ]
@@ -471,7 +529,9 @@ def do_delta_load(
         else None
     )
     delta_path = destination / "delta"
-    delta_load_value = _get_latest_delta_value(reader, delta_path, table, delta_col)
+    delta_load_value = _get_latest_delta_value(
+        reader, delta_path, table, delta_col, write_config
+    )
 
     if delta_load_value is None:
         logger.warning(f"{table}: No delta load value, do a full load")
@@ -565,7 +625,9 @@ def do_append_inserts_load(
         f"{table}: Start Append Only Load with Delta Column {delta_col.column_name}"
     )
     delta_path = destination / "delta"
-    delta_load_value = _get_latest_delta_value(reader, delta_path, table, delta_col)
+    delta_load_value = _get_latest_delta_value(
+        reader, delta_path, table, delta_col, write_config
+    )
 
     criterion = (
         _cast(
@@ -597,6 +659,7 @@ def _get_latest_delta_value(
     delta_path: Destination,
     table: table_name_type,
     delta_col: InformationSchemaColInfo,
+    write_config: WriteConfig,
 ):
     reader.local_register_update_view(delta_path, _temp_table(table))
     return reader.local_execute_sql_to_py(
@@ -604,7 +667,7 @@ def _get_latest_delta_value(
             ex.func(
                 "MAX",
                 _cast(
-                    delta_col.compat_name,
+                    write_config.get_target_name(delta_col),
                     delta_col.data_type,
                 ),
             ).as_("max_ts")
@@ -637,6 +700,7 @@ def do_deletes(
                 pk_cols,
                 table_alias="lpk",
                 source_uses_compat=True,
+                get_target_name=write_config.get_target_name,
             )
         ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
         right=ex.select(
@@ -644,12 +708,15 @@ def do_deletes(
                 pk_cols,
                 table_alias="cpk",
                 source_uses_compat=True,
+                get_target_name=write_config.get_target_name,
             )
         ).from_(table_from_tuple(DBDeltaPathConfigs.LATEST_PK_VERSION, alias="cpk")),
     )
 
     non_pk_cols = [c for c in cols if c not in pk_cols]
-    non_pk_select = [ex.Null().as_(c.compat_name, quoted=True) for c in non_pk_cols]
+    non_pk_select = [
+        ex.Null().as_(write_config.get_target_name(c), quoted=True) for c in non_pk_cols
+    ]
     deletes_with_schema = union(
         [
             ex.select(
@@ -657,6 +724,7 @@ def do_deletes(
                     pk_cols,
                     table_alias="d1",
                     source_uses_compat=True,
+                    get_target_name=write_config.get_target_name,
                 )
             )
             .select(
@@ -664,6 +732,7 @@ def do_deletes(
                     non_pk_cols,
                     table_alias="d1",
                     source_uses_compat=True,
+                    get_target_name=write_config.get_target_name,
                 ),
                 append=True,
             )
@@ -723,6 +792,7 @@ def _retrieve_primary_key_data(
             with_valid_from=False,
             data_type_map=write_config.data_type_map,
             source_uses_compat=False,
+            get_target_name=write_config.get_target_name,
         )
     ).from_(table_from_tuple(table))
     pk_ts_reader_sql = pk_ts_col_select.sql(write_config.dialect)
@@ -780,6 +850,7 @@ def _handle_additional_updates(
                     cols=pk_ds_cols,
                     table_alias="pk",
                     source_uses_compat=True,
+                    get_target_name=write_config.get_target_name,
                 )
             ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
             right=ex.select(
@@ -787,6 +858,7 @@ def _handle_additional_updates(
                     cols=pk_ds_cols,
                     table_alias="lpk",
                     source_uses_compat=True,
+                    get_target_name=write_config.get_target_name,
                 )
             ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
         ),
@@ -799,6 +871,7 @@ def _handle_additional_updates(
                 cols=pk_cols,
                 table_alias="au",
                 source_uses_compat=True,
+                get_target_name=write_config.get_target_name,
             )
         ).from_(ex.table_("additional_updates", alias="au")),
         right=ex.select(
@@ -806,6 +879,7 @@ def _handle_additional_updates(
                 cols=pk_cols,
                 table_alias="d1",
                 source_uses_compat=True,
+                get_target_name=write_config.get_target_name,
             )
         ).from_(table_from_tuple("delta_1", alias="d1")),
     )
@@ -820,7 +894,9 @@ def _handle_additional_updates(
     jsd = reader.local_execute_sql_to_py(
         sg.from_("real_additional_updates").select(
             *[
-                ex.column(c.compat_name).as_("p" + str(i), quoted=False)
+                ex.column(write_config.get_target_name(c)).as_(
+                    "p" + str(i), quoted=False
+                )
                 for i, c in enumerate(pk_cols)
             ]
         )
@@ -857,6 +933,7 @@ def _handle_additional_updates(
                 table_alias="t",
                 data_type_map=write_config.data_type_map,
                 source_uses_compat=False,
+                get_target_name=write_config.get_target_name,
             )
         )
         sql = (
@@ -866,13 +943,13 @@ def _handle_additional_updates(
         )
         pk_map = ", ".join(
             [
-                "p" + str(i) + " as " + sql_quote_name(c.compat_name)
+                "p" + str(i) + " as " + sql_quote_name(write_config.get_target_name(c))
                 for i, c in enumerate(pk_cols)
             ]
         )
         return f"""{sql}
         inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
-             on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(c.compat_name)}' for c in pk_cols])}
+             on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}' for c in pk_cols])}
         """
 
     if update_count == 0:
@@ -880,15 +957,18 @@ def _handle_additional_updates(
     elif (
         update_count > 1000
     ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
-        reader.source_write_sql_to_delta(full_sql("[]"), delta_2_path, mode="overwrite") # still need to create delta_2_path
+        reader.source_write_sql_to_delta(
+            full_sql("[]"), delta_2_path, mode="overwrite"
+        )  # still need to create delta_2_path
         logger.warning(
             f"{table}: Start delta step 3, load {update_count} strange updates via normal delta load"
         )
         delta_load_value = reader.local_execute_sql_to_py(
             ex.select(
-                ex.func("MIN", ex.column(delta_col.compat_name, quoted=True)).as_(
-                    "min_ts"
-                )
+                ex.func(
+                    "MIN",
+                    ex.column(write_config.get_target_name(delta_col), quoted=True),
+                ).as_("min_ts")
             ).from_(ex.table_("additional_updates", alias="rau"))
         )[0]["min_ts"]
         criterion = _cast(
@@ -981,6 +1061,7 @@ def _get_update_sql(
                 table_alias="t",
                 data_type_map=write_config.data_type_map,
                 source_uses_compat=False,
+                get_target_name=write_config.get_target_name,
             )
         )
         .where(
@@ -1041,6 +1122,7 @@ def do_full_load(
                 with_valid_from=True,
                 data_type_map=write_config.data_type_map,
                 source_uses_compat=False,
+                get_target_name=write_config.get_target_name,
             )
         )
         .from_(table_from_tuple(table))
@@ -1066,8 +1148,12 @@ def do_full_load(
     (delta_path.parent / "delta_load").mkdir()
     query = sg.from_(ex.to_identifier(_temp_table(table))).select(
         *(
-            [ex.column(pk.compat_name, quoted=True) for pk in pk_cols]
-            + ([ex.column(delta_col.compat_name, quoted=True)] if delta_col else [])
+            [ex.column(write_config.get_target_name(pk), quoted=True) for pk in pk_cols]
+            + (
+                [ex.column(write_config.get_target_name(delta_col), quoted=True)]
+                if delta_col
+                else []
+            )
         )
     )
     if max_valid_from:

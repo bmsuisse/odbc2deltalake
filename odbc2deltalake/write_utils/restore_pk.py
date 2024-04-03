@@ -45,8 +45,8 @@ def restore_last_pk(
         sg.from_(ex.table_(ex.to_identifier(_temp_table(table)), alias="tr"))
         .select(
             *(
-                [ex.column(c.compat_name, "tr") for c in pk_cols]
-                + [ex.column(delta_col.compat_name, "tr")]
+                [ex.column(write_config.get_target_name(c), "tr") for c in pk_cols]
+                + [ex.column(delta_col.column_name, "tr")]
             )
         )
         .where(
@@ -66,8 +66,8 @@ def restore_last_pk(
         sg.from_(ex.table_(_temp_table(table), alias="tr"))
         .select(
             *(
-                [ex.column(c.compat_name, "tr") for c in pk_cols]
-                + [ex.column(delta_col.compat_name, "tr")]
+                [ex.column(write_config.get_target_name(c), "tr") for c in pk_cols]
+                + [ex.column(write_config.get_target_name(delta_col), "tr")]
                 + [ex.column(IS_DELETED_COL_NAME, "tr")]
             )
         )
@@ -77,11 +77,13 @@ def restore_last_pk(
         ex.EQ(
             this=ex.Window(
                 this=ex.RowNumber(),
-                partition_by=[ex.column(pk.compat_name) for pk in pk_cols],
+                partition_by=[
+                    ex.column(write_config.get_target_name(pk)) for pk in pk_cols
+                ],
                 order=ex.Order(
                     expressions=[
                         ex.Ordered(
-                            this=ex.column(delta_col.compat_name),
+                            this=ex.column(write_config.get_target_name(delta_col)),
                             desc=True,
                             nulls_first=False,
                         )
@@ -105,8 +107,8 @@ def restore_last_pk(
                     join_type="anti",
                     on=ex.and_(
                         *[
-                            ex.column(c.compat_name, "f").eq(
-                                ex.column(c.compat_name, "d")
+                            ex.column(write_config.get_target_name(c), "f").eq(
+                                ex.column(write_config.get_target_name(c), "d")
                             )
                             for c in pk_cols
                         ]

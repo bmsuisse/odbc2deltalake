@@ -146,16 +146,16 @@ files = [
 
 [[package]]
 name = "arrow-odbc"
-version = "4.1.0"
+version = "5.0.0"
 description = "Read the data of an ODBC data source as sequence of Apache Arrow record batches."
 optional = true
 python-versions = "*"
 files = [
-    {file = "arrow_odbc-4.1.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:e4e09fcd5a0bc827c995cb1fd91b275dfcc801332a1340aa2c743296665b22b9"},
-    {file = "arrow_odbc-4.1.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:5b282ffb3a002c147368654f3bcd0d430b426bbffee4fd51d33109cf03390fea"},
-    {file = "arrow_odbc-4.1.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:12c86ad1c85cc85935cb82be918d26dda46d8734d195ad45d2e5345e2f899fe9"},
-    {file = "arrow_odbc-4.1.0-py3-none-win_amd64.whl", hash = "sha256:0098f2628afd2ce17342724d9f03f909468d044cd50160698966bbbffdee0e91"},
-    {file = "arrow_odbc-4.1.0.tar.gz", hash = "sha256:8b95b2a60ad4d3477194597210c02362dcd89c141d2b401805bec3c7b2a4b3be"},
+    {file = "arrow_odbc-5.0.0-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:2221792f9eacdbb038f1f8f936e918801604e0aa908a4f1c79964159abfa4a90"},
+    {file = "arrow_odbc-5.0.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:d58d4973f862669e1cf25ebf2b764ef93d62f39fd4bf4f28ec6b42b5a4ce7059"},
+    {file = "arrow_odbc-5.0.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2d604e3151cfd3dbc799d95c615666a55b500dfbb954fa4429c7b6cadb0f6bf6"},
+    {file = "arrow_odbc-5.0.0-py3-none-win_amd64.whl", hash = "sha256:f835ad192364168fd13d4c5481b3eefbca30b1a13a5afccd9c596aba1984d7d1"},
+    {file = "arrow_odbc-5.0.0.tar.gz", hash = "sha256:e928862495199bdad8a489b394dc8407baadc49eeeabab44df6cb8a3a884e355"},
 ]
 
 [package.dependencies]
@@ -163,7 +163,7 @@ cffi = "*"
 pyarrow = ">=8.0.0"
 
 [package.extras]
-test = ["pyodbc", "pytest (<8.0.0)"]
+test = ["duckdb", "pyodbc", "pytest (<8.0.0)"]
 
 [[package]]
 name = "async-timeout"
@@ -650,17 +650,17 @@ pyspark = ">=3.5.0,<3.6.0"
 
 [[package]]
 name = "deltalake"
-version = "0.16.2"
+version = "0.16.4"
 description = "Native Delta Lake Python binding based on delta-rs with Pandas integration"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "deltalake-0.16.2-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:5afe957335cf6af00cb9d1ab5b7d1715bc9df18a8d49cc94808db7d4bba81716"},
-    {file = "deltalake-0.16.2-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:fdb68ce8629fc66118e06c67f5c8ace7af37c380232b5e50f58bf7c10b1c7803"},
-    {file = "deltalake-0.16.2-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ca8ca49f31782259fac7e2987277ca8a8114da34fbde28f622b5b39c5049eb28"},
-    {file = "deltalake-0.16.2-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:959c378f5f462d30a33768f73081108622f67617d84b2e54abf8290941cc2ff0"},
-    {file = "deltalake-0.16.2-cp38-abi3-win_amd64.whl", hash = "sha256:8cfdf412c2d82ae352ce792d57c26d706eac8d3b9aa46357f2cdbc89ac842766"},
-    {file = "deltalake-0.16.2.tar.gz", hash = "sha256:2df55ee56df6271685a877ca5c06edb0b2f94e38177857ed1a44016314a63b50"},
+    {file = "deltalake-0.16.4-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:b5957258358083e63cccad5bca6e52527b8b2733e92c69600d4cad9fd85b7fa0"},
+    {file = "deltalake-0.16.4-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:40b2dc128c4b30620fd4bfc5ef2aec9694070fc5a82cca8552e7a5c7c2c98633"},
+    {file = "deltalake-0.16.4-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b59360556c921fdf29307aa2ecff2c0bccff49aaeb9f0168842f4e45e3aca051"},
+    {file = "deltalake-0.16.4-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8bccdf198481ab7f115702e25349d6c7f5a43aee60d8cfdfa7f0de1c59abdd12"},
+    {file = "deltalake-0.16.4-cp38-abi3-win_amd64.whl", hash = "sha256:93d494d608cb95093a49ab2ef5ea177c00950b345fe2c1d960592a37187eabd8"},
+    {file = "deltalake-0.16.4.tar.gz", hash = "sha256:3cbfe1c894df1f62097ec64278292212793127f676a9d3014762b37b59ca55ee"},
 ]
 
 [package.dependencies]
@@ -674,13 +674,13 @@ pyspark = ["delta-spark", "numpy (==1.22.2)", "pyspark"]
 
 [[package]]
 name = "deltalake2db"
-version = "0.2.1"
+version = "0.2.3"
 description = ""
 optional = true
 python-versions = "<4.0,>=3.10"
 files = [
-    {file = "deltalake2db-0.2.1-py3-none-any.whl", hash = "sha256:713ecaa5bafa2e54388af6db5a9dc08b13c0eafa0a41fe15cabed89f412e9bb0"},
-    {file = "deltalake2db-0.2.1.tar.gz", hash = "sha256:51f6a3c00146aee43e50adc13b5e4b3548d62e60a86f4bb2d009d62e86150fe5"},
+    {file = "deltalake2db-0.2.3-py3-none-any.whl", hash = "sha256:7852190b3d71086d6f76a2a96103986c3007ab2370412e1ba5b341deef13afb6"},
+    {file = "deltalake2db-0.2.3.tar.gz", hash = "sha256:ae6937e8960a0bc9808970483daf8a0124ea10cd4d40a7830a72250a6594d8b0"},
 ]
 
 [package.dependencies]
@@ -1303,13 +1303,13 @@ files = [
 
 [[package]]
 name = "pycparser"
-version = "2.21"
+version = "2.22"
 description = "C parser in Python"
 optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+python-versions = ">=3.8"
 files = [
-    {file = "pycparser-2.21-py2.py3-none-any.whl", hash = "sha256:8ee45429555515e1f6b185e78100aea234072576aa43ab53aefcae078162fca9"},
-    {file = "pycparser-2.21.tar.gz", hash = "sha256:e644fdec12f7872f86c58ff790da456218b10f863970249516d60a5eaca77206"},
+    {file = "pycparser-2.22-py3-none-any.whl", hash = "sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc"},
+    {file = "pycparser-2.22.tar.gz", hash = "sha256:491c8be9c040f5390f5bf44a5b07752bd07f56edf992381b05c701439eec10f6"},
 ]
 
 [[package]]
@@ -1484,13 +1484,13 @@ files = [
 
 [[package]]
 name = "pyright"
-version = "1.1.355"
+version = "1.1.356"
 description = "Command line wrapper for pyright"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pyright-1.1.355-py3-none-any.whl", hash = "sha256:bf30b6728fd68ae7d09c98292b67152858dd89738569836896df786e52b5fe48"},
-    {file = "pyright-1.1.355.tar.gz", hash = "sha256:dca4104cd53d6484e6b1b50b7a239ad2d16d2ffd20030bcf3111b56f44c263bf"},
+    {file = "pyright-1.1.356-py3-none-any.whl", hash = "sha256:a101b0f375f93d7082f9046cfaa7ba15b7cf8e1939ace45e984c351f6e8feb99"},
+    {file = "pyright-1.1.356.tar.gz", hash = "sha256:f05b8b29d06b96ed4a0885dad5a31d9dff691ca12b2f658249f583d5f2754021"},
 ]
 
 [package.dependencies]
@@ -1580,13 +1580,13 @@ testing = ["fields", "hunter", "process-tests", "pytest-xdist", "six", "virtuale
 
 [[package]]
 name = "pytest-order"
-version = "1.2.0"
+version = "1.2.1"
 description = "pytest plugin to run your tests in a specific order"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "pytest-order-1.2.0.tar.gz", hash = "sha256:944f86b6d441aa7b1da80f801c6ab65b84bbeba472d0a7a12eb43ba26650101a"},
-    {file = "pytest_order-1.2.0-py3-none-any.whl", hash = "sha256:9d65c3b6dc6d6ee984d6ae2c6c4aa4f1331e5b915116219075c888c8bcbb93b8"},
+    {file = "pytest-order-1.2.1.tar.gz", hash = "sha256:4451bd8821ba4fa2109455a2fcc882af60ef8e53e09d244d67674be08f56eac3"},
+    {file = "pytest_order-1.2.1-py3-none-any.whl", hash = "sha256:c3082fc73f9ddcf13e4a22dda9bbcc2f39865bf537438a1d50fa241e028dd743"},
 ]
 
 [package.dependencies]
@@ -1679,18 +1679,18 @@ files = [
 
 [[package]]
 name = "sqlglot"
-version = "23.0.5"
+version = "23.6.3"
 description = "An easily customizable SQL parser and transpiler"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "sqlglot-23.0.5-py3-none-any.whl", hash = "sha256:12aadd50775209573e7dfa0136f5769da865de3d5954e8e88a02eb0081d1ad6b"},
-    {file = "sqlglot-23.0.5.tar.gz", hash = "sha256:68386c5aebdc9a1c74e2a623f6373805a2f839d205d46945258dde5ac692d515"},
+    {file = "sqlglot-23.6.3-py3-none-any.whl", hash = "sha256:61dacd21795fa21d96a16afb0ba034d3b9241cea99e6a31526bb420383fa7eed"},
+    {file = "sqlglot-23.6.3.tar.gz", hash = "sha256:2eae103593c73abcd89e2301436d58d2727c62e462ab98c3ef6a1720b6681a03"},
 ]
 
 [package.extras]
 dev = ["duckdb (>=0.6)", "maturin (>=1.4,<2.0)", "mypy", "pandas", "pandas-stubs", "pdoc", "pre-commit", "pyspark", "python-dateutil", "ruff (==0.3.2)", "types-python-dateutil", "typing-extensions"]
-rs = ["sqlglotrs (==0.1.2)"]
+rs = ["sqlglotrs (==0.2.0)"]
 
 [[package]]
 name = "tomli"
@@ -1856,4 +1856,4 @@ local-azure = ["adlfs", "azure-identity"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "d06bdde40973da957ed8c210426f4ce9da7fa0a6433f5c947b8675f44d47dc73"
+content-hash = "b01227fea18c778c18cce0aa3aaadcbb53ae560c84ef1b66381ed85ce4dd4a7c"
