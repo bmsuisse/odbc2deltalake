@@ -3,8 +3,6 @@ import dataclasses
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Literal, Mapping, Sequence, TypeVar, cast
-import asyncio
-from pydantic import BaseModel
 import sqlglot as sg
 from odbc2deltalake.destination.destination import (
     Destination,
@@ -22,6 +20,9 @@ import time
 import sqlglot.expressions as ex
 from .sql_glot_utils import table_from_tuple, union, count_limit_one
 import logging
+import pydantic
+
+is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,9 @@ def write_db_to_delta(
 
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload_str(
-        json.dumps([c.dict() for c in cols], indent=4)
+        json.dumps(
+            [c.model_dump() if is_pydantic_2 else c.dict() for c in cols], indent=4
+        )
     )
     if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
         last_version_pk = source.get_local_delta_ops(
@@ -233,14 +236,20 @@ def write_db_to_delta(
             )
             if delta_col is None:
                 delta_col = next(
-                    (c for c in cols if write_config.get_target_name(c) == write_config.delta_col),
+                    (
+                        c
+                        for c in cols
+                        if write_config.get_target_name(c) == write_config.delta_col
+                    ),
                     None,
                 )
             if delta_col is None:
-                raise ValueError(f"Delta column {write_config.delta_col} not found in source")
+                raise ValueError(
+                    f"Delta column {write_config.delta_col} not found in source"
+                )
         else:
             delta_col = get_delta_col(cols)
-        
+
         _pks = write_config.primary_keys or get_primary_keys(
             source, table, dialect=write_config.dialect
         )
