@@ -227,17 +227,34 @@ def write_db_to_delta(
             lock_file_path.remove()
         lock_file_path.upload_str("")
 
-        delta_col = (
-            next((c for c in cols if c.column_name == write_config.delta_col))
-            if write_config.delta_col
-            else get_delta_col(cols)
-        )
-
-        pks = write_config.primary_keys or get_primary_keys(
+        if write_config.delta_col:
+            delta_col = next(
+                (c for c in cols if c.column_name == write_config.delta_col), None
+            )
+            if delta_col is None:
+                delta_col = next(
+                    (c for c in cols if write_config.get_target_name(c) == write_config.delta_col),
+                    None,
+                )
+            if delta_col is None:
+                raise ValueError(f"Delta column {write_config.delta_col} not found in source")
+        else:
+            delta_col = get_delta_col(cols)
+        
+        _pks = write_config.primary_keys or get_primary_keys(
             source, table, dialect=write_config.dialect
         )
-        pk_cols = [c for c in cols if c.column_name in pks]
-        assert len(pks) == len(pk_cols), f"Primary keys not found: {pks}"
+        pk_cols: list[InformationSchemaColInfo] = []
+        for pk in _pks:
+            pk_col = next((c for c in cols if c.column_name == pk), None)
+            if pk_col is None:
+                pk_col = next(
+                    (c for c in cols if write_config.get_target_name(c) == pk), None
+                )
+            if pk_col is None:
+                raise ValueError(f"Primary key {pk} not found in source")
+            pk_cols.append(pk_col)
+        assert len(_pks) == len(pk_cols), f"Primary keys not found: {_pks}"
         if (
             not (delta_path / "_delta_log").exists()
             or write_config.load_mode == "overwrite"
@@ -271,7 +288,7 @@ def write_db_to_delta(
         else:
             if (
                 delta_col is None
-                or len(pks) == 0
+                or len(pk_cols) == 0
                 or write_config.load_mode == "force_full"
             ):
                 do_full_load(
