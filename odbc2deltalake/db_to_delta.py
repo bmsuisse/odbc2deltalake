@@ -1130,7 +1130,9 @@ def do_full_load(
         .from_(table_from_tuple(table))
         .sql(write_config.dialect)
     )
-    if reader.local_delta_table_exists(delta_path):
+    if reader.local_delta_table_exists(
+        delta_path, extended_check=True
+    ):  # the extended check checks if there is any column in the table
         reader.local_register_update_view(delta_path, _temp_table(table))
         res = reader.local_execute_sql_to_py(
             sg.from_(ex.to_identifier(_temp_table(table))).select(

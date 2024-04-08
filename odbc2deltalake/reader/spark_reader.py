@@ -82,10 +82,24 @@ class SparkReader(DataSourceReader):
         rows = reader.load().collect()
         return [row.asDict() for row in rows]
 
-    def local_delta_table_exists(self, delta_path: Destination) -> bool:
+    def local_delta_table_exists(
+        self, delta_path: Destination, extended_check=False
+    ) -> bool:
         from delta import DeltaTable
 
-        return DeltaTable.isDeltaTable(self.spark, str(delta_path))
+        if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
+            if extended_check:
+                return (
+                    len(
+                        self.spark.sql(
+                            f"select * from delta.`{str(delta_path)}` limit 0"
+                        ).columns
+                    )
+                    > 0
+                )
+            return True
+        else:
+            return False
 
     def source_write_sql_to_delta(
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
@@ -95,7 +109,9 @@ class SparkReader(DataSourceReader):
         )
         for k, v in self.sql_config.items():
             reader = reader.option(k, v)
-        reader.load().write.format("delta").mode(mode).save(str(delta_path))
+        reader.load().write.format("delta").option(
+            "mergeSchema" if mode == "append" else "overwriteSchema", "true"
+        ).mode(mode).save(str(delta_path))
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         return SparkDeltaOps(delta_path, self.spark)
