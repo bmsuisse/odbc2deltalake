@@ -1,8 +1,10 @@
 from pathlib import Path
+
+from pydantic import BaseModel
 from odbc2deltalake.destination.destination import Destination
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal, Protocol, Any
+from typing import TYPE_CHECKING, Literal, Protocol, Any, Type
 from sqlglot.expressions import Query
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,16 @@ class DataSourceReader(ABC):
     @abstractmethod
     def local_execute_sql_to_delta(
         self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
+    ):
+        pass
+
+    @abstractmethod
+    def local_pylist_to_delta(
+        self,
+        pylist: list[dict],
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        dummy_record: dict | None = None,
     ):
         pass
 

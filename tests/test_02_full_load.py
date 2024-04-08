@@ -23,7 +23,7 @@ def test_first_load_always_full(connection: "DB_Connection"):
 
     write_db_to_delta(
         connection.conn_str,
-        ("long schema", "long table name"),
+        ("long schema", "long table name_as_view"),
         base_path,
     )
     import time
@@ -48,7 +48,7 @@ def test_first_load_always_full(connection: "DB_Connection"):
 
     write_db_to_delta(
         connection.conn_str,
-        ("long schema", "long table name"),
+        ("long schema", "long table name_as_view"),
         base_path,
     )
 

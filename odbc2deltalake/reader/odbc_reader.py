@@ -1,8 +1,10 @@
 from pathlib import Path
+
+from pydantic import BaseModel
 from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Type
 from sqlglot.expressions import Query
 
 if TYPE_CHECKING:
@@ -56,6 +58,35 @@ class ODBCReader(DataSourceReader):
 
         self.duck_con = self.duck_con or duckdb.connect()
         self.duck_con.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql('duckdb')}")
+
+    def local_pylist_to_delta(
+        self,
+        pylist: list[dict],
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        dummy_record: dict | None = None,
+    ):
+
+        from deltalake import write_deltalake
+        from deltalake.exceptions import DeltaError
+        import pyarrow as pa
+
+        schema = (
+            pa.RecordBatch.from_pylist([dummy_record]).schema if dummy_record else None
+        )
+        batch = pa.RecordBatch.from_pylist(pylist, schema=schema)
+        dp, do = delta_path.as_path_options("object_store")
+
+        write_deltalake(
+            dp,
+            [batch],
+            storage_options=do,
+            schema=batch.schema,
+            mode=mode,
+            schema_mode="overwrite" if mode == "overwrite" else "merge",
+            writer_properties=self.writer_properties,
+            engine="rust",
+        )
 
     def local_delta_table_exists(
         self, delta_path: Destination, extended_check=False
