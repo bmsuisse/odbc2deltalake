@@ -64,9 +64,12 @@ class SparkReader(DataSourceReader):
         pylist: list[dict],
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
-        pydantic_schema: Type[BaseModel] | None = None,
+        dummy_record: dict | None = None,
     ):
-        df = self.spark.createDataFrame(pylist)
+        schema = (
+            self.spark.createDataFrame([dummy_record]).schema if dummy_record else None
+        )
+        df = self.spark.createDataFrame(pylist, schema=schema)
         df.write.format("delta").option(
             "mergeSchema" if mode == "append" else "overwriteSchema", "true"
         ).mode(mode).save(str(delta_path))
