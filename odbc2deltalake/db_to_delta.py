@@ -182,7 +182,7 @@ def get_delta_col(
 
 
 def _vacuum(source: DataSourceReader, dest: Destination):
-    if dest.exists():
+    if source.local_delta_table_exists(dest):
         source.get_local_delta_ops(dest).vacuum()
 
 
@@ -211,7 +211,9 @@ def write_db_to_delta(
             [c.model_dump() if is_pydantic_2 else c.dict() for c in cols], indent=4
         )
     )
-    if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
+    if source.local_delta_table_exists(
+        destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+    ):
         last_version_pk = source.get_local_delta_ops(
             destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
         ).version()
@@ -265,7 +267,7 @@ def write_db_to_delta(
             pk_cols.append(pk_col)
         assert len(_pks) == len(pk_cols), f"Primary keys not found: {_pks}"
         if (
-            not (delta_path / "_delta_log").exists()
+            not source.local_delta_table_exists(delta_path)
             or write_config.load_mode == "overwrite"
         ):
             delta_path.mkdir()
@@ -490,8 +492,8 @@ def do_delta_load(
         f"{table}: Start { 'SIMPLE ' if simple else '' }Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in pk_cols))}"
     )
 
-    if (
-        last_pk_path and not (last_pk_path / "_delta_log").exists()
+    if last_pk_path and not reader.local_delta_table_exists(
+        last_pk_path
     ):  # or do a full load?
         logger.warning(f"{table}: Primary keys missing, try to restore")
         try:
@@ -1128,7 +1130,7 @@ def do_full_load(
         .from_(table_from_tuple(table))
         .sql(write_config.dialect)
     )
-    if (delta_path / "_delta_log").exists():
+    if reader.local_delta_table_exists(delta_path):
         reader.local_register_update_view(delta_path, _temp_table(table))
         res = reader.local_execute_sql_to_py(
             sg.from_(ex.to_identifier(_temp_table(table))).select(
