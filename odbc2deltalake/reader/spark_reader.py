@@ -82,6 +82,11 @@ class SparkReader(DataSourceReader):
         rows = reader.load().collect()
         return [row.asDict() for row in rows]
 
+    def local_delta_table_exists(self, delta_path: Destination) -> bool:
+        from delta import DeltaTable
+
+        return DeltaTable.isDeltaTable(self.spark, str(delta_path))
+
     def source_write_sql_to_delta(
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):

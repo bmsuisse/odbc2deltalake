@@ -24,6 +24,10 @@ class DataSourceReader(ABC):
         pass
 
     @abstractmethod
+    def local_delta_table_exists(self, delta_path: Destination) -> bool:
+        pass
+
+    @abstractmethod
     def source_write_sql_to_delta(
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):

@@ -57,6 +57,18 @@ class ODBCReader(DataSourceReader):
         self.duck_con = self.duck_con or duckdb.connect()
         self.duck_con.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql('duckdb')}")
 
+    def local_delta_table_exists(self, delta_path: Destination) -> bool:
+        if delta_path.exists():
+            from deltalake import DeltaTable
+            from deltalake.exceptions import TableNotFoundError
+
+            try:
+                DeltaTable.version(delta_path.as_delta_table())
+                return True
+            except TableNotFoundError:
+                return False
+        return False
+
     def local_execute_sql_to_delta(
         self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
