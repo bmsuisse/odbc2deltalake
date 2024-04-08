@@ -8,6 +8,7 @@ drop table if exists dbo.[company2];
 drop table if exists dbo.[company3];
 drop table if exists [long schema].[long table name];
 drop table if exists dbo.[log];
+drop view if exists [long schema].[long table name_as_view];
 GO
 create table dbo.[log] (id int primary key identity(1, 1), message nvarchar(max), [inserted_at] datetime not null default(getdate()));
 create table dbo.[company](
@@ -123,3 +124,5 @@ SELECT 2,
 ;
 insert into dbo.[log](message)
 select 'The first log message';
+GO
+create view [long schema].[long table name_as_view] as select * from [long schema].[long table name];

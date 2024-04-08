@@ -53,9 +53,9 @@ class InformationSchemaColInfo(BaseModel):
     numeric_precision: int | None = None
     numeric_scale: int | None = None
     datetime_precision: int | None = None
-    generated_always_type_desc: Literal[
-        "NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"
-    ] = "NOT_APPLICABLE"
+    generated_always_type_desc: (
+        Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"] | None
+    ) = "NOT_APPLICABLE"
     is_identity: bool = False
 
     def as_field_type(self, *, col_name: Optional[str] = None):
@@ -115,10 +115,10 @@ def get_columns(
 		numeric_scale,
 		datetime_precision,
         ci.generated_always_type_desc,
-        ci.is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
+        coalesce(ci.is_identity, convert(bit, 0)) as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
         left join (
 			
-SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.generated_always_type_desc, c.is_identity FROM {quoted_db}sys.columns c 
+SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.generated_always_type_desc, c.is_identity as is_identity FROM {quoted_db}sys.columns c 
 	inner join {quoted_db}sys.tables t on t.object_id=c.object_id
 	inner join {quoted_db}sys.schemas sc on sc.schema_id=t.schema_id
 		) ci on ci.schema_name=ccu.TABLE_SCHEMA and ci.table_name=ccu.TABLE_NAME and ci.col_name=ccu.COLUMN_NAME

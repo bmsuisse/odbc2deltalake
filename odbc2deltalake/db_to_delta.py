@@ -21,10 +21,10 @@ import sqlglot.expressions as ex
 from .sql_glot_utils import table_from_tuple, union, count_limit_one
 import logging
 import pydantic
+from .delta_logger import DeltaLogger
 
 is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
 
-logger = logging.getLogger(__name__)
 
 IS_DELETED_COL_NAME = "__is_deleted"
 IS_DELETED_COL_INFO = InformationSchemaColInfo.from_name_type(
@@ -204,7 +204,7 @@ def write_db_to_delta(
         source = ODBCReader(source)
     delta_path = destination / "delta"
     cols = get_columns(source, table, dialect=write_config.dialect)
-
+    dest_logger = DeltaLogger(destination / "log", source, logging.getLogger(__name__))
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload_str(
         json.dumps(
@@ -271,8 +271,9 @@ def write_db_to_delta(
             or write_config.load_mode == "overwrite"
         ):
             delta_path.mkdir()
-            logger.info(f"{table}: Start Full Load")
+            dest_logger.info(f"{table}: Start Full Load")
             do_full_load(
+                dest_logger,
                 source,
                 table,
                 delta_path,
@@ -289,6 +290,7 @@ def write_db_to_delta(
                 delta_col is not None
             ), "Must provide delta column for append_inserts load"
             do_append_inserts_load(
+                dest_logger,
                 source,
                 table,
                 destination=destination,
@@ -303,6 +305,7 @@ def write_db_to_delta(
                 or write_config.load_mode == "force_full"
             ):
                 do_full_load(
+                    dest_logger,
                     source,
                     table,
                     delta_path,
@@ -314,6 +317,7 @@ def write_db_to_delta(
                 )
             else:
                 do_delta_load(
+                    dest_logger,
                     source,
                     table,
                     destination=destination,
@@ -332,15 +336,22 @@ def write_db_to_delta(
         _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS)
     except Exception as e:
         # restore files
-        if lock_file_path.exists():
-            lock_file_path.remove()
         if last_version_pk is not None:
             o = source.get_local_delta_ops(
                 destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             )
             if o.version() > last_version_pk:
                 o.restore(last_version_pk)
+        import traceback
+
+        dest_logger.error(
+            "Error during load: {e}", error_trackback=traceback.format_exc()
+        )
         raise e
+    finally:
+        if lock_file_path.exists():
+            lock_file_path.remove()
+        dest_logger.flush()
 
 
 def create_replace_view(
@@ -473,6 +484,7 @@ def _temp_table(table: table_name_type):
 
 
 def do_delta_load(
+    logger: DeltaLogger,
     reader: DataSourceReader,
     table: table_name_type,
     destination: Destination,
@@ -513,6 +525,7 @@ def do_delta_load(
         if not restore_sucess:
             logger.warning(f"{table}: No primary keys found, do a full load")
             do_full_load(
+                logger,
                 reader,
                 table,
                 delta_path=destination / "delta",
@@ -538,6 +551,7 @@ def do_delta_load(
     if delta_load_value is None:
         logger.warning(f"{table}: No delta load value, do a full load")
         do_full_load(
+            logger,
             reader,
             table,
             delta_path,
@@ -568,11 +582,14 @@ def do_delta_load(
         type_map=write_config.data_type_map,
     ) > ex.convert(delta_load_value)
     logger.info(f"{table}: Start delta step 2, load updates by timestamp")
+    upds_sql = _get_update_sql(
+        cols=cols, criterion=criterion, table=table, write_config=write_config
+    )
+    logger.info("execute sql", load="delta", sub_load="delta_1", sql=upds_sql)
     _load_updates_to_delta(
+        logger,
         reader,
-        sql=_get_update_sql(
-            cols=cols, criterion=criterion, table=table, write_config=write_config
-        ),
+        sql=upds_sql,
         delta_path=delta_path,
         delta_name="delta_1",
         write_config=write_config,
@@ -580,6 +597,7 @@ def do_delta_load(
     if not simple:
         assert old_pk_version is not None
         _handle_additional_updates(
+            logger,
             reader=reader,
             table=table,
             delta_path=delta_path,
@@ -615,6 +633,7 @@ def do_delta_load(
 
 
 def do_append_inserts_load(
+    logger: DeltaLogger,
     reader: DataSourceReader,
     table: table_name_type,
     destination: Destination,
@@ -644,6 +663,7 @@ def do_append_inserts_load(
     )
     logger.info(f"{table}: Start delta step 2, load updates by timestamp")
     _load_updates_to_delta(
+        logger,
         reader,
         sql=_get_update_sql(
             cols=cols, criterion=criterion, table=table, write_config=write_config
@@ -822,6 +842,7 @@ def _list_to_chunks(input: Iterable[T], chunk_size: int):
 
 
 def _handle_additional_updates(
+    logger: DeltaLogger,
     reader: DataSourceReader,
     table: table_name_type,
     delta_path: Destination,
@@ -980,11 +1001,16 @@ def _handle_additional_updates(
             type_map=write_config.data_type_map,
         ) > ex.convert(delta_load_value)
         logger.info(f"{table}: Start delta step 2, load updates by timestamp")
+        upds_sql = _get_update_sql(
+            cols=cols, criterion=criterion, table=table, write_config=write_config
+        )
+        logger.info(
+            "execute sql", load="delta", sub_load="delta_1_additional", sql=upds_sql
+        )
         _load_updates_to_delta(
+            logger,
             reader,
-            sql=_get_update_sql(
-                cols=cols, criterion=criterion, table=table, write_config=write_config
-            ),
+            sql=upds_sql,
             delta_path=delta_path,
             delta_name="delta_1",
             write_config=write_config,
@@ -1008,6 +1034,12 @@ def _handle_additional_updates(
 
         logger.warning(
             f"{table}: Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
+        )
+        logger.info(
+            "execute sql",
+            load="delta",
+            sub_load="delta_additional",
+            sql=full_sql("[]"),
         )
         first = True
         for chunk in _list_to_chunks(jsd, batch_size):
@@ -1083,6 +1115,7 @@ def _get_update_sql(
 
 
 def _load_updates_to_delta(
+    logger: DeltaLogger,
     reader: DataSourceReader,
     delta_path: Destination,
     sql: str | ex.Query,
@@ -1105,6 +1138,7 @@ def _load_updates_to_delta(
 
 
 def do_full_load(
+    logger: DeltaLogger,
     reader: DataSourceReader,
     table: table_name_type,
     delta_path: Destination,
@@ -1142,6 +1176,7 @@ def do_full_load(
         max_valid_from = res[0][VALID_FROM_COL_NAME] if res else None
     else:
         max_valid_from = None
+        logger.info("executing sql", sql=sql, load="full")
     reader.source_write_sql_to_delta(sql, delta_path, mode=mode)
     if delta_col is None:
         logger.info(f"{table}: Full Load done")

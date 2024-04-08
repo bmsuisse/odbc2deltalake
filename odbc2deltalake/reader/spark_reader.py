@@ -1,7 +1,8 @@
+from pydantic import BaseModel
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query
-from typing import Literal
+from typing import Literal, Type
 
 
 class SparkDeltaOps(DeltaOps):
@@ -55,6 +56,18 @@ class SparkReader(DataSourceReader):
         self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
         self.spark.sql(sql.sql("databricks")).write.format("delta").option(
+            "mergeSchema" if mode == "append" else "overwriteSchema", "true"
+        ).mode(mode).save(str(delta_path))
+
+    def local_pylist_to_delta(
+        self,
+        pylist: list[dict],
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        pydantic_schema: Type[BaseModel] | None = None,
+    ):
+        df = self.spark.createDataFrame(pylist)
+        df.write.format("delta").option(
             "mergeSchema" if mode == "append" else "overwriteSchema", "true"
         ).mode(mode).save(str(delta_path))
 
