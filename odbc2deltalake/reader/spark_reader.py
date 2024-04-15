@@ -103,7 +103,7 @@ class SparkReader(DataSourceReader):
     ) -> bool:
         from delta import DeltaTable
 
-        if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
+        if delta_path.exists() and DeltaTable.isDeltaTable(self.spark, str(delta_path)):
             if extended_check:
                 return (
                     len(
