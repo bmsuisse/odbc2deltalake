@@ -214,9 +214,18 @@ def write_db_to_delta(
     if source.local_delta_table_exists(
         destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     ):
-        last_version_pk = source.get_local_delta_ops(
-            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-        ).version()
+        try:
+            last_version_pk = source.get_local_delta_ops(
+                destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).version()
+        except Exception as e:
+            import traceback
+
+            dest_logger.warning(
+                f"Could not get last version: {e}",
+                error_trackback=traceback.format_exc(),
+            )
+            last_version_pk = None
     else:
         last_version_pk = None
     lock_file_path = destination / "meta/lock.txt"

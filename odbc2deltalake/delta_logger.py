@@ -69,6 +69,7 @@ class DeltaLogger:
         load: str | None = None,
         sql: str | None = None,
         sub_load: str | None = None,
+        error_trackback: str | None = None,
     ):
         self._pending_logs.append(
             LogMessage(
@@ -78,6 +79,7 @@ class DeltaLogger:
                 load=load,
                 sql=sql,
                 sub_load=sub_load,
+                error_trackback=error_trackback,
             )
         )
         if self.base_logger:
