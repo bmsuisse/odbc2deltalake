@@ -520,18 +520,19 @@ def do_delta_load(
         try:
             from .write_utils.restore_pk import restore_last_pk
 
-            restore_sucess = restore_last_pk(
+            restore_success = restore_last_pk(
                 reader,
                 table,
                 destination,
                 delta_col,
                 pk_cols,
                 write_config=write_config,
+                logger=logger,
             )
         except Exception as e:
             logger.warning(f"{table}: Could not restore primary keys: {e}")
-            restore_sucess = False
-        if not restore_sucess:
+            restore_success = False
+        if not restore_success:
             logger.warning(f"{table}: No primary keys found, do a full load")
             do_full_load(
                 logger,
