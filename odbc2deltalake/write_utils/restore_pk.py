@@ -5,6 +5,7 @@ from odbc2deltalake.db_to_delta import (
     DBDeltaPathConfigs,
     WriteConfig,
 )
+from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.reader import DataSourceReader
@@ -29,6 +30,7 @@ def restore_last_pk(
     delta_col: InformationSchemaColInfo,
     pk_cols: list[InformationSchemaColInfo],
     write_config: WriteConfig,
+    logger: DeltaLogger,
 ):
     delta_path = destination / "delta"
     reader.local_register_update_view(delta_path, _temp_table(table))
@@ -45,16 +47,17 @@ def restore_last_pk(
         sg.from_(ex.table_(ex.to_identifier(_temp_table(table)), alias="tr"))
         .select(
             *(
-                [ex.column(write_config.get_target_name(c), "tr") for c in pk_cols]
-                + [ex.column(delta_col.column_name, "tr")]
-            )
+                [ex.column(write_config.get_target_name(c)) for c in pk_cols]
+                + [ex.column(delta_col.column_name), ex.column(VALID_FROM_COL_NAME)]
+            ),
+            copy=False
         )
         .where(
             ex.column(IS_FULL_LOAD_COL_NAME).eq(True)
             and ex.column(VALID_FROM_COL_NAME).eq(
                 ex.Subquery(
-                    this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME)))
-                    .from_(ex.table_(ex.to_identifier(_temp_table(table)), alias="tr"))
+                    this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME, "ts")))
+                    .from_(ex.table_(ex.to_identifier(_temp_table(table)), alias="ts"))
                     .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
                 )
             )
@@ -69,6 +72,7 @@ def restore_last_pk(
                 [ex.column(write_config.get_target_name(c), "tr") for c in pk_cols]
                 + [ex.column(write_config.get_target_name(delta_col), "tr")]
                 + [ex.column(IS_DELETED_COL_NAME, "tr")]
+                + [ex.column(VALID_FROM_COL_NAME, "tr")]
             )
         )
         .where(ex.column(VALID_FROM_COL_NAME) > ex.convert(latest_full_load_date))
@@ -95,15 +99,39 @@ def restore_last_pk(
         )
     )
     reader.local_register_view(sq, "delta_after_full_load")
-    reader.local_register_view(
-        sq.from_("base")
-        .where(ex.column(IS_DELETED_COL_NAME))
+    last_pk_query = (
+        sg.from_("base")
+        .where(~ex.column(IS_DELETED_COL_NAME))
         .with_(
             "base",
             as_=ex.union(
-                left=sq.from_("delta_after_full_load").select("*"),
-                right=sq.from_(ex.table_("last_full_load", "f")).join(
-                    ex.table_("delta_after_full_load", "d"),
+                left=sg.from_(ex.table_("delta_after_full_load", alias="df")).select(
+                    *(
+                        [
+                            ex.column(write_config.get_target_name(c), "df")
+                            for c in pk_cols
+                        ]
+                        + [
+                            ex.column(write_config.get_target_name(delta_col), "df"),
+                            ex.column(IS_DELETED_COL_NAME, "df"),
+                        ]
+                    )
+                ),
+                right=sg.from_(ex.table_("last_full_load", alias="f"))
+                .select(
+                    *(
+                        [
+                            ex.column(write_config.get_target_name(c), "f")
+                            for c in pk_cols
+                        ]
+                        + [
+                            ex.column(write_config.get_target_name(delta_col), "f"),
+                            ex.convert(False).as_(IS_DELETED_COL_NAME),
+                        ]
+                    )
+                )
+                .join(
+                    ex.table_("delta_after_full_load", alias="d"),
                     join_type="anti",
                     on=ex.and_(
                         *[
@@ -117,14 +145,20 @@ def restore_last_pk(
                 distinct=False,
             ),
         )
-        .select(ex.Star(**{"except": [ex.column(IS_DELETED_COL_NAME)]})),
+        .select(ex.Star(**{"except": [ex.column(IS_DELETED_COL_NAME)]}), append=False)
+    )
+    logger.info(
+        "Restoring last pk version", sql=last_pk_query.sql(reader.query_dialect)
+    )
+    reader.local_register_view(
+        last_pk_query,
         "v_last_pk_version",
     )
     cnt = reader.local_execute_sql_to_py(count_limit_one("v_last_pk_version"))[0]["cnt"]
     if cnt == 0:
         return False
     reader.local_execute_sql_to_delta(
-        sq.from_("v_last_pk_version").select(ex.Star()),
+        sg.from_("v_last_pk_version").select(ex.Star()),
         destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
     )
