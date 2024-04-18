@@ -178,6 +178,8 @@ def get_delta_col(
             return c
         if c.generated_always_type_desc == "AS_ROW_START":
             row_start_col = c
+        if c.column_name == "__timestamp":
+            return c
     return row_start_col
 
 
