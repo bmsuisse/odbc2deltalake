@@ -81,8 +81,8 @@ def test_delta(connection: "DB_Connection"):
 
         id_tuples = con.execute(
             """SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
-                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stämp"=lf."time_stämp"
-                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stämp" desc)=1
+                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stamp"=lf."time_stamp"
+                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stamp" desc)=1
                 order by s2."User_-_iD" 
                 """
         ).fetchall()

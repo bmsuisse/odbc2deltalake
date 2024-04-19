@@ -178,6 +178,8 @@ def get_delta_col(
             return c
         if c.generated_always_type_desc == "AS_ROW_START":
             row_start_col = c
+        if c.column_name == "__timestamp":
+            return c
     return row_start_col
 
 
@@ -1136,7 +1138,7 @@ def _load_updates_to_delta(
         sql = sql.sql(write_config.dialect)
 
     delta_name_path = delta_path.parent / f"delta_load/{delta_name}"
-    logger.info(f"Executing {sql}")
+    logger.info("Executing sql", load="delta", sub_load=delta_name, sql=sql)
     reader.source_write_sql_to_delta(sql, delta_name_path, mode="overwrite")
     reader.local_register_update_view(delta_name_path, delta_name)
     count = reader.local_execute_sql_to_py(count_limit_one(delta_name))[0]["cnt"]

@@ -116,6 +116,10 @@ class DeltaLogger:
         if len(self._pending_logs) > 10:
             self.flush()
 
+    def _append_fields(self, log: dict) -> dict:
+        log["logger_id"] = str(self.id)
+        return log
+
     def flush(self):
         dummy = LogMessage(
             message="",
@@ -127,7 +131,10 @@ class DeltaLogger:
             error_trackback="",
         )
         self.source.local_pylist_to_delta(
-            [p.model_dump() if is_pydantic_2 else p.dict() for p in self._pending_logs],
+            [
+                self._append_fields(p.model_dump() if is_pydantic_2 else p.dict())
+                for p in self._pending_logs
+            ],
             self.log_file_path,
             "append",
             dummy_record=dummy.model_dump() if is_pydantic_2 else dummy.dict(),
