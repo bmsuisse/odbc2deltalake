@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(5)
 def test_delta(connection: "DB_Connection"):
+    from odbc2deltalake.reader.odbc_reader import ODBCReader
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user2")
@@ -33,6 +34,8 @@ def test_delta(connection: "DB_Connection"):
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM [dbo].[user2]")
             alls = cursor.fetchall()
+            cols = [c[0] for c in cursor.description]
+            dicts = [dict(zip(cols, row)) for row in alls]
             print(alls)
 
     import time
@@ -46,7 +49,12 @@ def test_delta(connection: "DB_Connection"):
         max_valid_from = res[0]
         assert max_valid_from is not None
 
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user2"), base_path)
+    reader = ODBCReader(connection.conn_str, "tests/_data/delta_test.duck")
+    w = write_db_to_delta_with_check(
+        reader,
+        ("dbo", "user2"),
+        base_path,
+    )
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
         assert sql is not None

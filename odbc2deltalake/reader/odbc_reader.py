@@ -23,13 +23,13 @@ def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
 
 
 class ODBCReader(DataSourceReader):
-    def __init__(self, connection_string: str) -> None:
+    def __init__(self, connection_string: str, local_db: str = ":memory:") -> None:
         from deltalake import WriterProperties
 
         self.connection_string = connection_string
         self.writer_properties = WriterProperties(compression="ZSTD")
         self.duck_con = None
-        pass
+        self.local_db = local_db
 
     def local_register_update_view(
         self, delta_path: Destination, view_name: str, *, version: int | None = None
@@ -37,7 +37,7 @@ class ODBCReader(DataSourceReader):
         import duckdb
         from deltalake2db import duckdb_create_view_for_delta
 
-        self.duck_con = self.duck_con or duckdb.connect()
+        self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         dt = delta_path.as_delta_table()
         if version is not None:
             dt.load_as_version(version)
@@ -46,7 +46,7 @@ class ODBCReader(DataSourceReader):
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
         import duckdb
 
-        self.duck_con = self.duck_con or duckdb.connect()
+        self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         with self.duck_con.cursor() as cursor:
             cursor.execute(sql.sql("duckdb"))
             assert cursor.description is not None
@@ -56,7 +56,7 @@ class ODBCReader(DataSourceReader):
     def local_register_view(self, sql: Query, view_name: str):
         import duckdb
 
-        self.duck_con = self.duck_con or duckdb.connect()
+        self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         self.duck_con.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql('duckdb')}")
 
     def local_pylist_to_delta(
@@ -112,7 +112,7 @@ class ODBCReader(DataSourceReader):
         from deltalake import write_deltalake
         from deltalake.exceptions import DeltaError
 
-        self.duck_con = self.duck_con or duckdb.connect()
+        self.duck_con = self.duck_con or duckdb.connect(self.local_db)
 
         with self.duck_con.cursor() as cur:
             cur.execute(sql.sql("duckdb"))
