@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.order(6)
-
 def test_strange_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
@@ -74,9 +73,9 @@ def test_strange_delta(connection: "DB_Connection"):
 
         id_tuples = con.execute(
             """SELECT s2.FirstName, s2.LastName, companyid from v_latest_pk_user3 lf 
-                                inner join v_user3_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stämp"=lf."time_stämp"
+                                inner join v_user3_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stamp"=lf."time_stamp"
                 where not s2.__is_deleted
-                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stämp" desc)=1
+                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stamp" desc)=1
                     
                 order by s2."User_-_iD" 
                 """
@@ -91,16 +90,13 @@ def test_strange_delta(connection: "DB_Connection"):
 
 
 @pytest.mark.order(7)
-
 def test_strange_delta_sys(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     import time
 
     base_path = Path("tests/_data/dbo/company2_1")
-    write_db_to_delta(  # empty
-        connection.conn_str, ("dbo", "company2"), base_path
-    )
+    write_db_to_delta(connection.conn_str, ("dbo", "company2"), base_path)  # empty
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(

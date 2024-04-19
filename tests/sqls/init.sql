@@ -49,7 +49,7 @@ create table dbo.[user](
     LastName nvarchar(max),
     Age decimal(15, 3),
     companyid varchar(10)  collate Icelandic_100_CI_AI_SC  not null references dbo.company(id),
-    [time stämp] timestamp
+    [time stamp] timestamp
 );
 create table dbo.[user2](
     [User - iD] bigint primary key identity(1, 1),
@@ -57,7 +57,7 @@ create table dbo.[user2](
     LastName nvarchar(max),
     Age decimal(15, 3),
     companyid varchar(10) collate Icelandic_100_CI_AI_SC  not null references dbo.company(id),
-    [time stämp] timestamp
+    [time stamp] timestamp
 );
 create table dbo.[user3](
     [User - iD] bigint primary key identity(1, 1),
@@ -65,7 +65,7 @@ create table dbo.[user3](
     LastName nvarchar(max),
     Age decimal(15, 3),
     companyid varchar(10)  collate Icelandic_100_CI_AI_SC not null references dbo.company(id),
-    [time stämp] timestamp
+    [time stamp] timestamp
 );
 create table dbo.[user4](
     [User - iD] bigint primary key identity(1, 1),
@@ -73,7 +73,7 @@ create table dbo.[user4](
     LastName nvarchar(max),
     Age decimal(15, 3),
     companyid varchar(10)  collate Icelandic_100_CI_AI_SC not null references dbo.company(id),
-    [time stämp] timestamp
+    [time stamp] timestamp
 );
 insert into dbo.[user](FirstName, LastName, Age, companyid)
 select *
