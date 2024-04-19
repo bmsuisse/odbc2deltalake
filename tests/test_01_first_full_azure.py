@@ -5,6 +5,7 @@ from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
+from .utils import write_db_to_delta_with_check
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -18,7 +19,7 @@ def test_first_load_timestamp(connection: "DB_Connection"):
     from deltalake2db.duckdb import apply_storage_options
 
     destination = AzureDestination("testlakeodbc", "dbo/user", {"use_emulator": "true"})
-    write_db_to_delta(
+    write_db_to_delta_with_check(
         connection.conn_str,
         ("dbo", "user"),
         destination,

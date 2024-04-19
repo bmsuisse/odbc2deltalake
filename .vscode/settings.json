@@ -18,6 +18,7 @@
     "pyarrow",
     "pydantic",
     "sqlglot",
+    "trackback",
     "tsql"
   ]
 }

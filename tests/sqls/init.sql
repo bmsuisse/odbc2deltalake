@@ -101,18 +101,21 @@ select FirstName,
     Age,
     companyid
 from dbo.[user];
+GO
 IF NOT EXISTS(
     Select *
     from sys.schemas
     where name = 'long schema'
 ) begin exec sp_executesql N'CREATE SCHEMA [long schema]'
 end;
+GO
 CREATE TABLE [long schema].[long table name] (
     [long column name] int,
     dt xml,
     uid uniqueidentifier default newid(),
     [date] date
 );
+GO
 INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
 SELECT 1,
     '<root><child>text</child></root>',

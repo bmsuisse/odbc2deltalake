@@ -18,20 +18,18 @@ class DB_Connection:
         os.makedirs("tests/_data", exist_ok=True)
         from odbc2deltalake.odbc_utils import build_connection_string
 
-        conn_str = os.getenv(
-            "ODBC_MASTER_CONN",
-            build_connection_string(
-                {
-                    "server": "127.0.0.1,1444",
-                    "database": "master",
-                    "ENCRYPT": "yes",
-                    "TrustServerCertificate": "Yes",
-                    "UID": "sa",
-                    "PWD": "MyPass@word4tests",
-                    "MultipleActiveResultSets": "True",
-                },
-                odbc=True,
-            ),
+        conn_str = build_connection_string(
+            os.getenv("ODBC_MASTER_CONN", None)
+            or {
+                "server": "127.0.0.1,1444",
+                "database": "master",
+                "ENCRYPT": "yes",
+                "TrustServerCertificate": "Yes",
+                "UID": "sa",
+                "PWD": "MyPass@word4tests",
+                "MultipleActiveResultSets": "True",
+            },
+            odbc=True,
         )
         self.conn_str_master = conn_str
         self.conn = pyodbc.connect(conn_str, autocommit=True)

@@ -5,6 +5,7 @@ from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
+from .utils import write_db_to_delta_with_check
 
 from odbc2deltalake.query import sql_quote_value
 
@@ -17,7 +18,7 @@ def test_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user2")
-    write_db_to_delta(connection.conn_str, ("dbo", "user2"), base_path)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user2"), base_path)
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -45,7 +46,7 @@ def test_delta(connection: "DB_Connection"):
         max_valid_from = res[0]
         assert max_valid_from is not None
 
-    write_db_to_delta(connection.conn_str, ("dbo", "user2"), base_path)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user2"), base_path)
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
         assert sql is not None
@@ -99,7 +100,9 @@ def test_delta_sys(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/company2")
-    write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)  # full load
+    write_db_to_delta_with_check(
+        connection.conn_str, ("dbo", "company"), base_path
+    )  # full load
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -110,7 +113,9 @@ select 'c300',
                    """
             )
 
-    write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)  # delta load
+    write_db_to_delta_with_check(
+        connection.conn_str, ("dbo", "company"), base_path
+    )  # delta load
     with nc.cursor() as cursor:
         cursor.execute("SELECT * FROM [dbo].[company]")
         alls = cursor.fetchall()

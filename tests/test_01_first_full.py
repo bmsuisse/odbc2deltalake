@@ -5,7 +5,7 @@ from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
-from .utils import check_latest_pk
+from .utils import write_db_to_delta_with_check
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -16,9 +16,7 @@ def test_first_load_timestamp(connection: "DB_Connection"):
     from odbc2deltalake import make_writer, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user")
-    w = make_writer(connection.conn_str, ("dbo", "user"), base_path)
-    w.execute()
-    check_latest_pk(w)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user"), base_path)
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
         assert sql is not None

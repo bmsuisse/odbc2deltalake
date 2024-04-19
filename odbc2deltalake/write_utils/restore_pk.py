@@ -50,7 +50,7 @@ def create_last_pk_version_view(
             *(
                 [ex.column(write_config.get_target_name(c)) for c in infos.pk_cols]
                 + [
-                    ex.column(infos.delta_col.column_name),
+                    ex.column(write_config.get_target_name(infos.delta_col)),
                     ex.column(VALID_FROM_COL_NAME),
                 ]
             ),

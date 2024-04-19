@@ -5,6 +5,7 @@ from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
+from .utils import write_db_to_delta_with_check
 
 from odbc2deltalake.query import sql_quote_value
 
@@ -21,7 +22,7 @@ def test_first_load_always_full(connection: "DB_Connection"):
         "tests/_data/long_schema/long_table_name2"
     )  # spaces in file names cause trouble with delta-rs
 
-    write_db_to_delta(
+    write_db_to_delta_with_check(
         connection.conn_str,
         ("long schema", "long table name_as_view"),
         base_path,
@@ -46,7 +47,7 @@ def test_first_load_always_full(connection: "DB_Connection"):
         '2025-01-01'"""
             )
 
-    write_db_to_delta(
+    write_db_to_delta_with_check(
         connection.conn_str,
         ("long schema", "long table name_as_view"),
         base_path,
