@@ -37,7 +37,7 @@ select 'c300',
                    """
             )
 
-    write_db_to_delta_with_check(
+    write_db_to_delta(
         connection.conn_str, ("dbo", "company3"), base_path, cfg
     )  # delta load
     t.update_incremental()

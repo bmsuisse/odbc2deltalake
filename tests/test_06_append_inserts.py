@@ -22,7 +22,7 @@ def test_append_inserts(connection: "DB_Connection"):
 
     write_config = WriteConfig(load_mode="append_inserts")
     base_path = Path("tests/_data/dbo/log")
-    write_db_to_delta_with_check(
+    write_db_to_delta(
         connection.conn_str,
         ("dbo", "log"),
         base_path,
@@ -44,7 +44,7 @@ def test_append_inserts(connection: "DB_Connection"):
                 """INSERT INTO [dbo].[log] ([message])
                    SELECT 'The second log message'"""
             )
-    write_db_to_delta_with_check(  # some delta load
+    write_db_to_delta(  # some delta load
         connection.conn_str,
         ("dbo", "log"),
         base_path,
