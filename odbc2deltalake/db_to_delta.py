@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Literal, Mapping, Sequence, TypeVar, cast
 import sqlglot as sg
+
+from odbc2deltalake.sql_schema import is_string_type
 from .utils import concat_seq
 from odbc2deltalake.destination.destination import (
     Destination,
@@ -46,17 +48,20 @@ def _not_none(v: T | None) -> T:
     return v
 
 
-def _cast(
+def _source_convert(
     name: str,
     data_type: str,
     *,
     table_alias: str | None = None,
     type_map: Mapping[str, ex.DATA_TYPE] | None = None,
 ):
+    expr = ex.column(name, table_alias, quoted=True)
     mapped_type = type_map.get(data_type) if type_map else None
     if mapped_type:
-        return ex.cast(ex.column(name, table_alias, quoted=True), mapped_type)
-    return ex.column(name, table_alias, quoted=True)
+        expr = ex.cast(expr, mapped_type)
+    if is_string_type(data_type):
+        expr = ex.func("TRIM", expr)
+    return expr
 
 
 valid_from_expr = ex.cast(
@@ -71,20 +76,25 @@ def _get_cols_select(
     is_full: bool | None = None,
     with_valid_from: bool = False,
     table_alias: str | None = None,
-    source_uses_compat: bool,
+    system: Literal["source", "target"],
     data_type_map: Mapping[str, ex.DATA_TYPE] | None = None,
     get_target_name: Callable[[InformationSchemaColInfo], str] | None,
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
+
     return (
         [
-            _cast(
-                get_target_name(c) if source_uses_compat else c.column_name,
-                c.data_type,
-                table_alias=table_alias,
-                type_map=data_type_map,
-            ).as_(get_target_name(c), quoted=True)
+            (
+                _source_convert(
+                    c.column_name,
+                    c.data_type,
+                    table_alias=table_alias,
+                    type_map=data_type_map,
+                ).as_(get_target_name(c), quoted=True)
+                if system == "source"
+                else ex.column(get_target_name(c), table_alias, quoted=True)
+            )
             for c in cols
         ]
         + ([valid_from_expr] if with_valid_from else [])
@@ -248,7 +258,7 @@ def write_latest_pk(
                 *_get_cols_select(
                     cols=concat_seq(pks, [delta_col]),
                     table_alias="au",
-                    source_uses_compat=True,
+                    system="target",
                     get_target_name=write_config.get_target_name,
                 )
             ).from_(table_from_tuple("delta_2", alias="au")),
@@ -257,7 +267,7 @@ def write_latest_pk(
                     *_get_cols_select(
                         cols=concat_seq(pks, [delta_col]),
                         table_alias="d1",
-                        source_uses_compat=True,
+                        system="target",
                         get_target_name=write_config.get_target_name,
                     )
                 )
@@ -284,7 +294,7 @@ def write_latest_pk(
                     *_get_cols_select(
                         cols=concat_seq(pks, [delta_col]),
                         table_alias="cpk",
-                        source_uses_compat=True,
+                        system="target",
                         get_target_name=write_config.get_target_name,
                     )
                 )
@@ -403,9 +413,10 @@ def do_delta_load(
             pk_cols=infos.pk_cols,
             destination=destination,
             write_config=write_config,
+            logger=infos.logger,
         )
 
-    criterion = _cast(
+    criterion = _source_convert(
         delta_col.column_name,
         delta_col.data_type,
         table_alias="t",
@@ -478,7 +489,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
     )
 
     criterion = (
-        _cast(
+        _source_convert(
             infos.delta_col.column_name,
             infos.delta_col.data_type,
             table_alias="t",
@@ -516,13 +527,9 @@ def _get_latest_delta_value(
     reader.local_register_update_view(delta_path, _temp_table(table))
     return reader.local_execute_sql_to_py(
         sg.from_(ex.to_identifier(_temp_table(table))).select(
-            ex.func(
-                "MAX",
-                _cast(
-                    write_config.get_target_name(delta_col),
-                    delta_col.data_type,
-                ),
-            ).as_("max_ts")
+            ex.func("MAX", ex.column(write_config.get_target_name(delta_col))).as_(
+                "max_ts"
+            )
         )
     )[0]["max_ts"]
 
@@ -551,7 +558,7 @@ def do_deletes(
             *_get_cols_select(
                 pk_cols,
                 table_alias="lpk",
-                source_uses_compat=True,
+                system="target",
                 get_target_name=write_config.get_target_name,
             )
         ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
@@ -559,7 +566,7 @@ def do_deletes(
             *_get_cols_select(
                 pk_cols,
                 table_alias="cpk",
-                source_uses_compat=True,
+                system="target",
                 get_target_name=write_config.get_target_name,
             )
         ).from_(table_from_tuple(DBDeltaPathConfigs.LATEST_PK_VERSION, alias="cpk")),
@@ -575,7 +582,7 @@ def do_deletes(
                 *_get_cols_select(
                     pk_cols,
                     table_alias="d1",
-                    source_uses_compat=True,
+                    system="target",
                     get_target_name=write_config.get_target_name,
                 )
             )
@@ -583,7 +590,7 @@ def do_deletes(
                 *_get_cols_select(
                     non_pk_cols,
                     table_alias="d1",
-                    source_uses_compat=True,
+                    system="target",
                     get_target_name=write_config.get_target_name,
                 ),
                 append=True,
@@ -635,6 +642,7 @@ def _retrieve_primary_key_data(
     pk_cols: Sequence[InformationSchemaColInfo],
     destination: Destination,
     write_config: WriteConfig,
+    logger: DeltaLogger,
 ):
     pk_ts_col_select = ex.select(
         *_get_cols_select(
@@ -643,14 +651,14 @@ def _retrieve_primary_key_data(
             cols=concat_seq(pk_cols, [delta_col]),
             with_valid_from=False,
             data_type_map=write_config.data_type_map,
-            source_uses_compat=False,
+            system="source",
             get_target_name=write_config.get_target_name,
         )
     ).from_(table_from_tuple(table))
     pk_ts_reader_sql = pk_ts_col_select.sql(write_config.dialect)
 
     pk_path = destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
-
+    logger.info("Retrieve all PK/TS", sql=pk_ts_reader_sql)
     reader.source_write_sql_to_delta(
         sql=pk_ts_reader_sql, delta_path=pk_path, mode="overwrite"
     )
@@ -702,7 +710,7 @@ def _handle_additional_updates(
                 *_get_cols_select(
                     cols=pk_ds_cols,
                     table_alias="pk",
-                    source_uses_compat=True,
+                    system="target",
                     get_target_name=write_config.get_target_name,
                 )
             ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
@@ -710,7 +718,7 @@ def _handle_additional_updates(
                 *_get_cols_select(
                     cols=pk_ds_cols,
                     table_alias="lpk",
-                    source_uses_compat=True,
+                    system="target",
                     get_target_name=write_config.get_target_name,
                 )
             ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
@@ -723,7 +731,7 @@ def _handle_additional_updates(
             *_get_cols_select(
                 cols=pk_cols,
                 table_alias="au",
-                source_uses_compat=True,
+                system="target",
                 get_target_name=write_config.get_target_name,
             )
         ).from_(ex.table_("additional_updates", alias="au")),
@@ -731,7 +739,7 @@ def _handle_additional_updates(
             *_get_cols_select(
                 cols=pk_cols,
                 table_alias="d1",
-                source_uses_compat=True,
+                system="target",
                 get_target_name=write_config.get_target_name,
             )
         ).from_(table_from_tuple("delta_1", alias="d1")),
@@ -785,7 +793,7 @@ def _handle_additional_updates(
                 with_valid_from=True,
                 table_alias="t",
                 data_type_map=write_config.data_type_map,
-                source_uses_compat=False,
+                system="source",
                 get_target_name=write_config.get_target_name,
             )
         )
@@ -824,7 +832,7 @@ def _handle_additional_updates(
                 ).as_("min_ts")
             ).from_(ex.table_("additional_updates", alias="rau"))
         )[0]["min_ts"]
-        criterion = _cast(
+        criterion = _source_convert(
             delta_col.column_name,
             delta_col.data_type,
             table_alias="t",
@@ -924,7 +932,7 @@ def _get_update_sql(
                 with_valid_from=True,
                 table_alias="t",
                 data_type_map=write_config.data_type_map,
-                source_uses_compat=False,
+                system="source",
                 get_target_name=write_config.get_target_name,
             )
         )
@@ -981,7 +989,7 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
                 cols=infos.col_infos,
                 with_valid_from=True,
                 data_type_map=write_config.data_type_map,
-                source_uses_compat=False,
+                system="source",
                 get_target_name=write_config.get_target_name,
             )
         )

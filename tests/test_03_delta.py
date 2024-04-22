@@ -107,7 +107,7 @@ def test_delta(connection: "DB_Connection"):
 def test_delta_sys(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
-    base_path = Path("tests/_data/dbo/company2")
+    base_path = Path("tests/_data/dbo/company_2")
     write_db_to_delta_with_check(
         connection.conn_str, ("dbo", "company"), base_path
     )  # full load
@@ -118,6 +118,9 @@ def test_delta_sys(connection: "DB_Connection"):
 insert into dbo.[company](id, name)
 select 'c300',
     'The 300 company';
+update dbo.[company]
+set id='c2 '
+    where id='c2'
                    """
             )
 
@@ -137,14 +140,23 @@ select 'c300',
             f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
         )
         name_tuples = con.execute(
-            """SELECT lf.name from v_company_scd2 lf 
+            """SELECT lf.id, lf.name from v_company_scd2 lf 
                                 inner join v_latest_pk s2 on s2."id"=lf."id" and s2."SysStartTime"=lf."SysStartTime"
                 qualify row_number() over (partition by s2."id" order by lf."SysStartTime" desc)=1
                 order by s2."id" 
                 """
         ).fetchall()
         assert name_tuples == [
-            ("The First company",),
-            ("The Second company",),
-            ("The 300 company",),
+            (
+                "c1",
+                "The First company",
+            ),
+            (
+                "c2",  # we don't accept spaces
+                "The Second company",
+            ),
+            (
+                "c300",
+                "The 300 company",
+            ),
         ]

@@ -21,6 +21,7 @@ def check_latest_pk(infos: WriteConfigAndInfos):
     lpk_pd = lpk_df.to_pandas().sort_values(sort_cols).reset_index(drop=True)
     _, view_name, success = create_last_pk_version_view(infos, view_prefix="v_tester_")
     assert success
+    assert view_name is not None
     latest_pd = (
         pd.DataFrame(infos.source.local_execute_sql_to_py(from_(view_name).select("*")))
         .sort_values(sort_cols)
@@ -41,6 +42,7 @@ def write_db_to_delta_with_check(
     w = make_writer(
         source=source, table=table, destination=destination, write_config=write_config
     )
+    w.logger.print_to_console = True
     w.execute()
     w.source.local_register_update_view(w.destination / "delta", "last_delta_view")
 

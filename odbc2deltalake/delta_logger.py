@@ -30,11 +30,39 @@ class DeltaLogger:
         log_file_path: Destination,
         source: DataSourceReader,
         base_logger: logging.Logger | None = None,
+        print_to_console: bool = False,
     ):
         self.log_file_path = log_file_path
         self.base_logger = base_logger
         self.source = source
         self.id = uuid4()
+        self.print_to_console = print_to_console
+
+    def _log(self, msg: LogMessage):
+        self._pending_logs.append(msg)
+        if self.base_logger or self.print_to_console:
+            msg_str = msg.message
+            if msg.sql:
+                msg_str += f" | SQL: {msg.sql}"
+            if msg.error_trackback:
+                msg_str += f" | Error: {msg.error_trackback}"
+            if msg.load:
+                msg_str += (
+                    f" | Load: {msg.load}{', ' + msg.sub_load if msg.sub_load else '' }"
+                )
+
+            if self.base_logger and msg.type == "info":
+                self.base_logger.info(msg_str)
+            elif self.base_logger and (msg.type == "warn" or msg.type == "warning"):
+                self.base_logger.warning(msg_str)
+            elif self.base_logger and msg.type == "error":
+                self.base_logger.error(msg_str)
+
+            if self.print_to_console:
+                print(msg.type + ": " + msg_str)
+
+        if len(self._pending_logs) > 10:
+            self.flush()
 
     def info(
         self,
@@ -44,7 +72,7 @@ class DeltaLogger:
         sql: str | None = None,
         sub_load: str | None = None,
     ):
-        self._pending_logs.append(
+        self._log(
             LogMessage(
                 message=message,
                 type="info",
@@ -54,13 +82,6 @@ class DeltaLogger:
                 sub_load=sub_load,
             )
         )
-        if self.base_logger:
-            self.base_logger.info(
-                message if isinstance(message, str) else json.dumps(message)
-            )
-
-        if len(self._pending_logs) > 10:
-            self.flush()
 
     def warning(
         self,
@@ -71,7 +92,7 @@ class DeltaLogger:
         sub_load: str | None = None,
         error_trackback: str | None = None,
     ):
-        self._pending_logs.append(
+        self._log(
             LogMessage(
                 message=message,
                 type="warn",
@@ -82,12 +103,6 @@ class DeltaLogger:
                 error_trackback=error_trackback,
             )
         )
-        if self.base_logger:
-            self.base_logger.warning(
-                message if isinstance(message, str) else json.dumps(message)
-            )
-        if len(self._pending_logs) > 10:
-            self.flush()
 
     def error(
         self,
@@ -98,7 +113,7 @@ class DeltaLogger:
         sub_load: str | None = None,
         error_trackback: str | None = None,
     ):
-        self._pending_logs.append(
+        self._log(
             LogMessage(
                 message=message,
                 type="error",
@@ -109,12 +124,6 @@ class DeltaLogger:
                 error_trackback=error_trackback,
             )
         )
-        if self.base_logger:
-            self.base_logger.error(
-                message if isinstance(message, str) else json.dumps(message)
-            )
-        if len(self._pending_logs) > 10:
-            self.flush()
 
     def _append_fields(self, log: dict) -> dict:
         log["logger_id"] = str(self.id)

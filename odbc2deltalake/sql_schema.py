@@ -26,3 +26,18 @@ def get_sql_type(type_str: str, max_str_length: int | None) -> str:
             real_max_length = "MAX"
         return f"nvarchar({real_max_length})"
     return type_str
+
+
+def is_string_type(type: str):
+    return type in [
+        "varchar",
+        "nvarchar",
+        "string",
+        "large_string",
+        "utf8",
+        "large_utf8",
+        "text",
+        "ntext",
+        "char",
+        "nchar",
+    ]
