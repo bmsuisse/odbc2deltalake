@@ -403,6 +403,7 @@ def do_delta_load(
             pk_cols=infos.pk_cols,
             destination=destination,
             write_config=write_config,
+            logger=infos.logger
         )
 
     criterion = _cast(
@@ -635,6 +636,7 @@ def _retrieve_primary_key_data(
     pk_cols: Sequence[InformationSchemaColInfo],
     destination: Destination,
     write_config: WriteConfig,
+    logger: DeltaLogger
 ):
     pk_ts_col_select = ex.select(
         *_get_cols_select(
@@ -650,7 +652,7 @@ def _retrieve_primary_key_data(
     pk_ts_reader_sql = pk_ts_col_select.sql(write_config.dialect)
 
     pk_path = destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
-
+    logger.info("Retrieve all PK/TS", sql=pk_ts_reader_sql)
     reader.source_write_sql_to_delta(
         sql=pk_ts_reader_sql, delta_path=pk_path, mode="overwrite"
     )
