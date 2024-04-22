@@ -343,9 +343,11 @@ def write_latest_pk(
 
 
 def _temp_table(table: table_name_type):
+    def _clean(input_str: str):
+        return "".join(ch for ch in input_str if ch.isalnum())
     if isinstance(table, str):
-        return "temp_" + table
-    return "temp_" + "_".join(table)
+        return "temp_" + _clean(table)
+    return "temp_" + "_".join((_clean(s) for s in table))
 
 
 def do_delta_load(

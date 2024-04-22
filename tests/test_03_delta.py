@@ -19,20 +19,20 @@ def test_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user2")
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user2"), base_path)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user2$"), base_path)
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO [dbo].[user2] ([FirstName], [LastName], [Age], companyid)
+                """INSERT INTO [dbo].[user2$] ([FirstName], [LastName], [Age], companyid)
                    SELECT 'Markus', 'Müller', 27, 'c2'
                    union all 
                    select 'Heiri', 'Meier', 27.98, 'c2';
-                   DELETE FROM dbo.[user2] where LastName='Anders';
-                     UPDATE [dbo].[user2] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
+                   DELETE FROM dbo.[user2$] where LastName='Anders';
+                     UPDATE [dbo].[user2$] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
                    """
             )
         with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[user2]")
+            cursor.execute("SELECT * FROM [dbo].[user2$]")
             alls = cursor.fetchall()
             cols = [c[0] for c in cursor.description]
             dicts = [dict(zip(cols, row)) for row in alls]
@@ -50,9 +50,9 @@ def test_delta(connection: "DB_Connection"):
         assert max_valid_from is not None
 
     reader = ODBCReader(connection.conn_str, "tests/_data/delta_test.duck")
-    w = write_db_to_delta_with_check(
+    write_db_to_delta_with_check(
         reader,
-        ("dbo", "user2"),
+        ("dbo", "user2$"),
         base_path,
     )
     with duckdb.connect() as con:

@@ -18,12 +18,6 @@ from odbc2deltalake.sql_glot_utils import count_limit_one
 table_name_type = str | tuple[str, str] | tuple[str, str, str]
 
 
-def _temp_table(table: table_name_type):
-    if isinstance(table, str):
-        return "temp_" + table
-    return "temp_" + "_".join(table)
-
-
 def create_last_pk_version_view(
     infos: WriteConfigAndInfos,
     view_prefix: str = "",

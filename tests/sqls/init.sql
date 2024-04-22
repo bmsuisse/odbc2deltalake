@@ -1,4 +1,4 @@
-drop table if exists dbo.[user2];
+drop table if exists dbo.[user2$];
 drop table if exists dbo.[user3];
 drop table if exists dbo.[user3_];
 drop table if exists dbo.[user4];
@@ -51,7 +51,7 @@ create table dbo.[user](
     companyid varchar(10)  collate Icelandic_100_CI_AI_SC  not null references dbo.company(id),
     [time stamp] timestamp
 );
-create table dbo.[user2](
+create table dbo.[user2$](
     [User - iD] bigint primary key identity(1, 1),
     FirstName varchar(100),
     LastName nvarchar(max),
@@ -83,7 +83,7 @@ FROM (
             ('Petra', 'wayne', 24, 'c1')
     ) as x(fn, ln, a, ci);
 ;
-insert into dbo.[user2](FirstName, LastName, Age, companyid)
+insert into dbo.[user2$](FirstName, LastName, Age, companyid)
 select FirstName,
     LastName,
     Age,
