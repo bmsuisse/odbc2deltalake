@@ -94,9 +94,7 @@ def create_last_pk_version_view(
                 order=ex.Order(
                     expressions=[
                         ex.Ordered(
-                            this=ex.column(
-                                write_config.get_target_name(infos.delta_col)
-                            ),
+                            this=ex.column(VALID_FROM_COL_NAME),
                             desc=True,
                             nulls_first=False,
                         )

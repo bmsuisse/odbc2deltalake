@@ -162,6 +162,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
         elif write_config.load_mode == "append_inserts":
             if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
                 delta_col = pk_cols[0]  # identity columns are usually increasing
+                infos = dataclasses.replace(infos, delta_col=delta_col)
             assert (
                 delta_col is not None
             ), "Must provide delta column for append_inserts load"

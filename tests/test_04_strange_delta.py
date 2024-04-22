@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 @pytest.mark.order(6)
 def test_strange_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake.reader.odbc_reader import ODBCReader
 
     base_path = Path("tests/_data/dbo/user3")
     write_db_to_delta_with_check(connection.conn_str, ("dbo", "user3"), base_path)
@@ -60,8 +61,18 @@ def test_strange_delta(connection: "DB_Connection"):
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user3"), base_path)
+    with connection.new_connection() as nc:
+        with nc.cursor() as cursor:
+            cursor.execute("""select * from user3""")
+            alls = cursor.fetchall()
+            cols = [c[0] for c in cursor.description]
+            dicts = [dict(zip(cols, row)) for row in alls]
+            print(dicts)
+    write_db_to_delta_with_check(
+        ODBCReader(connection.conn_str, "tests/_data/debug_user2.duck"),
+        ("dbo", "user3"),
+        base_path,
+    )
 
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
@@ -97,9 +108,7 @@ def test_strange_delta_sys(connection: "DB_Connection"):
     import time
 
     base_path = Path("tests/_data/dbo/company2_1")
-    write_db_to_delta_with_check(
-        connection.conn_str, ("dbo", "company2"), base_path
-    )  # empty
+    write_db_to_delta(connection.conn_str, ("dbo", "company2"), base_path)  # empty
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -140,7 +149,9 @@ def test_strange_delta_sys(connection: "DB_Connection"):
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM [dbo].[company2]")
             alls = cursor.fetchall()
-            print(alls)
+            cols = [c[0] for c in cursor.description]
+            dicts = [dict(zip(cols, row)) for row in alls]
+            print(dicts)
     write_db_to_delta_with_check(connection.conn_str, ("dbo", "company2"), base_path)
 
     with duckdb.connect() as con:
