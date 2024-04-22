@@ -6,6 +6,7 @@ from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
+from .utils import write_db_to_delta_with_check
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -31,7 +32,7 @@ def test_first_load_timestamp(connection: "DB_Connection"):
                 """ALTER TABLE dbo.User_Double ADD PRIMARY KEY ([User - iD]) """
             )
     base_path = Path("tests/_data/dbo/user_double")
-    write_db_to_delta(
+    write_db_to_delta_with_check(
         connection.conn_str,
         ("dbo", "User_Double"),
         base_path,
@@ -72,7 +73,7 @@ def test_first_load_timestamp(connection: "DB_Connection"):
                      UPDATE [dbo].[User_Double] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
                    """
             )
-    write_db_to_delta(  # some delta load
+    write_db_to_delta_with_check(  # some delta load
         connection.conn_str,
         ("dbo", "User_Double"),
         base_path,

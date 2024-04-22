@@ -5,6 +5,7 @@ from deltalake2db import get_sql_for_delta, duckdb_create_view_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
+from .utils import write_db_to_delta_with_check
 
 
 if TYPE_CHECKING:
@@ -14,9 +15,10 @@ if TYPE_CHECKING:
 @pytest.mark.order(6)
 def test_strange_delta(connection: "DB_Connection"):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake.reader.odbc_reader import ODBCReader
 
     base_path = Path("tests/_data/dbo/user3")
-    write_db_to_delta(connection.conn_str, ("dbo", "user3"), base_path)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user3"), base_path)
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -41,7 +43,7 @@ def test_strange_delta(connection: "DB_Connection"):
     import time
 
     time.sleep(2)
-    write_db_to_delta(connection.conn_str, ("dbo", "user3"), base_path)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user3"), base_path)
     # so far we have no strange data yet. But we make it happen ;)
     # we rename user4 to user3, which will through around timestamps especially for record Johniingham
     with connection.new_connection() as nc:
@@ -59,8 +61,18 @@ def test_strange_delta(connection: "DB_Connection"):
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-
-    write_db_to_delta(connection.conn_str, ("dbo", "user3"), base_path)
+    with connection.new_connection() as nc:
+        with nc.cursor() as cursor:
+            cursor.execute("""select * from user3""")
+            alls = cursor.fetchall()
+            cols = [c[0] for c in cursor.description]
+            dicts = [dict(zip(cols, row)) for row in alls]
+            print(dicts)
+    write_db_to_delta_with_check(
+        ODBCReader(connection.conn_str, "tests/_data/debug_user2.duck"),
+        ("dbo", "user3"),
+        base_path,
+    )
 
     with duckdb.connect() as con:
         sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
@@ -102,7 +114,7 @@ def test_strange_delta_sys(connection: "DB_Connection"):
             cursor.execute(
                 """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
             )
-    write_db_to_delta(  # normal full load
+    write_db_to_delta_with_check(  # normal full load
         connection.conn_str, ("dbo", "company2"), base_path
     )
 
@@ -137,8 +149,10 @@ def test_strange_delta_sys(connection: "DB_Connection"):
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM [dbo].[company2]")
             alls = cursor.fetchall()
-            print(alls)
-    write_db_to_delta(connection.conn_str, ("dbo", "company2"), base_path)
+            cols = [c[0] for c in cursor.description]
+            dicts = [dict(zip(cols, row)) for row in alls]
+            print(dicts)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "company2"), base_path)
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(

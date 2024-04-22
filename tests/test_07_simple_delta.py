@@ -5,6 +5,7 @@ from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
+from .utils import write_db_to_delta_with_check
 
 from odbc2deltalake.query import sql_quote_value
 
@@ -19,7 +20,7 @@ def test_delta_sys(connection: "DB_Connection"):
     cfg = WriteConfig(load_mode="simple_delta")
 
     base_path = Path("tests/_data/dbo/company3")
-    write_db_to_delta(
+    write_db_to_delta_with_check(
         connection.conn_str, ("dbo", "company3"), base_path, cfg
     )  # full load
     t = DeltaTable(base_path / "delta")
@@ -64,6 +65,6 @@ select 'c300',
     import time
 
     time.sleep(1)
-    write_db_to_delta(
+    write_db_to_delta_with_check(
         connection.conn_str, ("dbo", "company3"), base_path
     )  # if you switch to full delta later on, that's ok. It will just recalc the latest_pk thing

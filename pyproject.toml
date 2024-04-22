@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odbc2deltalake"
-version = "0.8.6"
+version = "0.8.7"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
@@ -32,6 +32,7 @@ pytest-cov = "^4.1.0"
 docker = "^7.0.0"
 python-dotenv = "^1.0.1"
 azure-storage-blob = "^12.19.1"
+pandas = "^2.2.2"
 
 
 [tool.poetry.group.spark.dependencies]

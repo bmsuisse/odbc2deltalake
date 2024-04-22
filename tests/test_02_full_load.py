@@ -5,6 +5,7 @@ from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
+from .utils import write_db_to_delta_with_check
 
 from odbc2deltalake.query import sql_quote_value
 
