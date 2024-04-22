@@ -40,7 +40,7 @@ select 'c1',
     'The First company';
 insert into dbo.[company](id, name)
 select 'c2',
-    'The Second company';
+    'The Second company        ';
 insert into dbo.[company3](id, name)
 select id, name from dbo.[company];
 create table dbo.[user](
