@@ -52,7 +52,3 @@ class Destination(ABC):
     @abstractmethod
     def as_delta_table(self) -> "DeltaTable":
         pass
-
-    @abstractmethod
-    def with_suffix(self, suffix: str) -> Self:
-        pass

@@ -53,8 +53,5 @@ class FileSystemDestination(Destination):
 
         return DeltaTable(self.path)
 
-    def with_suffix(self, suffix: str):
-        return FileSystemDestination(self.path.with_suffix(suffix))
-
     def __truediv__(self, other: str):
         return FileSystemDestination(self.path / other)

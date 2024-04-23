@@ -42,12 +42,6 @@ from .write_init import (
 T = TypeVar("T")
 
 
-def _not_none(v: T | None) -> T:
-    if v is None:
-        raise ValueError("Value is None")
-    return v
-
-
 def _source_convert(
     name: str,
     data_type: str,
@@ -219,18 +213,6 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
         if lock_file_path.exists():
             lock_file_path.remove()
         dest_logger.flush()
-
-
-def create_replace_view(
-    reader: DataSourceReader,
-    name: str,
-    base_destination: Destination,
-    *,
-    version: int | None = None,
-):
-    reader.local_register_update_view(
-        base_destination / f"delta_load/{name}", name, version=version
-    )
 
 
 def write_latest_pk(
@@ -949,12 +931,10 @@ def _handle_additional_updates(
 
 def _get_update_sql(
     cols: Sequence[InformationSchemaColInfo],
-    criterion: str | Sequence[str | ex.Expression] | ex.Expression | None,
+    criterion: Sequence[ex.Expression] | ex.Expression | None,
     table: table_name_type,
     write_config: WriteConfig,
 ):
-    if isinstance(criterion, ex.Expression):
-        criterion = [criterion]
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
     delta_sql = (
@@ -981,8 +961,6 @@ def _get_update_sql(
         .from_(table_from_tuple(table, alias="t"))
         .sql(write_config.dialect)
     )
-    if isinstance(criterion, str):
-        delta_sql += " " + criterion
     return delta_sql
 
 
@@ -1030,19 +1008,7 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
         .from_(table_from_tuple(infos.table))
         .sql(write_config.dialect)
     )
-    if reader.local_delta_table_exists(
-        delta_path, extended_check=True
-    ):  # the extended check checks if there is any column in the table
-        reader.local_register_update_view(delta_path, _temp_table(infos.table))
-        res = reader.local_execute_sql_to_py(
-            sg.from_(ex.to_identifier(_temp_table(infos.table))).select(
-                ex.func("max", ex.column(VALID_FROM_COL_NAME)).as_(VALID_FROM_COL_NAME)
-            )
-        )
-        max_valid_from = res[0][VALID_FROM_COL_NAME] if res else None
-    else:
-        max_valid_from = None
-        logger.info("executing sql", sql=sql, load="full")
+    logger.info("executing sql", sql=sql, load="full")
     reader.source_write_sql_to_delta(sql, delta_path, mode=mode)
     if infos.delta_col is None:
         logger.info(f"{infos.table}: Full Load done")
@@ -1064,10 +1030,6 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
             )
         )
     )
-    if max_valid_from:
-        query = query.where(
-            ex.column(VALID_FROM_COL_NAME, quoted=True) > ex.convert(max_valid_from)
-        )
     reader.local_execute_sql_to_delta(
         query,
         delta_path.parent / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,

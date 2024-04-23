@@ -54,15 +54,6 @@ class DatabricksDestination(Destination):
     def __str__(self):
         return self.to_az_path()
 
-    def with_suffix(self, suffix: str):
-        return DatabricksDestination(
-            self.dbutils,
-            container=self.container,
-            path=self.path + suffix,
-            account=self.account,
-            scheme=self.scheme,
-        )
-
     @property
     def parent(self):
         new_path = "/".join(self.path.removesuffix("/").split("/")[:-1])
