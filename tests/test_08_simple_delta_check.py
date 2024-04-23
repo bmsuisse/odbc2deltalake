@@ -1,0 +1,103 @@
+from pathlib import Path
+from typing import TYPE_CHECKING
+import pytest
+from deltalake2db import duckdb_create_view_for_delta
+import duckdb
+from deltalake import DeltaTable
+from datetime import date
+from .utils import write_db_to_delta_with_check
+import time
+from odbc2deltalake.query import sql_quote_value
+
+if TYPE_CHECKING:
+    from tests.conftest import DB_Connection
+
+
+@pytest.mark.order(14)
+def test_delta_sys(connection: "DB_Connection"):
+    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs, WriteConfig
+
+    cfg = WriteConfig(load_mode="simple_delta_check")
+
+    base_path = Path("tests/_data/dbo/company_3_dc")
+    write_db_to_delta_with_check(
+        connection.conn_str, ("dbo", "company3"), base_path, cfg
+    )  # full load
+    t = DeltaTable(base_path / "delta")
+    col_names = [f.name for f in t.schema().fields]
+    assert "__timestamp" in col_names
+    with connection.new_connection() as nc:
+        with nc.cursor() as cursor:
+            cursor.execute(
+                """
+insert into dbo.[company3](id, name)
+select 'c400',
+    'The 400 company';
+    UPDATE dbo.[company3] SET name='Die zwooti firma 2.0' where id='c2';
+    
+insert into dbo.[company3](id, name)
+select 'c500',
+    'The 500 company';
+                   """
+            )
+
+    write_db_to_delta(
+        connection.conn_str, ("dbo", "company3"), base_path, cfg
+    )  # delta load
+    t.update_incremental()
+    col_names = [f.name for f in t.schema().fields]
+    assert "__timestamp" in col_names
+    with nc.cursor() as cursor:
+        cursor.execute("SELECT * FROM [dbo].[company3]")
+        alls = cursor.fetchall()
+        print(alls)
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(
+            con, DeltaTable(base_path / "delta"), "v_company_scd2"
+        )
+        name_tuples = con.execute(
+            """SELECT lf.name, lf.__is_deleted from v_company_scd2 lf 
+            where lf.id in ('c1', 'c2', 'c400', 'c500')
+                qualify row_number() over (partition by lf."id" order by lf."Start" desc)=1
+                order by lf."id" 
+                """
+        ).fetchall()
+        assert name_tuples == [
+            ("The First company", False),
+            ("Die zwooti firma 2.0", False),
+            ("The 400 company", False),
+            ("The 500 company", False),
+        ]
+
+    time.sleep(1)
+    with connection.new_connection() as nc:
+        with nc.cursor() as cursor:
+            cursor.execute(
+                """
+delete from dbo.[company3] where id='c400'
+                   """
+            )
+    time.sleep(1)
+    write_db_to_delta_with_check(
+        connection.conn_str, ("dbo", "company3"), base_path, write_config=cfg
+    )
+
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(
+            con, DeltaTable(base_path / "delta"), "v_company_scd2"
+        )
+        name_tuples = con.execute(
+            """SELECT lf.name, lf.__is_deleted from v_company_scd2 lf 
+            where lf.id in ('c1', 'c2', 'c400', 'c500')
+                qualify row_number() over (partition by lf."id" order by lf."__timestamp" desc)=1
+                order by lf."id" 
+                """
+        ).fetchall()
+        assert name_tuples == [
+            ("The First company", False),
+            ("Die zwooti firma 2.0", False),
+            (None, True),
+            ("The 500 company", False),
+        ]
+    time.sleep(1)
+    write_db_to_delta_with_check(connection.conn_str, ("dbo", "company3"), base_path)
