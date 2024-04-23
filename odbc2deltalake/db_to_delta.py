@@ -190,9 +190,9 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
             else:
                 do_delta_load(
                     infos=infos,
-                    simple=write_config.load_mode in ["simple_delta", "simple_delta_check"],
-                    simple_check=write_config.load_mode == "simple_delta_check"
-
+                    simple=write_config.load_mode
+                    in ["simple_delta", "simple_delta_check"],
+                    simple_check=write_config.load_mode == "simple_delta_check",
                 )
         lock_file_path.remove()
         _vacuum(
@@ -364,7 +364,7 @@ def _temp_table(table: table_name_type):
 def do_delta_load(
     infos: WriteConfigAndInfos,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
-    simple_check = False # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
+    simple_check=False,  # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
 ):
     destination = infos.destination
     logger = infos.logger
@@ -476,8 +476,8 @@ def do_delta_load(
         _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
         pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
         if pk_ts.exists():
-            pk_ts.remove()
-        
+            pk_ts.remove(True)
+
         write_latest_pk(
             reader,
             destination,
@@ -496,7 +496,9 @@ def do_delta_load(
             )
         )[0]["cnt"]
         if source_count != target_count:
-            logger.warning(f"Source and target count do not match. Source: {source_count}, Target: {target_count}. { 'Do a normal delta' if simple_check else ''}")
+            logger.warning(
+                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. { 'Do a normal delta' if simple_check else ''}"
+            )
             if simple_check:
                 do_delta_load(infos, simple=False)
 
