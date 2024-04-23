@@ -190,7 +190,9 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
             else:
                 do_delta_load(
                     infos=infos,
-                    simple=write_config.load_mode == "simple_delta",
+                    simple=write_config.load_mode in ["simple_delta", "simple_delta_check"],
+                    simple_check=write_config.load_mode == "simple_delta_check"
+
                 )
         lock_file_path.remove()
         _vacuum(
@@ -237,6 +239,7 @@ def write_latest_pk(
     pks: Sequence[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
+    merge_delta=False,
 ):
     reader.local_register_update_view(
         destination / f"delta_load/{DBDeltaPathConfigs.DELTA_1_NAME}",
@@ -247,10 +250,17 @@ def write_latest_pk(
         destination / f"delta_load/{DBDeltaPathConfigs.DELTA_2_NAME}",
         DBDeltaPathConfigs.DELTA_2_NAME,
     )
-    reader.local_register_update_view(
-        destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
-        DBDeltaPathConfigs.PRIMARY_KEYS_TS,
-    )
+    if not merge_delta:
+        reader.local_register_update_view(
+            destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
+            "primary_keys_ts_for_write",
+        )
+    else:
+        reader.local_register_update_view(
+            destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
+            "primary_keys_ts_for_write",
+            version=1,
+        )
 
     latest_pk_query = union(
         [
@@ -298,7 +308,7 @@ def write_latest_pk(
                         get_target_name=write_config.get_target_name,
                     )
                 )
-                .from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="cpk"))
+                .from_(ex.table_("primary_keys_ts_for_write", alias="cpk"))
                 .join(
                     ex.table_("delta_2", alias="au3"),
                     ex.and_(
@@ -345,6 +355,7 @@ def write_latest_pk(
 def _temp_table(table: table_name_type):
     def _clean(input_str: str):
         return "".join(ch for ch in input_str if ch.isalnum())
+
     if isinstance(table, str):
         return "temp_" + _clean(table)
     return "temp_" + "_".join((_clean(s) for s in table))
@@ -353,6 +364,7 @@ def _temp_table(table: table_name_type):
 def do_delta_load(
     infos: WriteConfigAndInfos,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
+    simple_check = False # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
 ):
     destination = infos.destination
     logger = infos.logger
@@ -408,16 +420,13 @@ def do_delta_load(
         f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
     )
     if not simple:
-        _retrieve_primary_key_data(
-            reader=reader,
-            table=table,
-            delta_col=delta_col,
-            pk_cols=infos.pk_cols,
-            destination=destination,
-            write_config=write_config,
-            logger=infos.logger,
-        )
-
+        _retrieve_primary_key_data(infos=infos)
+    else:
+        source_count = reader.source_sql_to_py(
+            sg.from_(table_from_tuple(table)).select(
+                ex.Count(this=ex.Star()).as_("cnt")
+            )
+        )[0]["cnt"]
     criterion = _source_convert(
         delta_col.column_name,
         delta_col.data_type,
@@ -431,7 +440,6 @@ def do_delta_load(
         table=table,
         write_config=write_config,
     )
-    logger.info("execute sql", load="delta", sub_load="delta_1", sql=upds_sql)
     _load_updates_to_delta(
         logger,
         reader,
@@ -443,14 +451,7 @@ def do_delta_load(
     if not simple:
         assert old_pk_version is not None
         _handle_additional_updates(
-            logger,
-            reader=reader,
-            table=table,
-            delta_path=delta_path,
-            pk_cols=infos.pk_cols,
-            delta_col=delta_col,
-            cols=infos.col_infos,
-            write_config=write_config,
+            infos=infos,
             old_pk_version=old_pk_version,
         )
         reader.local_register_update_view(delta_path, _temp_table(table))
@@ -472,10 +473,32 @@ def do_delta_load(
         )
         logger.info(f"{table}: Done delta load")
     else:
-        if (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).exists():
-            (destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).remove(
-                True
+        _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
+        pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
+        if pk_ts.exists():
+            pk_ts.remove()
+        
+        write_latest_pk(
+            reader,
+            destination,
+            infos.pk_cols,
+            delta_col,
+            write_config=write_config,
+            merge_delta=True,
+        )
+        reader.local_register_update_view(
+            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
+            DBDeltaPathConfigs.LATEST_PK_VERSION,
+        )
+        target_count = reader.local_execute_sql_to_py(
+            sg.from_(DBDeltaPathConfigs.LATEST_PK_VERSION).select(
+                ex.Count(this=ex.Star()).as_("cnt")
             )
+        )[0]["cnt"]
+        if source_count != target_count:
+            logger.warning(f"Source and target count do not match. Source: {source_count}, Target: {target_count}. { 'Do a normal delta' if simple_check else ''}")
+            if simple_check:
+                do_delta_load(infos, simple=False)
 
 
 def do_append_inserts_load(infos: WriteConfigAndInfos):
@@ -638,30 +661,27 @@ def do_deletes(
 
 
 def _retrieve_primary_key_data(
-    reader: DataSourceReader,
-    table: table_name_type,
-    delta_col: InformationSchemaColInfo,
-    pk_cols: Sequence[InformationSchemaColInfo],
-    destination: Destination,
-    write_config: WriteConfig,
-    logger: DeltaLogger,
+    infos: WriteConfigAndInfos,
 ):
+
     pk_ts_col_select = ex.select(
         *_get_cols_select(
             is_full=None,
             is_deleted=None,
-            cols=concat_seq(pk_cols, [delta_col]),
+            cols=concat_seq(
+                infos.pk_cols, [infos.delta_col] if infos.delta_col else []
+            ),
             with_valid_from=False,
-            data_type_map=write_config.data_type_map,
+            data_type_map=infos.write_config.data_type_map,
             system="source",
-            get_target_name=write_config.get_target_name,
+            get_target_name=infos.write_config.get_target_name,
         )
-    ).from_(table_from_tuple(table))
-    pk_ts_reader_sql = pk_ts_col_select.sql(write_config.dialect)
+    ).from_(table_from_tuple(infos.table))
+    pk_ts_reader_sql = pk_ts_col_select.sql(infos.write_config.dialect)
 
-    pk_path = destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
-    logger.info("Retrieve all PK/TS", sql=pk_ts_reader_sql)
-    reader.source_write_sql_to_delta(
+    pk_path = infos.destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
+    infos.logger.info("Retrieve all PK/TS", sql=pk_ts_reader_sql)
+    infos.source.source_write_sql_to_delta(
         sql=pk_ts_reader_sql, delta_path=pk_path, mode="overwrite"
     )
     return pk_path
@@ -681,19 +701,109 @@ def _list_to_chunks(input: Iterable[T], chunk_size: int):
         yield chunk
 
 
+def _write_delta2(
+    infos: WriteConfigAndInfos, data: list[dict], mode: Literal["overwrite", "append"]
+):
+    write_config = infos.write_config
+    from .sql_schema import get_sql_type
+    from .query import sql_quote_value
+
+    def _collate(c: InformationSchemaColInfo):
+        if c.data_type.lower() in [
+            "char",
+            "varchar",
+            "nchar",
+            "nvarchar",
+            "text",
+            "ntext",
+        ]:
+            return "COLLATE Latin1_General_100_BIN "
+        return ""
+
+    delta_2_path = infos.destination / "delta_load" / DBDeltaPathConfigs.DELTA_2_NAME
+
+    def full_sql(js: str):
+        col_defs = ", ".join(
+            [
+                f"p{i} {get_sql_type(p.data_type, p.character_maximum_length)}"
+                for i, p in enumerate(infos.pk_cols)
+            ]
+        )
+
+        selects = list(
+            _get_cols_select(
+                infos.col_infos,
+                is_full=False,
+                is_deleted=False,
+                with_valid_from=True,
+                table_alias="t",
+                data_type_map=write_config.data_type_map,
+                system="source",
+                get_target_name=write_config.get_target_name,
+            )
+        )
+        sql = (
+            ex.select(*selects)
+            .from_(table_from_tuple(infos.table, alias="t"))
+            .sql(write_config.dialect)
+        )
+        pk_map = ", ".join(
+            [
+                "p" + str(i) + " as " + sql_quote_name(write_config.get_target_name(c))
+                for i, c in enumerate(infos.pk_cols)
+            ]
+        )
+        return f"""{sql}
+        inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
+             on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}' for c in infos.pk_cols])}
+        """
+
+    if mode == "overwrite":
+        infos.logger.info(
+            "execute sql",
+            load="delta",
+            sub_load="delta_additional",
+            sql=full_sql(f"[/* {len(data)} entries */]"),
+        )
+    sql = full_sql(json.dumps(data))
+    if (
+        len(sql) > 7000
+    ):  ## oops, spark will not like this (actually the limit is 8000, but spark might use something on it's own)
+        ch_split = len(data) // 2
+        chunk_1 = data[:ch_split]
+        chunk_2 = data[ch_split:]
+        infos.source.source_write_sql_to_delta(
+            full_sql(json.dumps(chunk_1)),
+            delta_2_path,
+            mode=mode,
+        )
+        infos.source.source_write_sql_to_delta(
+            full_sql(json.dumps(chunk_2)),
+            delta_2_path,
+            mode="append",
+        )
+    else:
+        infos.source.source_write_sql_to_delta(
+            sql,
+            delta_2_path,
+            mode=mode,
+        )
+
+
 def _handle_additional_updates(
-    logger: DeltaLogger,
-    reader: DataSourceReader,
-    table: table_name_type,
-    delta_path: Destination,
-    pk_cols: Sequence[InformationSchemaColInfo],
-    delta_col: InformationSchemaColInfo,
-    cols: Sequence[InformationSchemaColInfo],
-    write_config: WriteConfig,
+    infos: WriteConfigAndInfos,
     old_pk_version: int,
 ):
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
-    folder = delta_path.parent
+    folder = infos.destination
+    table = infos.table
+    delta_col = infos.delta_col
+    pk_cols = infos.pk_cols
+    cols = infos.col_infos
+    reader = infos.source
+    logger = infos.logger
+    write_config = infos.write_config
+    assert delta_col is not None, "Need a delta column"
     pk_ds_cols = concat_seq(pk_cols, [delta_col])
     reader.local_register_update_view(
         folder / f"delta_load/{ DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
@@ -751,9 +861,6 @@ def _handle_additional_updates(
         sg.from_("real_additional_updates").select(ex.Count(this=ex.Star()).as_("cnt"))
     )[0]["cnt"]
 
-    from .sql_schema import get_sql_type
-    from .query import sql_quote_value
-
     jsd = reader.local_execute_sql_to_py(
         sg.from_("real_additional_updates").select(
             *[
@@ -765,64 +872,12 @@ def _handle_additional_updates(
         )
     )
 
-    def _collate(c: InformationSchemaColInfo):
-        if c.data_type.lower() in [
-            "char",
-            "varchar",
-            "nchar",
-            "nvarchar",
-            "text",
-            "ntext",
-        ]:
-            return "COLLATE Latin1_General_100_BIN "
-        return ""
-
-    delta_2_path = folder / "delta_load/delta_2"
-
-    def full_sql(js: str):
-        col_defs = ", ".join(
-            [
-                f"p{i} {get_sql_type(p.data_type, p.character_maximum_length)}"
-                for i, p in enumerate(pk_cols)
-            ]
-        )
-
-        selects = list(
-            _get_cols_select(
-                cols,
-                is_full=False,
-                is_deleted=False,
-                with_valid_from=True,
-                table_alias="t",
-                data_type_map=write_config.data_type_map,
-                system="source",
-                get_target_name=write_config.get_target_name,
-            )
-        )
-        sql = (
-            ex.select(*selects)
-            .from_(table_from_tuple(table, alias="t"))
-            .sql(write_config.dialect)
-        )
-        pk_map = ", ".join(
-            [
-                "p" + str(i) + " as " + sql_quote_name(write_config.get_target_name(c))
-                for i, c in enumerate(pk_cols)
-            ]
-        )
-        return f"""{sql}
-        inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
-             on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}' for c in pk_cols])}
-        """
-
     if update_count == 0:
-        reader.source_write_sql_to_delta(full_sql("[]"), delta_2_path, mode="overwrite")
+        _write_delta2(infos, [], mode="overwrite")
     elif (
         update_count > 1000
     ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
-        reader.source_write_sql_to_delta(
-            full_sql("[]"), delta_2_path, mode="overwrite"
-        )  # still need to create delta_2_path
+        _write_delta2(infos, [], mode="overwrite")  # still need to create delta_2_path
         logger.warning(
             f"{table}: Start delta step 3, load {update_count} strange updates via normal delta load"
         )
@@ -851,7 +906,7 @@ def _handle_additional_updates(
             logger,
             reader,
             sql=upds_sql,
-            delta_path=delta_path,
+            delta_path=infos.destination / "delta",
             delta_name="delta_1",
             write_config=write_config,
         )
@@ -875,42 +930,17 @@ def _handle_additional_updates(
         logger.warning(
             f"{table}: Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
         )
-        logger.info(
-            "execute sql",
-            load="delta",
-            sub_load="delta_additional",
-            sql=full_sql("[]"),
-        )
         first = True
         for chunk in _list_to_chunks(jsd, batch_size):
-            sql = full_sql(json.dumps(chunk))
-            if (
-                len(sql) > 7000
-            ):  ## oops, spark will not like this (actually the limit is 8000, but spark might use something on it's own)
-                ch_split = len(chunk) // 2
-                chunk_1 = chunk[:ch_split]
-                chunk_2 = chunk[ch_split:]
-                reader.source_write_sql_to_delta(
-                    full_sql(json.dumps(chunk_1)),
-                    delta_2_path,
-                    mode="overwrite" if first else "append",
-                )
-                reader.source_write_sql_to_delta(
-                    full_sql(json.dumps(chunk_2)),
-                    delta_2_path,
-                    mode="append",
-                )
-            else:
-                reader.source_write_sql_to_delta(
-                    sql,
-                    delta_2_path,
-                    mode="overwrite" if first else "append",
-                )
+            _write_delta2(infos, chunk, mode="overwrite" if first else "append")
             first = False
-        reader.local_register_update_view(delta_2_path, "delta_2")
+        reader.local_register_update_view(
+            infos.destination / "delta_load" / DBDeltaPathConfigs.DELTA_2_NAME,
+            "delta_2",
+        )
         reader.local_execute_sql_to_delta(
             sg.from_("delta_2").select(ex.Star()),
-            delta_path,
+            infos.destination / "delta",
             mode="append",
         )
 

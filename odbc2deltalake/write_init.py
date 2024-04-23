@@ -86,11 +86,17 @@ class WriteConfig:
     """The column to use for the delta load. If None, the column will be determined from the source. Should be mostly increasing to make load efficient"""
 
     load_mode: Literal[
-        "overwrite", "append", "force_full", "append_inserts", "simple_delta"
+        "overwrite",
+        "append",
+        "force_full",
+        "append_inserts",
+        "simple_delta",
+        "simple_delta_check",
     ] = "append"
     """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only
         append_inserts is for when you have a delta column which is strictly increasing and you want to append new rows only. No deletes of rows. might be good for logs
         simple_delta is for sources where the delta col is a datetime and you can be sure that there are no deletes or additional updates
+        simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower than delta
     """
 
     data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
