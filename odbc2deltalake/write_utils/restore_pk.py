@@ -27,7 +27,7 @@ def create_last_pk_version_view(
     reader = infos.source
     write_config = infos.write_config
 
-    temp_table = "tmp_" + str(hash(str(delta_path)))
+    temp_table = "tmp_" + str(abs(hash(str(delta_path))))
     reader.local_register_update_view(delta_path, temp_table)
 
     sq_valid_from = reader.local_execute_sql_to_py(
