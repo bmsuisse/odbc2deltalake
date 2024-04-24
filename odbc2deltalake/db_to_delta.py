@@ -349,7 +349,7 @@ def write_latest_pk(
 
 def _temp_table(table: table_name_type | ex.Query):
     if isinstance(table, ex.Query):
-        return "temp_" + str(hash(table.sql("duckdb")))
+        return "temp_" + str(abs(hash(table.sql("duckdb"))))
 
     def _clean(input_str: str):
         return "".join(ch for ch in input_str if ch.isalnum())
@@ -545,7 +545,7 @@ def _get_latest_delta_value(
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
 ):
-    tmp_view_name = "temp_" + str(hash(str(delta_path)))
+    tmp_view_name = "temp_" + str(abs(hash(str(delta_path))))
     reader.local_register_update_view(delta_path, tmp_view_name)
     return reader.local_execute_sql_to_py(
         sg.from_(ex.to_identifier(tmp_view_name)).select(
