@@ -1,8 +1,13 @@
 from pydantic import BaseModel
+
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
-from sqlglot.expressions import Query
-from typing import Literal, Type
+from sqlglot.expressions import Query, DataType
+from typing import Literal, Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyspark.sql import SparkSession
+    from odbc2deltalake.metadata import InformationSchemaColInfo
 
 
 class SparkDeltaOps(DeltaOps):
@@ -25,7 +30,7 @@ class SparkDeltaOps(DeltaOps):
 class SparkReader(DataSourceReader):
     def __init__(
         self,
-        spark,
+        spark: "SparkSession",
         sql_config: dict[str, str] | None = None,
         linked_server_proxy: str | None = None,
         spark_format: str = "sqlserver",
@@ -67,9 +72,9 @@ class SparkReader(DataSourceReader):
         dummy_record: dict | None = None,
     ):
         schema = (
-            self.spark.createDataFrame([dummy_record]).schema if dummy_record else None
+            self.spark.createDataFrame([dummy_record]).schema if dummy_record else None  # type: ignore
         )
-        df = self.spark.createDataFrame(pylist, schema=schema)
+        df = self.spark.createDataFrame(pylist, schema=schema)  # type: ignore
         df.write.format("delta").option(
             "mergeSchema" if mode == "append" else "overwriteSchema", "true"
         ).mode(mode).save(str(delta_path))
@@ -78,6 +83,10 @@ class SparkReader(DataSourceReader):
     def query_dialect(self) -> str:
         return "databricks"
 
+    @property
+    def supports_proc_exec(self):
+        return False
+    
     def _query(self, sql: str | Query):
         if isinstance(sql, Query):
             sql = sql.sql("tsql")
@@ -88,6 +97,30 @@ class SparkReader(DataSourceReader):
             sql_escaped = sql.replace("'", "''")
             return f"select * from openquery([{self.linked_server_proxy}], '{ sql_escaped}')"
         return sql
+
+    def source_schema_limit_one(self, sql: Query) -> "list[InformationSchemaColInfo]":
+        from ..metadata import InformationSchemaColInfo
+
+        def _sql_t(t: str):
+            if t == "timestamp":
+                return "datetime2"
+            return t
+
+        limit_query = sql.limit(0)
+        reader = self.spark.read.format(self.spark_format).option(
+            "query", self._query(limit_query)
+        )
+        for k, v in self.sql_config.items():
+            reader = reader.option(k, v)
+        df = reader.load()
+        return [
+            InformationSchemaColInfo(
+                column_name=col.name,
+                data_type=DataType.build(col.dataType.simpleString(), dialect="spark"),
+                is_nullable=col.nullable,
+            )
+            for col in df.schema.fields
+        ]
 
     def source_sql_to_py(self, sql: str | Query) -> list[dict]:
         reader = self.spark.read.format(self.spark_format).option(

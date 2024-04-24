@@ -1,12 +1,39 @@
+import sqlglot.expressions as ex
 import sqlglot
+from pydantic.v1 import BaseModel, ConfigDict
 
-with open("tests/sqls/init.sql", encoding="utf-8") as f:
-    sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
+print(  # transpiled type timestamp as is, should be binary
+    sqlglot.parse_one("create table a (b timestamp)", dialect="tsql").sql("databricks")
+)
 
-for sql in sqls:
-    try:
-        res = sqlglot.parse(sql, dialect="tsql")
-        for r in res:
-            print(r.sql("databricks"))
-    except Exception as err:
-        print("err: " + str(err))
+print(  # prints ROWVERSION instead of BINARY
+    sqlglot.parse_one("create table a (b rowversion)", dialect="tsql").sql("databricks")
+)
+
+print(  # good, this works! databricks timestamp is datetime2 in ms sql
+    sqlglot.parse_one("create table a (b timestamp)", dialect="databricks").sql("tsql")
+)
+
+print(repr(ex.DataType.build("timestamp", dialect="tsql")))
+print(
+    sqlglot.parse_one("create table a (b timestamp)", dialect="tsql").sql(
+        "tsql"
+    )  # prints datetime2
+)
+
+
+class TestClass(BaseModel):
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    dt: ex.DataType
+
+
+for t in ["varchar", "nchar", "nvarchar", "char", "text", "ntext"]:
+    print(ex.DataType.build(t, dialect="tsql").this)
+    assert (
+        ex.DataType.build(t, dialect="tsql").this in ex.DataType.TEXT_TYPES
+    ), f"{t} is not a string type"

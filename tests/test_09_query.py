@@ -23,7 +23,7 @@ def test_delta_query(connection: "DB_Connection"):
     query = sg.parse_one(
         "select * from dbo.[user5] where Age is null or age < 50", dialect="tsql"
     )
-    config = WriteConfig(primary_keys=["User_-_iD"])
+    config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
     assert isinstance(query, ex.Query)
     write_db_to_delta_with_check(
         connection.conn_str, query, base_path, write_config=config

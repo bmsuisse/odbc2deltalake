@@ -7,6 +7,7 @@ import duckdb
 from deltalake import DeltaTable
 from datetime import date
 from .utils import write_db_to_delta_with_check
+import sqlglot.expressions as ex
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -22,7 +23,11 @@ def test_first_load_timestamp(connection: "DB_Connection"):
     )
 
     write_config = WriteConfig(
-        data_type_map={"decimal": "double"} | dict(DEFAULT_DATA_TYPE_MAP)
+        data_type_map={
+            "decimal": ex.DataType(this=ex.DataType.Type.DOUBLE),
+            "numeric": ex.DataType(this=ex.DataType.Type.DOUBLE),
+        }
+        | dict(DEFAULT_DATA_TYPE_MAP)
     )
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:

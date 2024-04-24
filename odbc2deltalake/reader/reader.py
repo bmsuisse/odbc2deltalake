@@ -7,6 +7,9 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Literal, Protocol, Any, Type
 from sqlglot.expressions import Query
 
+if TYPE_CHECKING:
+    from odbc2deltalake.metadata import InformationSchemaColInfo
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +22,10 @@ class DeltaOps(Protocol):
 
     def restore(self, target: int) -> Any: ...
 class DataSourceReader(ABC):
+    @property
+    @abstractmethod
+    def supports_proc_exec(self) -> bool:
+        pass
 
     @property
     @abstractmethod
@@ -35,6 +42,10 @@ class DataSourceReader(ABC):
     def source_write_sql_to_delta(
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
+        pass
+
+    @abstractmethod
+    def source_schema_limit_one(self, sql: Query) -> "list[InformationSchemaColInfo]":
         pass
 
     @abstractmethod

@@ -5,10 +5,12 @@ from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
 from typing import TYPE_CHECKING, Literal, Type
-from sqlglot.expressions import Query
+from sqlglot.expressions import Query, DataType
 
 if TYPE_CHECKING:
     import pyarrow as pa
+    import pyarrow.types as pat
+    from odbc2deltalake.metadata import InformationSchemaColInfo
 
 
 def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
@@ -22,6 +24,51 @@ def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
     return sc
 
 
+def _get_type(tp: "pa.DataType"):
+
+    import pyarrow.types as pat
+
+    if pat.is_string(tp):
+        return DataType.Type.NVARCHAR
+    if pat.is_boolean(tp):
+        return DataType.Type.BIT
+    if pat.is_int8(tp):
+        return DataType.Type.TINYINT
+    if pat.is_int16(tp):
+        return DataType.Type.SMALLINT
+    if pat.is_int32(tp):
+        return DataType.Type.INT
+    if pat.is_int64(tp):
+        return DataType.Type.BIGINT
+    if pat.is_float32(tp):
+        return DataType.Type.FLOAT
+    if pat.is_float64(tp):
+        return DataType.Type.DOUBLE
+    if pat.is_date32(tp):
+        return DataType.Type.DATE
+    if pat.is_date64(tp):
+        return DataType.Type.DATETIME
+    if pat.is_timestamp(tp):
+        return DataType.Type.DATETIME
+    if pat.is_time32(tp):
+        return DataType.Type.TIME
+    if pat.is_time64(tp):
+        return DataType.Type.TIME
+    if pat.is_decimal(tp):
+        return DataType.Type.DECIMAL
+    if pat.is_binary(tp):
+        return DataType.Type.VARBINARY
+    if pat.is_fixed_size_binary(tp):
+        return DataType.build(f"binary({tp.byte_width})", dialect="tsql")
+    raise ValueError(f"Type {tp} not supported")
+
+
+def _build_type(t: DataType | DataType.Type):
+    if isinstance(t, DataType):
+        return t
+    return DataType(this=t)
+
+
 class ODBCReader(DataSourceReader):
     def __init__(self, connection_string: str, local_db: str = ":memory:") -> None:
         from deltalake import WriterProperties
@@ -31,6 +78,10 @@ class ODBCReader(DataSourceReader):
         self.duck_con = None
         self.local_db = local_db
 
+    @property
+    def supports_proc_exec(self):
+        return True
+        
     def local_register_update_view(
         self, delta_path: Destination, view_name: str, *, version: int | None = None
     ):
@@ -141,13 +192,33 @@ class ODBCReader(DataSourceReader):
     def query_dialect(self) -> str:
         return "duckdb"
 
+    def source_schema_limit_one(self, sql: Query) -> "list[InformationSchemaColInfo]":
+        from ..metadata import InformationSchemaColInfo
+
+        limit_sql = sql.limit(0).sql("tsql")
+        from arrow_odbc import read_arrow_batches_from_odbc
+
+        sc = read_arrow_batches_from_odbc(
+            limit_sql, self.connection_string, max_text_size=20000
+        ).schema
+        return [
+            InformationSchemaColInfo(
+                column_name=n,
+                data_type=_build_type(_get_type(sc.field(n).type)),
+                is_nullable=sc.field(n).nullable,
+            )
+            for n in sc.names
+        ]
+
     def source_sql_to_py(self, sql: str | Query) -> list[dict]:
         if isinstance(sql, Query):
             sql = sql.sql("tsql")
         from arrow_odbc import read_arrow_batches_from_odbc
 
         result = list()
-        for batch in read_arrow_batches_from_odbc(sql, self.connection_string):
+        for batch in read_arrow_batches_from_odbc(
+            sql, self.connection_string, max_text_size=20000
+        ):
             result.extend(batch.to_pylist())
         return result
 
