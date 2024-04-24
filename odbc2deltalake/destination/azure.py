@@ -66,11 +66,6 @@ class AzureDestination(Destination):
     def __str__(self):
         return self.to_az_path()
 
-    def with_suffix(self, suffix: str):
-        return AzureDestination(
-            self.container, self.path + suffix, self.storage_options
-        )
-
     @property
     def parent(self):
         return self.__class__(

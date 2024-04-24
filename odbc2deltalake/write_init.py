@@ -122,13 +122,18 @@ class WriteConfigAndInfos:
     write_config: WriteConfig
     destination: Destination
     source: DataSourceReader
-    table: table_name_type
+    table_or_query: ex.Query | tuple[str, str] | str
     logger: DeltaLogger
 
     def execute(self):
         from .db_to_delta import exec_write_db_to_delta
 
         exec_write_db_to_delta(self)
+
+    def from_(self, alias: str) -> ex.Select:
+        if isinstance(self.table_or_query, ex.Query):
+            return sg.from_(self.table_or_query.subquery().as_(alias))
+        return sg.from_(table_from_tuple(self.table_or_query, alias))
 
 
 def get_delta_col(
@@ -147,7 +152,7 @@ def get_delta_col(
 
 def make_writer(
     source: DataSourceReader | str,
-    table: tuple[str, str],
+    table_or_query: str | tuple[str, str] | ex.Query,
     destination: Destination | Path,
     write_config: WriteConfig | None = None,
 ):
@@ -161,7 +166,7 @@ def make_writer(
         from .reader.odbc_reader import ODBCReader
 
         source = ODBCReader(source)
-    cols = get_columns(source, table, dialect=write_config.dialect)
+    cols = get_columns(source, table_or_query, dialect=write_config.dialect)
 
     if write_config.delta_col:
         delta_col = next(
@@ -183,9 +188,13 @@ def make_writer(
     else:
         delta_col = get_delta_col(cols)
 
-    _pks = write_config.primary_keys or get_primary_keys(
-        source, table, dialect=write_config.dialect
-    )
+    _pks = write_config.primary_keys
+    if _pks is None and (
+        isinstance(table_or_query, str) or isinstance(table_or_query, tuple)
+    ):
+        _pks = get_primary_keys(source, table_or_query, dialect=write_config.dialect)
+    elif _pks is None:
+        _pks = []
     pk_cols: Sequence[InformationSchemaColInfo] = []
     for pk in _pks:
         pk_col = next((c for c in cols if c.column_name == pk), None)
@@ -197,6 +206,7 @@ def make_writer(
             raise ValueError(f"Primary key {pk} not found in source")
         pk_cols.append(pk_col)
     assert len(_pks) == len(pk_cols), f"Primary keys not found: {_pks}"
+
     return WriteConfigAndInfos(
         cols,
         pk_cols=pk_cols,
@@ -205,5 +215,5 @@ def make_writer(
         destination=destination,
         source=source,
         logger=DeltaLogger(destination / "log", source, logging.getLogger(__name__)),
-        table=table,
+        table_or_query=table_or_query,
     )

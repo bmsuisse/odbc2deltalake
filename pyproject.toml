@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odbc2deltalake"
-version = "0.9.1"
+version = "0.10.0"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
@@ -51,3 +51,13 @@ venv = ".venv"
 venvPath = "."
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@(abc.)?abstractmethod",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
