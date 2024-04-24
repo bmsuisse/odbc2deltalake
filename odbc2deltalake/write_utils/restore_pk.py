@@ -22,6 +22,7 @@ def create_last_pk_version_view(
     infos: WriteConfigAndInfos,
     view_prefix: str = "",
 ):
+    assert len(infos.pk_cols) > 0, "must have at least one pk column"
     delta_path = infos.destination / "delta"
     reader = infos.source
     write_config = infos.write_config

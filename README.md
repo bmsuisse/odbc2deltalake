@@ -52,11 +52,40 @@ reader = SparkReader(spark=spark, sql_config={ # see https://docs.databricks.com
 write_db_to_delta(reader, ("dbo", "user"), dest)
 ```
 
+## Use a query as source
+
+Instead of reading from a table/view, you can also read from a query. To use, pass a sqlglot Query instance, like so:
+
+```python
+import sqlglot as sg
+from odbc2deltalake import write_db_to_delta, WriteConfig
+
+query = sg.parse_one("select *  from dbo.[user] where age > 50", dialect="tsql") # sync only a subset
+write_db_to_delta(reader, query, dest, WriteConfig(primary_keys=["user_id"]))
+
+```
+
 ### Advanced Scenarios
+
+#### Retrieve really used infos
+
+You can also execute the sync by using this method, which allows you to get details about used primary keys and columns:
+
+```python
+from odbc2deltalake import make_writer
+
+writer = make_writer(reader, query, ("dbo", "user"), WriteConfig(primary_keys=["user_id"]))
+# use writer to retrieve primary keys and other infos
+writer.execute() # really do it
+
+```
+
+#### Configuration
 
 See class WriteConfig, of which you can pass an instance to `write_db_to_delta`
 
 ```python
+@dataclass(frozen=True)
 class WriteConfig:
 
     dialect: str = "tsql"
@@ -68,16 +97,30 @@ class WriteConfig:
     delta_col: str | None = None
     """The column to use for the delta load. If None, the column will be determined from the source. Should be mostly increasing to make load efficient"""
 
-    load_mode: Literal["overwrite", "append", "force_full"] = "append"
-    """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only"""
+    load_mode: Literal[
+        "overwrite",
+        "append",
+        "force_full",
+        "append_inserts",
+        "simple_delta",
+        "simple_delta_check",
+    ] = "append"
+    """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only
+        append_inserts is for when you have a delta column which is strictly increasing and you want to append new rows only. No deletes of rows. might be good for logs
+        simple_delta is for sources where the delta col is a datetime and you can be sure that there are no deletes or additional updates
+        simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower than delta
+    """
 
     data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
         default_factory=lambda: _default_type_map.copy() # defaults to some simple sql server related maps
     )
     """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
 
+    no_complex_entries_load: bool = False
+    """If true, will not load 'strange updates' via OPENJSON. Use if your db does not support OPENJSON or you're fine to get some additional updates in order to reduce complexity"""
+
     get_target_name: Callable[[InformationSchemaColInfo], str] = dataclasses.field(
-        default_factory=lambda: compat_name # defaults to removing spaces and other characters not allowed by spark
+        default_factory=lambda: compat_name # defaults to removing spaces and other characters not liked by spark
     )
     """A method that returns the target name of a column. This is used to map the source column names to the target column names.
     Use if you want to apply some naming convention or avoid special characters in the target. """

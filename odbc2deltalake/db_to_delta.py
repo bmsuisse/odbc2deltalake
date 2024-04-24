@@ -388,7 +388,7 @@ def do_delta_load(
     )
     delta_path = destination / "delta"
     delta_load_value = _get_latest_delta_value(
-        reader, delta_path, infos.sub_query, delta_col, write_config
+        reader, delta_path, delta_col, write_config
     )
 
     if delta_load_value is None:
@@ -405,7 +405,7 @@ def do_delta_load(
         _retrieve_primary_key_data(infos=infos)
     else:
         source_count = reader.source_sql_to_py(
-            sg.from_(infos.sub_query).select(ex.Count(this=ex.Star()).as_("cnt"))
+            infos.from_("t").select(ex.Count(this=ex.Star()).as_("cnt"))
         )[0]["cnt"]
     criterion = _source_convert(
         delta_col.column_name,
@@ -417,7 +417,7 @@ def do_delta_load(
     upds_sql = _get_update_sql(
         cols=infos.col_infos,
         criterion=criterion,
-        query=infos.sub_query,
+        query=infos.from_("t"),
         write_config=write_config,
     )
     _load_updates_to_delta(
@@ -492,7 +492,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
     )
     delta_path = infos.destination / "delta"
     delta_load_value = _get_latest_delta_value(
-        infos.source, delta_path, infos.sub_query, infos.delta_col, infos.write_config
+        infos.source, delta_path, infos.delta_col, infos.write_config
     )
 
     criterion = (
@@ -513,7 +513,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
         sql=_get_update_sql(
             cols=infos.col_infos,
             criterion=criterion,
-            query=infos.sub_query,
+            query=infos.from_("t"),
             write_config=write_config,
         ),
         delta_path=delta_path,
@@ -527,13 +527,13 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
 def _get_latest_delta_value(
     reader: DataSourceReader,
     delta_path: Destination,
-    sub_query: ex.Query,
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
 ):
-    reader.local_register_update_view(delta_path, _temp_table(sub_query))
+    tmp_view_name = "temp_" + str(hash(str(delta_path)))
+    reader.local_register_update_view(delta_path, tmp_view_name)
     return reader.local_execute_sql_to_py(
-        sg.from_(ex.to_identifier(_temp_table(sub_query))).select(
+        sg.from_(ex.to_identifier(tmp_view_name)).select(
             ex.func("MAX", ex.column(write_config.get_target_name(delta_col))).as_(
                 "max_ts"
             )
@@ -646,7 +646,7 @@ def _retrieve_primary_key_data(
     infos: WriteConfigAndInfos,
 ):
 
-    pk_ts_col_select = ex.select(
+    pk_ts_col_select = infos.from_("t").select(
         *_get_cols_select(
             is_full=None,
             is_deleted=None,
@@ -658,7 +658,7 @@ def _retrieve_primary_key_data(
             system="source",
             get_target_name=infos.write_config.get_target_name,
         )
-    ).from_(infos.sub_query)
+    )
     pk_ts_reader_sql = pk_ts_col_select.sql(infos.write_config.dialect)
 
     pk_path = infos.destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
@@ -724,11 +724,7 @@ def _write_delta2(
                 get_target_name=write_config.get_target_name,
             )
         )
-        sql = (
-            ex.select(*selects)
-            .from_(infos.sub_query.as_("t"))
-            .sql(write_config.dialect)
-        )
+        sql = infos.from_("t").select(*selects).sql(write_config.dialect)
         pk_map = ", ".join(
             [
                 "p" + str(i) + " as " + sql_quote_name(write_config.get_target_name(c))
@@ -880,7 +876,7 @@ def _handle_additional_updates(
         upds_sql = _get_update_sql(
             cols=cols,
             criterion=criterion,
-            query=infos.sub_query,
+            query=infos.from_("t"),
             write_config=write_config,
         )
         logger.info(
@@ -932,13 +928,13 @@ def _handle_additional_updates(
 def _get_update_sql(
     cols: Sequence[InformationSchemaColInfo],
     criterion: Sequence[ex.Expression] | ex.Expression | None,
-    query: ex.Subquery,
+    query: ex.Select,
     write_config: WriteConfig,
 ):
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
     delta_sql = (
-        ex.select(
+        query.select(
             *_get_cols_select(
                 cols,
                 is_full=False,
@@ -958,7 +954,6 @@ def _get_update_sql(
             ),
             dialect=write_config.dialect,
         )
-        .from_(query.as_("t"))
         .sql(write_config.dialect)
     )
     return delta_sql
@@ -994,7 +989,8 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
     reader = infos.source
     logger.info("Start Full Load")
     sql = (
-        ex.select(
+        infos.from_("t")
+        .select(
             *_get_cols_select(
                 is_deleted=False,
                 is_full=True,
@@ -1005,7 +1001,6 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
                 get_target_name=write_config.get_target_name,
             )
         )
-        .from_(infos.sub_query)
         .sql(write_config.dialect)
     )
     logger.info("executing sql", sql=sql, load="full")

@@ -144,6 +144,12 @@ def _get_query_cols(reader: DataSourceReader, query: ex.Query, *, dialect: str):
     )
 
     dicts = reader.source_sql_to_py(sql)
+
+    def _ta(s: str) -> int:
+        if s.strip().upper() == "MAX":
+            return -1
+        return int(s.strip())
+
     for d in dicts:
         sys_type_name = d["system_type_name"]
         type_name = (
@@ -161,7 +167,7 @@ def _get_query_cols(reader: DataSourceReader, query: ex.Query, *, dialect: str):
             column_name=d["name"],
             data_type=type_name,
             character_maximum_length=(
-                type_args[0] if type_args and len(type_args) == 1 else None
+                _ta(type_args[0]) if type_args and len(type_args) == 1 else None
             ),
             column_default=None,
             numeric_precision=d["precision"],

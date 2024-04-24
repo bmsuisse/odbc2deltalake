@@ -130,13 +130,17 @@ class WriteConfigAndInfos:
 
         exec_write_db_to_delta(self)
 
-    @property
-    def sub_query(self) -> ex.Subquery:
+    def get_sub_query(self) -> ex.Subquery:
         if isinstance(self.table_or_query, ex.Query):
             return self.table_or_query.subquery()
         return (
             sg.from_(table_from_tuple(self.table_or_query)).select(ex.Star()).subquery()
         )
+
+    def from_(self, alias: str) -> ex.Select:
+        if isinstance(self.table_or_query, ex.Query):
+            return sg.from_(self.table_or_query.subquery().as_(alias))
+        return sg.from_(table_from_tuple(self.table_or_query, alias))
 
 
 def get_delta_col(
@@ -192,13 +196,11 @@ def make_writer(
         delta_col = get_delta_col(cols)
 
     _pks = write_config.primary_keys
-    if (
-        not _pks
-        and isinstance(table_or_query, str)
-        or isinstance(table_or_query, tuple)
+    if _pks is None and (
+        isinstance(table_or_query, str) or isinstance(table_or_query, tuple)
     ):
         _pks = get_primary_keys(source, table_or_query, dialect=write_config.dialect)
-    else:
+    elif _pks is None:
         _pks = []
     pk_cols: Sequence[InformationSchemaColInfo] = []
     for pk in _pks:
