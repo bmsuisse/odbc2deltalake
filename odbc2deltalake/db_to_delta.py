@@ -116,7 +116,6 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
     pk_cols = infos.pk_cols
     destination = infos.destination
     source = infos.source
-    table = infos.table
     delta_path = destination / "delta"
     dest_logger = infos.logger
     delta_col = infos.delta_col
@@ -161,7 +160,6 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
             or write_config.load_mode == "overwrite"
         ):
             delta_path.mkdir()
-            dest_logger.info(f"{table}: Start Full Load")
             do_full_load(infos=infos, mode="overwrite")
         elif write_config.load_mode == "append_inserts":
             if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
@@ -334,7 +332,10 @@ def write_latest_pk(
     )
 
 
-def _temp_table(table: table_name_type):
+def _temp_table(table: table_name_type | ex.Query):
+    if isinstance(table, ex.Query):
+        return "temp_" + str(hash(table.sql("duckdb")))
+
     def _clean(input_str: str):
         return "".join(ch for ch in input_str if ch.isalnum())
 
@@ -354,29 +355,28 @@ def do_delta_load(
     write_config = infos.write_config
     assert delta_col is not None, "Must have a delta_col for delta loads"
     reader = infos.source
-    table = infos.table
     last_pk_path = (
         destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
         if not simple
         else None
     )
     logger.info(
-        f"{table}: Start { 'SIMPLE ' if simple else '' }Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in infos.pk_cols))}"
+        f"Start { 'SIMPLE ' if simple else '' }Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in infos.pk_cols))}"
     )
 
     if last_pk_path and not reader.local_delta_table_exists(
         last_pk_path
     ):  # or do a full load?
-        logger.warning(f"{table}: Primary keys missing, try to restore")
+        logger.warning("Primary keys missing, try to restore")
         try:
             from .write_utils.restore_pk import restore_last_pk
 
             restore_success = restore_last_pk(infos=infos)
         except Exception as e:
-            logger.warning(f"{table}: Could not restore primary keys: {e}")
+            logger.warning(f"Could not restore primary keys: {e}")
             restore_success = False
         if not restore_success:
-            logger.warning(f"{table}: No primary keys found, do a full load")
+            logger.warning("No primary keys found, do a full load")
             do_full_load(infos=infos, mode="append")
             return
     old_pk_version = (
@@ -388,26 +388,24 @@ def do_delta_load(
     )
     delta_path = destination / "delta"
     delta_load_value = _get_latest_delta_value(
-        reader, delta_path, table, delta_col, write_config
+        reader, delta_path, infos.sub_query, delta_col, write_config
     )
 
     if delta_load_value is None:
-        logger.warning(f"{table}: No delta load value, do a full load")
+        logger.warning("No delta load value, do a full load")
         do_full_load(
             infos=infos,
             mode="append",
         )
         return
     logger.info(
-        f"{table}: Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
+        "Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
     )
     if not simple:
         _retrieve_primary_key_data(infos=infos)
     else:
         source_count = reader.source_sql_to_py(
-            sg.from_(table_from_tuple(table)).select(
-                ex.Count(this=ex.Star()).as_("cnt")
-            )
+            sg.from_(infos.sub_query).select(ex.Count(this=ex.Star()).as_("cnt"))
         )[0]["cnt"]
     criterion = _source_convert(
         delta_col.column_name,
@@ -415,11 +413,11 @@ def do_delta_load(
         table_alias="t",
         type_map=write_config.data_type_map,
     ) > ex.convert(delta_load_value)
-    logger.info(f"{table}: Start delta step 2, load updates by timestamp")
+    logger.info(f"Start delta step 2, load updates by {delta_col.column_name}")
     upds_sql = _get_update_sql(
         cols=infos.col_infos,
         criterion=criterion,
-        table=table,
+        query=infos.sub_query,
         write_config=write_config,
     )
     _load_updates_to_delta(
@@ -436,15 +434,15 @@ def do_delta_load(
             infos=infos,
             old_pk_version=old_pk_version,
         )
-        reader.local_register_update_view(delta_path, _temp_table(table))
+        reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
 
-        logger.info(f"{table}: Start delta step 3.5, write meta for next delta load")
+        logger.info("Start delta step 3.5, write meta for next delta load")
 
         write_latest_pk(
             reader, destination, infos.pk_cols, delta_col, write_config=write_config
         )
 
-        logger.info(f"{table}: Start delta step 4.5, write deletes")
+        logger.info("Start delta step 4.5, write deletes")
         do_deletes(
             reader=infos.source,
             destination=infos.destination,
@@ -453,7 +451,7 @@ def do_delta_load(
             old_pk_version=old_pk_version,
             write_config=infos.write_config,
         )
-        logger.info(f"{table}: Done delta load")
+        logger.info("Done delta load")
     else:
         _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
         pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
@@ -490,11 +488,11 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
     write_config = infos.write_config
     assert infos.delta_col is not None, "must have a delta col"
     logger.info(
-        f"{infos.table}: Start Append Only Load with Delta Column {infos.delta_col.column_name}"
+        f"Start Append Only Load with Delta Column {infos.delta_col.column_name}"
     )
     delta_path = infos.destination / "delta"
     delta_load_value = _get_latest_delta_value(
-        infos.source, delta_path, infos.table, infos.delta_col, infos.write_config
+        infos.source, delta_path, infos.sub_query, infos.delta_col, infos.write_config
     )
 
     criterion = (
@@ -508,14 +506,14 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
         if delta_load_value
         else None
     )
-    logger.info(f"{infos.table}: Start delta step 2, load updates by timestamp")
+    logger.info(" Start delta step 2, load updates by timestamp")
     _load_updates_to_delta(
         logger,
         infos.source,
         sql=_get_update_sql(
             cols=infos.col_infos,
             criterion=criterion,
-            table=infos.table,
+            query=infos.sub_query,
             write_config=write_config,
         ),
         delta_path=delta_path,
@@ -523,19 +521,19 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
         write_config=write_config,
     )
 
-    logger.info(f"{infos.table}: Done Append only load")
+    logger.info("Done Append only load")
 
 
 def _get_latest_delta_value(
     reader: DataSourceReader,
     delta_path: Destination,
-    table: table_name_type,
+    sub_query: ex.Query,
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
 ):
-    reader.local_register_update_view(delta_path, _temp_table(table))
+    reader.local_register_update_view(delta_path, _temp_table(sub_query))
     return reader.local_execute_sql_to_py(
-        sg.from_(ex.to_identifier(_temp_table(table))).select(
+        sg.from_(ex.to_identifier(_temp_table(sub_query))).select(
             ex.func("MAX", ex.column(write_config.get_target_name(delta_col))).as_(
                 "max_ts"
             )
@@ -660,7 +658,7 @@ def _retrieve_primary_key_data(
             system="source",
             get_target_name=infos.write_config.get_target_name,
         )
-    ).from_(table_from_tuple(infos.table))
+    ).from_(infos.sub_query)
     pk_ts_reader_sql = pk_ts_col_select.sql(infos.write_config.dialect)
 
     pk_path = infos.destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
@@ -728,7 +726,7 @@ def _write_delta2(
         )
         sql = (
             ex.select(*selects)
-            .from_(table_from_tuple(infos.table, alias="t"))
+            .from_(infos.sub_query.as_("t"))
             .sql(write_config.dialect)
         )
         pk_map = ", ".join(
@@ -780,7 +778,6 @@ def _handle_additional_updates(
 ):
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
     folder = infos.destination
-    table = infos.table
     delta_col = infos.delta_col
     pk_cols = infos.pk_cols
     cols = infos.col_infos
@@ -863,7 +860,7 @@ def _handle_additional_updates(
     ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
         _write_delta2(infos, [], mode="overwrite")  # still need to create delta_2_path
         logger.warning(
-            f"{table}: Start delta step 3, load {update_count} strange updates via normal delta load"
+            f"Start delta step 3, load {update_count} strange updates via normal delta load"
         )
         delta_load_value = reader.local_execute_sql_to_py(
             ex.select(
@@ -879,9 +876,12 @@ def _handle_additional_updates(
             table_alias="t",
             type_map=write_config.data_type_map,
         ) > ex.convert(delta_load_value)
-        logger.info(f"{table}: Start delta step 2, load updates by timestamp")
+        logger.info("Start delta step 2, load updates by timestamp")
         upds_sql = _get_update_sql(
-            cols=cols, criterion=criterion, table=table, write_config=write_config
+            cols=cols,
+            criterion=criterion,
+            query=infos.sub_query,
+            write_config=write_config,
         )
         logger.info(
             "execute sql", load="delta", sub_load="delta_1_additional", sql=upds_sql
@@ -912,7 +912,7 @@ def _handle_additional_updates(
         batch_size = max(10, int(7000 / char_size_pks))
 
         logger.warning(
-            f"{table}: Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
+            "Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
         )
         first = True
         for chunk in _list_to_chunks(jsd, batch_size):
@@ -932,7 +932,7 @@ def _handle_additional_updates(
 def _get_update_sql(
     cols: Sequence[InformationSchemaColInfo],
     criterion: Sequence[ex.Expression] | ex.Expression | None,
-    table: table_name_type,
+    query: ex.Subquery,
     write_config: WriteConfig,
 ):
     if isinstance(criterion, ex.Expression):
@@ -958,7 +958,7 @@ def _get_update_sql(
             ),
             dialect=write_config.dialect,
         )
-        .from_(table_from_tuple(table, alias="t"))
+        .from_(query.as_("t"))
         .sql(write_config.dialect)
     )
     return delta_sql
@@ -992,7 +992,7 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
     write_config = infos.write_config
     delta_path = infos.destination / "delta"
     reader = infos.source
-    logger.info(f"{infos.table}: Start Full Load")
+    logger.info("Start Full Load")
     sql = (
         ex.select(
             *_get_cols_select(
@@ -1005,19 +1005,19 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
                 get_target_name=write_config.get_target_name,
             )
         )
-        .from_(table_from_tuple(infos.table))
+        .from_(infos.sub_query)
         .sql(write_config.dialect)
     )
     logger.info("executing sql", sql=sql, load="full")
     reader.source_write_sql_to_delta(sql, delta_path, mode=mode)
     if infos.delta_col is None:
-        logger.info(f"{infos.table}: Full Load done")
+        logger.info("Full Load done")
         return
-    logger.info(f"{infos.table}: Full Load done, write meta for delta load")
+    logger.info(" Full Load done, write meta for delta load")
 
-    reader.local_register_update_view(delta_path, _temp_table(infos.table))
+    reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
     (delta_path.parent / "delta_load").mkdir()
-    query = sg.from_(ex.to_identifier(_temp_table(infos.table))).select(
+    query = sg.from_(ex.to_identifier(_temp_table(infos.table_or_query))).select(
         *(
             [
                 ex.column(write_config.get_target_name(pk), quoted=True)

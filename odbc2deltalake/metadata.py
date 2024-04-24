@@ -96,9 +96,10 @@ class InformationSchemaColInfo(BaseModel):
         )
 
 
-def get_columns(
+def _get_table_cols(
     reader: DataSourceReader, table_name: table_name_type, *, dialect: str
-) -> list[InformationSchemaColInfo]:
+):
+
     if isinstance(table_name, str):
         table_name = ("dbo", table_name)
     real_table_name = table_name[1] if len(table_name) == 2 else table_name[2]
@@ -133,6 +134,55 @@ SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.gener
     ).sql(dialect)
     dicts = reader.source_sql_to_py(full_query)
     return [InformationSchemaColInfo(**d) for d in dicts]
+
+
+def _get_query_cols(reader: DataSourceReader, query: ex.Query, *, dialect: str):
+    sql = (
+        "EXEC sp_describe_first_result_set @tsql=N'"
+        + query.sql(dialect).replace("'", "''")
+        + "'"
+    )
+
+    dicts = reader.source_sql_to_py(sql)
+    for d in dicts:
+        sys_type_name = d["system_type_name"]
+        type_name = (
+            sys_type_name[: sys_type_name.index("(")]
+            if "(" in sys_type_name
+            else sys_type_name
+        )
+        type_args = (
+            sys_type_name[sys_type_name.index("(") + 1 : -1].split(",")
+            if "(" in sys_type_name
+            else None
+        )
+
+        yield InformationSchemaColInfo(
+            column_name=d["name"],
+            data_type=type_name,
+            character_maximum_length=(
+                type_args[0] if type_args and len(type_args) == 1 else None
+            ),
+            column_default=None,
+            numeric_precision=d["precision"],
+            numeric_scale=d["scale"],
+            is_identity=d["is_identity_column"],
+            datetime_precision=None,
+            generated_always_type_desc="NOT_APPLICABLE",
+            is_nullable=d["is_nullable"],
+        )
+
+
+def get_columns(
+    reader: DataSourceReader,
+    table_or_query: table_name_type | ex.Query,
+    *,
+    dialect: str,
+) -> list[InformationSchemaColInfo]:
+    if isinstance(table_or_query, ex.Query):
+        return list(_get_query_cols(reader, table_or_query, dialect=dialect))
+    else:
+        return _get_table_cols(reader, table_or_query, dialect=dialect)
 
 
 def get_compatibility_level(reader: DataSourceReader) -> int:

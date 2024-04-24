@@ -8,6 +8,7 @@ from odbc2deltalake import DBDeltaPathConfigs
 from typing import TYPE_CHECKING
 import pandas as pd
 from sqlglot import from_
+import sqlglot.expressions as ex
 from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
 
 if TYPE_CHECKING:
@@ -35,12 +36,15 @@ def check_latest_pk(infos: WriteConfigAndInfos):
 
 def write_db_to_delta_with_check(
     source: DataSourceReader | str,
-    table: tuple[str, str],
+    table_or_query: tuple[str, str] | ex.Query,
     destination: Destination | Path,
     write_config: WriteConfig | None = None,
 ):
     w = make_writer(
-        source=source, table=table, destination=destination, write_config=write_config
+        source=source,
+        table_or_query=table_or_query,
+        destination=destination,
+        write_config=write_config,
     )
     w.logger.print_to_console = True
     w.execute()

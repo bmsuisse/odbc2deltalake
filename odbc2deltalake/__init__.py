@@ -12,10 +12,13 @@ from pathlib import Path
 
 def write_db_to_delta(
     source: DataSourceReader | str,
-    table: tuple[str, str],
+    table_or_query: tuple[str, str],
     destination: Destination | Path,
     write_config: WriteConfig | None = None,
 ):
     make_writer(
-        source=source, table=table, destination=destination, write_config=write_config
+        source=source,
+        table_or_query=table_or_query,
+        destination=destination,
+        write_config=write_config,
     ).execute()
