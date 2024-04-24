@@ -130,13 +130,6 @@ class WriteConfigAndInfos:
 
         exec_write_db_to_delta(self)
 
-    def get_sub_query(self) -> ex.Subquery:
-        if isinstance(self.table_or_query, ex.Query):
-            return self.table_or_query.subquery()
-        return (
-            sg.from_(table_from_tuple(self.table_or_query)).select(ex.Star()).subquery()
-        )
-
     def from_(self, alias: str) -> ex.Select:
         if isinstance(self.table_or_query, ex.Query):
             return sg.from_(self.table_or_query.subquery().as_(alias))
