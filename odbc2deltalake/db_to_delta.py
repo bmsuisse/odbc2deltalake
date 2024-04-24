@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Literal, Mapping, Sequence, TypeVar, cast
 import sqlglot as sg
-
+from .utils import is_pydantic_2
 from odbc2deltalake.sql_schema import is_string_type
 from .utils import concat_seq
 from odbc2deltalake.destination.destination import (
@@ -28,14 +28,9 @@ from .delta_logger import DeltaLogger
 from .write_init import (
     WriteConfig,
     WriteConfigAndInfos,
-    is_pydantic_2,
-    IS_DELETED_COL_INFO,
     IS_DELETED_COL_NAME,
-    IS_FULL_LOAD_COL_INFO,
     IS_FULL_LOAD_COL_NAME,
-    IS_DELETED_COL_NAME,
     VALID_FROM_COL_NAME,
-    VALID_FROM_COL_INFO,
     DBDeltaPathConfigs,
 )
 
@@ -44,16 +39,27 @@ T = TypeVar("T")
 
 def _source_convert(
     name: str,
-    data_type: str,
+    data_type: ex.DataType,
     *,
     table_alias: str | None = None,
-    type_map: Mapping[str, ex.DATA_TYPE] | None = None,
+    type_map: Mapping[str, ex.DataType] | None = None,
 ):
     expr = ex.column(name, table_alias, quoted=True)
-    mapped_type = type_map.get(data_type) if type_map else None
+    if data_type.this in [
+        ex.DataType.Type.ROWVERSION,
+        ex.DataType.Type.TIMESTAMP,
+    ]:  # can be removed after https://github.com/tobymao/sqlglot/issues/3345 is fixed
+        data_type_str = "rowversion"
+    else:
+        data_type_str = (
+            data_type
+            if isinstance(data_type, str)
+            else ex.DataType(this=data_type.this).sql("tsql").lower()
+        )
+    mapped_type = type_map.get(data_type_str) if type_map else None
     if mapped_type:
         expr = ex.cast(expr, mapped_type)
-    if is_string_type(data_type):
+    if is_string_type(mapped_type or data_type):
         expr = ex.func("TRIM", expr)
     return expr
 
@@ -71,7 +77,7 @@ def _get_cols_select(
     with_valid_from: bool = False,
     table_alias: str | None = None,
     system: Literal["source", "target"],
-    data_type_map: Mapping[str, ex.DATA_TYPE] | None = None,
+    data_type_map: Mapping[str, ex.DataType] | None = None,
     get_target_name: Callable[[InformationSchemaColInfo], str] | None,
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
@@ -110,6 +116,11 @@ def _vacuum(source: DataSourceReader, dest: Destination):
         source.get_local_delta_ops(dest).vacuum()
 
 
+def _transform_dt(dt: dict):
+    dt["data_type"] = dt["data_type"].sql()
+    return dt
+
+
 def exec_write_db_to_delta(infos: WriteConfigAndInfos):
     write_config = infos.write_config
     cols = infos.col_infos
@@ -122,7 +133,11 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload_str(
         json.dumps(
-            [c.model_dump() if is_pydantic_2 else c.dict() for c in cols], indent=4
+            [
+                _transform_dt(c.model_dump() if is_pydantic_2 else c.dict())
+                for c in cols
+            ],
+            indent=4,
         )
     )
     if source.local_delta_table_exists(
@@ -687,18 +702,10 @@ def _write_delta2(
     infos: WriteConfigAndInfos, data: list[dict], mode: Literal["overwrite", "append"]
 ):
     write_config = infos.write_config
-    from .sql_schema import get_sql_type
     from .query import sql_quote_value
 
     def _collate(c: InformationSchemaColInfo):
-        if c.data_type.lower() in [
-            "char",
-            "varchar",
-            "nchar",
-            "nvarchar",
-            "text",
-            "ntext",
-        ]:
+        if is_string_type(c.data_type):
             return "COLLATE Latin1_General_100_BIN "
         return ""
 
@@ -707,7 +714,7 @@ def _write_delta2(
     def full_sql(js: str):
         col_defs = ", ".join(
             [
-                f"p{i} {get_sql_type(p.data_type, p.character_maximum_length)}"
+                f"p{i} {p.data_type.sql(infos.write_config.dialect)}"
                 for i, p in enumerate(infos.pk_cols)
             ]
         )

@@ -23,21 +23,11 @@ import logging
 import pydantic
 from .delta_logger import DeltaLogger
 
-is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
-
 
 IS_DELETED_COL_NAME = "__is_deleted"
-IS_DELETED_COL_INFO = InformationSchemaColInfo.from_name_type(
-    IS_DELETED_COL_NAME, "bit"
-)
 VALID_FROM_COL_NAME = "__timestamp"
-VALID_FROM_COL_INFO = InformationSchemaColInfo.from_name_type(
-    VALID_FROM_COL_NAME, "datetimeoffset"
-)
 IS_FULL_LOAD_COL_NAME = "__is_full_load"
-IS_FULL_LOAD_COL_INFO = InformationSchemaColInfo.from_name_type(
-    IS_FULL_LOAD_COL_NAME, "bit"
-)
+
 
 T = TypeVar("T")
 
@@ -47,7 +37,7 @@ _default_type_map = {
     "rowversion": ex.DataType.Type.BIGINT,
     "timestamp": ex.DataType.Type.BIGINT,
 }
-DEFAULT_DATA_TYPE_MAP: Mapping[str, ex.DATA_TYPE] = _default_type_map
+DEFAULT_DATA_TYPE_MAP: Mapping[str, ex.DataType] = _default_type_map
 
 
 def compat_name(inf: InformationSchemaColInfo) -> str:
@@ -99,7 +89,7 @@ class WriteConfig:
         simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower than delta
     """
 
-    data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
+    data_type_map: Mapping[str, ex.DataType] = dataclasses.field(
         default_factory=lambda: _default_type_map.copy()
     )
     """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
@@ -137,11 +127,14 @@ class WriteConfigAndInfos:
 
 
 def get_delta_col(
-    cols: Sequence[InformationSchemaColInfo],
+    cols: Sequence[InformationSchemaColInfo], dialect: str
 ) -> InformationSchemaColInfo | None:
     row_start_col: InformationSchemaColInfo | None = None
     for c in cols:
-        if c.data_type.lower() in ["rowversion", "timestamp"]:
+        if dialect == "tsql" and c.data_type.this in [
+            ex.DataType.Type.ROWVERSION,
+            ex.DataType.Type.TIMESTAMP,
+        ]:
             return c
         if c.generated_always_type_desc == "AS_ROW_START":
             row_start_col = c
@@ -186,7 +179,7 @@ def make_writer(
                 f"Delta column {write_config.delta_col} not found in source"
             )
     else:
-        delta_col = get_delta_col(cols)
+        delta_col = get_delta_col(cols, write_config.dialect)
 
     _pks = write_config.primary_keys
     if _pks is None and (
