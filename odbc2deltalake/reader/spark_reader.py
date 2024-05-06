@@ -34,11 +34,13 @@ class SparkReader(DataSourceReader):
         sql_config: dict[str, str] | None = None,
         linked_server_proxy: str | None = None,
         spark_format: str = "sqlserver",
+        jdbc=False,
     ):
         self.spark = spark
         self.sql_config = sql_config or dict()
         self.linked_server_proxy = linked_server_proxy
         self.spark_format = spark_format
+        self.jdbc = jdbc
 
     def local_register_update_view(
         self, delta_path: Destination, view_name: str, *, version: int | None = None
@@ -86,7 +88,7 @@ class SparkReader(DataSourceReader):
     @property
     def supports_proc_exec(self):
         return False
-    
+
     def _query(self, sql: str | Query):
         if isinstance(sql, Query):
             sql = sql.sql("tsql")
@@ -107,11 +109,7 @@ class SparkReader(DataSourceReader):
             return t
 
         limit_query = sql.limit(0)
-        reader = self.spark.read.format(self.spark_format).option(
-            "query", self._query(limit_query)
-        )
-        for k, v in self.sql_config.items():
-            reader = reader.option(k, v)
+        reader = self._reader(limit_query)
         df = reader.load()
         return [
             InformationSchemaColInfo(
@@ -123,11 +121,7 @@ class SparkReader(DataSourceReader):
         ]
 
     def source_sql_to_py(self, sql: str | Query) -> list[dict]:
-        reader = self.spark.read.format(self.spark_format).option(
-            "query", self._query(sql)
-        )
-        for k, v in self.sql_config.items():
-            reader = reader.option(k, v)
+        reader = self._reader(sql)
         rows = reader.load().collect()
         return [row.asDict() for row in rows]
 
@@ -150,14 +144,32 @@ class SparkReader(DataSourceReader):
         else:
             return False
 
+    def _reader(self, sql: str | Query):
+        if self.jdbc:
+            options = self.sql_config.copy()
+            jdbcUrl = f"jdbc:{self.spark_format}://"
+            if "host" in options:
+                jdbcUrl += options.pop("host")
+            if "port" in options:
+                jdbcUrl += ":" + str(options.pop("port"))
+            if "encrypt" in options:
+                jdbcUrl += ";encrypt=" + options.pop("encrypt")
+            if "database" in options:
+                jdbcUrl += ";databaseName=" + options.pop("database")
+
+            reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
+        else:
+            options = self.sql_config
+            reader = self.spark.read.format(self.spark_format)
+        reader = reader.option("query", self._query(sql))
+        for k, v in options.items():
+            reader = reader.option(k, v)
+        return reader
+
     def source_write_sql_to_delta(
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
-        reader = self.spark.read.format(self.spark_format).option(
-            "query", self._query(sql)
-        )
-        for k, v in self.sql_config.items():
-            reader = reader.option(k, v)
+        reader = self._reader(sql)
         reader.load().write.format("delta").option(
             "mergeSchema" if mode == "append" else "overwriteSchema", "true"
         ).mode(mode).save(str(delta_path))
