@@ -3,10 +3,10 @@ from pydantic import BaseModel
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
-from typing import Literal, Type, TYPE_CHECKING
+from typing import Literal, Type, TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from pyspark.sql import SparkSession
+    from pyspark.sql import SparkSession, DataFrame
     from odbc2deltalake.metadata import InformationSchemaColInfo
 
 
@@ -35,12 +35,16 @@ class SparkReader(DataSourceReader):
         linked_server_proxy: str | None = None,
         spark_format: str = "sqlserver",
         jdbc=False,
+        transformation_hook: Callable[["DataFrame", str], "DataFrame"] | None = None,
     ):
         self.spark = spark
         self.sql_config = sql_config or dict()
         self.linked_server_proxy = linked_server_proxy
         self.spark_format = spark_format
         self.jdbc = jdbc
+        self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
+            transformation_hook or (lambda d, _: d)
+        )
 
     def local_register_update_view(
         self, delta_path: Destination, view_name: str, *, version: int | None = None
@@ -110,7 +114,7 @@ class SparkReader(DataSourceReader):
 
         limit_query = sql.limit(0)
         reader = self._reader(limit_query)
-        df = reader.load()
+        df = self.transformation_hook(reader.load(), "metadata")
         return [
             InformationSchemaColInfo(
                 column_name=col.name,
@@ -122,7 +126,7 @@ class SparkReader(DataSourceReader):
 
     def source_sql_to_py(self, sql: str | Query) -> list[dict]:
         reader = self._reader(sql)
-        rows = reader.load().collect()
+        rows = self.transformation_hook(reader.load(), "source2py").collect()
         return [row.asDict() for row in rows]
 
     def local_delta_table_exists(
@@ -170,9 +174,13 @@ class SparkReader(DataSourceReader):
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
         reader = self._reader(sql)
-        reader.load().write.format("delta").option(
-            "mergeSchema" if mode == "append" else "overwriteSchema", "true"
-        ).mode(mode).save(str(delta_path))
+        self.transformation_hook(reader.load(), "sql2delta").write.format(
+            "delta"
+        ).option("mergeSchema" if mode == "append" else "overwriteSchema", "true").mode(
+            mode
+        ).save(
+            str(delta_path)
+        )
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         return SparkDeltaOps(delta_path, self.spark)
