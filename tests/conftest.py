@@ -131,6 +131,10 @@ def spark_session():
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
         )
+        .config(
+            "spark.jars.packages",
+            "com.microsoft.azure:spark-mssql-connector_2.12:1.2.0",
+        )
     )
 
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
