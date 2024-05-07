@@ -161,7 +161,11 @@ class SparkReader(DataSourceReader):
             if "database" in options:
                 jdbcUrl += ";databaseName=" + options.pop("database")
 
-            reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
+            reader = self.spark.read.format(
+                "com.microsoft.sqlserver.jdbc.spark"
+                if self.spark_format == "sqlserver"
+                else "jdbc"
+            ).option("url", jdbcUrl)
         else:
             options = self.sql_config
             reader = self.spark.read.format(self.spark_format)

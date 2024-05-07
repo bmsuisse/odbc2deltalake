@@ -66,6 +66,7 @@ class DB_Connection:
         jar = str(Path("tests/jar").absolute())
         d["spark.driver.extraClassPath"] = jar
         d["spark.executor.extraClassPath"] = jar
+        d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
         return d
 
     def new_connection(self):
