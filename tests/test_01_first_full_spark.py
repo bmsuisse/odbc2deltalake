@@ -19,7 +19,7 @@ def test_first_load_timestamp(
     connection: "DB_Connection", spark_session: "SparkSession"
 ):
 
-    reader = SparkReader(spark_session, connection.spark_options, jdbc=True)
+    reader = SparkReader(spark_session, connection.jdbc_options, jdbc=True)
     base_path = Path("tests/_data/spark/dbo/user")
     write_db_to_delta_with_check(reader, ("dbo", "user"), base_path)
     with duckdb.connect() as con:
@@ -48,7 +48,7 @@ def test_first_load_sys_start(
 ):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
-    reader = SparkReader(spark_session, connection.spark_options, jdbc=True)
+    reader = SparkReader(spark_session, connection.jdbc_options, jdbc=True)
 
     base_path = Path("tests/_data/spark/dbo/company")
 
@@ -75,7 +75,7 @@ def test_first_load_always_full(
 ):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
-    reader = SparkReader(spark_session, connection.spark_options, jdbc=True)
+    reader = SparkReader(spark_session, connection.jdbc_options, jdbc=True)
 
     base_path = Path(
         "tests/_data/spark/long_schema/long_table_name"

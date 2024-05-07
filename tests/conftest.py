@@ -56,11 +56,13 @@ class DB_Connection:
         return self
 
     @property
-    def spark_options(self):
+    def jdbc_options(self):
         parts = self.conn_str.split(";")
         part_map = {p.split("=")[0]: p.split("=")[1] for p in parts}
         map_keys = {"UID": "user", "PWD": "password", "server": "host"}
-        return {map_keys.get(k, k): v for k, v in part_map.items()}
+        d = {map_keys.get(k, k): v for k, v in part_map.items()}
+        d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+        return d
 
     def new_connection(self):
         return pyodbc.connect(self.conn_str, autocommit=True)
