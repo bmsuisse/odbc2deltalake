@@ -1,10 +1,15 @@
-ODBC_DRIVER: str | None = None
+from typing import Union
 
-drivers: list[str] | None = None
+ODBC_DRIVER: Union[str, None] = None
+
+drivers: Union[list[str], None] = None
 
 
 def build_connection_string(
-    dict_dt: dict | str, *, odbc: bool = False, odbc_driver: str | None = None
+    dict_dt: Union[dict, str],
+    *,
+    odbc: bool = False,
+    odbc_driver: Union[str, None] = None,
 ):
     if isinstance(dict_dt, str) and not odbc:
         return dict_dt

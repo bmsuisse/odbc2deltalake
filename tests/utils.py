@@ -1,18 +1,15 @@
 from pathlib import Path
-from deltalake import DeltaTable
 from odbc2deltalake import WriteConfigAndInfos
-from odbc2deltalake.destination import Destination
 from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
-from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake import DBDeltaPathConfigs
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 import pandas as pd
 from sqlglot import from_
 import sqlglot.expressions as ex
 from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
+    pass
 
 
 def check_latest_pk(infos: WriteConfigAndInfos):
@@ -35,10 +32,10 @@ def check_latest_pk(infos: WriteConfigAndInfos):
 
 
 def write_db_to_delta_with_check(
-    source: DataSourceReader | str,
-    table_or_query: tuple[str, str] | ex.Query,
-    destination: Destination | Path,
-    write_config: WriteConfig | None = None,
+    source: Union[DataSourceReader, str],
+    table_or_query: Union[tuple[str, str], ex.Query],
+    destination: Union[Destination, Path],
+    write_config: Union[WriteConfig, None] = None,
 ):
     w = make_writer(
         source=source,

@@ -63,9 +63,10 @@ class DB_Connection:
         map_keys = {"UID": "user", "PWD": "password", "server": "host"}
         d = {map_keys.get(k, k): v for k, v in part_map.items()}
         d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-        jar = str(Path("tests/jar/sqljdbc42.jar").absolute())
+        jar = str(Path("tests/jar").absolute())
         d["spark.driver.extraClassPath"] = jar
         d["spark.executor.extraClassPath"] = jar
+        d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
         return d
 
     def new_connection(self):
@@ -130,6 +131,10 @@ def spark_session():
         .config(
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
+        )
+        .config(
+            "spark.jars.packages",
+            "com.microsoft.azure:spark-mssql-connector_2.12:1.2.0",
         )
     )
 

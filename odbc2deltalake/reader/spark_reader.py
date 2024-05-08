@@ -1,9 +1,7 @@
-from pydantic import BaseModel
-
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
-from typing import Literal, Type, TYPE_CHECKING, Callable
+from typing import Literal, TYPE_CHECKING, Callable, Optional, Union
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession, DataFrame
@@ -20,7 +18,7 @@ class SparkDeltaOps(DeltaOps):
     def version(self) -> int:
         return self.table.history(1).select("version").collect()[0].version
 
-    def vacuum(self, retention_hours: int | None = None):
+    def vacuum(self, retention_hours: Union[int, None] = None):
         self.table.vacuum(retention_hours)
 
     def restore(self, target: int):
@@ -31,11 +29,11 @@ class SparkReader(DataSourceReader):
     def __init__(
         self,
         spark: "SparkSession",
-        sql_config: dict[str, str] | None = None,
-        linked_server_proxy: str | None = None,
+        sql_config: Optional[dict[str, str]] = None,
+        linked_server_proxy: Union[str, None] = None,
         spark_format: str = "sqlserver",
         jdbc=False,
-        transformation_hook: Callable[["DataFrame", str], "DataFrame"] | None = None,
+        transformation_hook: Optional[Callable[["DataFrame", str], "DataFrame"]] = None,
     ):
         self.spark = spark
         self.sql_config = sql_config or dict()
@@ -47,7 +45,11 @@ class SparkReader(DataSourceReader):
         )
 
     def local_register_update_view(
-        self, delta_path: Destination, view_name: str, *, version: int | None = None
+        self,
+        delta_path: Destination,
+        view_name: str,
+        *,
+        version: Union[int, None] = None,
     ):
         read = self.spark.read.format("delta")
         if version is not None:
@@ -75,7 +77,7 @@ class SparkReader(DataSourceReader):
         pylist: list[dict],
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
-        dummy_record: dict | None = None,
+        dummy_record: Union[dict, None] = None,
     ):
         schema = (
             self.spark.createDataFrame([dummy_record]).schema if dummy_record else None  # type: ignore
@@ -93,7 +95,7 @@ class SparkReader(DataSourceReader):
     def supports_proc_exec(self):
         return False
 
-    def _query(self, sql: str | Query):
+    def _query(self, sql: Union[str, Query]):
         if isinstance(sql, Query):
             sql = sql.sql("tsql")
         if self.linked_server_proxy:
@@ -124,7 +126,7 @@ class SparkReader(DataSourceReader):
             for col in df.schema.fields
         ]
 
-    def source_sql_to_py(self, sql: str | Query) -> list[dict]:
+    def source_sql_to_py(self, sql: Union[str, Query]) -> list[dict]:
         reader = self._reader(sql)
         rows = self.transformation_hook(reader.load(), "source2py").collect()
         return [row.asDict() for row in rows]
@@ -148,7 +150,7 @@ class SparkReader(DataSourceReader):
         else:
             return False
 
-    def _reader(self, sql: str | Query):
+    def _reader(self, sql: Union[str, Query]):
         if self.jdbc:
             options = self.sql_config.copy()
             jdbcUrl = f"jdbc:{self.spark_format}://"
@@ -178,9 +180,7 @@ class SparkReader(DataSourceReader):
             "delta"
         ).option("mergeSchema" if mode == "append" else "overwriteSchema", "true").mode(
             mode
-        ).save(
-            str(delta_path)
-        )
+        ).save(str(delta_path))
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         return SparkDeltaOps(delta_path, self.spark)

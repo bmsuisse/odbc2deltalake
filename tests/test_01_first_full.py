@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(1)
 def test_first_load_timestamp(connection: "DB_Connection"):
-    from odbc2deltalake import make_writer, DBDeltaPathConfigs
+    from odbc2deltalake import DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user")
     write_db_to_delta_with_check(connection.conn_str, ("dbo", "user"), base_path)
@@ -62,7 +62,7 @@ def test_first_load_sys_start(connection: "DB_Connection"):
 
 @pytest.mark.order(3)
 def test_first_load_always_full(connection: "DB_Connection"):
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake import write_db_to_delta
 
     base_path = Path(
         "tests/_data/long_schema/long_table_name"

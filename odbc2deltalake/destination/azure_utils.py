@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta, timezone
-from typing import Callable, Literal
+from typing import Callable, Literal, Optional, Union
 
 
 default_azure_args = [
@@ -32,7 +31,7 @@ def _get_default_token(**kwargs) -> str:
     global _token_state
     from azure.identity import DefaultAzureCredential
 
-    cred: DefaultAzureCredential | None = _token_state.get("cred", None)
+    cred: Union[DefaultAzureCredential, None] = _token_state.get("cred", None)
     if not cred:
         cred = DefaultAzureCredential(**kwargs)
         _token_state["cred"] = cred
@@ -40,9 +39,9 @@ def _get_default_token(**kwargs) -> str:
 
 
 def convert_options(
-    options: dict | None,
+    options: Union[dict, None],
     flavor: Literal["fsspec", "object_store"],
-    token_retrieval_func: Callable[[], str] | None = None,
+    token_retrieval_func: Optional[Callable[[], str]] = None,
 ):
     if options is None:
         return None

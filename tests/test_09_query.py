@@ -4,7 +4,6 @@ import pytest
 from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
-from datetime import date
 from .utils import write_db_to_delta_with_check
 import sqlglot as sg
 import sqlglot.expressions as ex
@@ -17,7 +16,7 @@ if TYPE_CHECKING:
 @pytest.mark.order(15)
 def test_delta_query(connection: "DB_Connection"):
     from odbc2deltalake.reader.odbc_reader import ODBCReader
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs, WriteConfig
+    from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
     base_path = Path("tests/_data/dbo/user5")
     query = sg.parse_one(
@@ -42,8 +41,6 @@ def test_delta_query(connection: "DB_Connection"):
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM [dbo].[user5]")
             alls = cursor.fetchall()
-            cols = [c[0] for c in cursor.description]
-            dicts = [dict(zip(cols, row)) for row in alls]
             print(alls)
 
     import time
