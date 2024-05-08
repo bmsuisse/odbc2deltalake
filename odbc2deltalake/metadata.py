@@ -1,5 +1,4 @@
-from typing import Callable, Literal, Union, Optional, Any, TYPE_CHECKING
-import logging
+from typing import Literal, Union
 
 from odbc2deltalake.query import sql_quote_name
 from .reader import DataSourceReader
@@ -44,11 +43,10 @@ def get_primary_keys(
 class FieldWithType(BaseModel):
     name: str
     type: str
-    max_str_length: int | None = None
+    max_str_length: Union[int, None] = None
 
 
 class InformationSchemaColInfo(BaseModel):
-
     if is_pydantic_2:
         model_config = ConfigDict(arbitrary_types_allowed=True)
     if not is_pydantic_2:
@@ -59,18 +57,17 @@ class InformationSchemaColInfo(BaseModel):
     column_name: str
 
     data_type: ex.DataType
-    column_default: str | None = None
+    column_default: Union[str, None] = None
     is_nullable: bool = True
-    generated_always_type_desc: (
-        Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"] | None
-    ) = "NOT_APPLICABLE"
+    generated_always_type_desc: Union[
+        Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"], None
+    ] = "NOT_APPLICABLE"
     is_identity: bool = False
 
 
 def _get_table_cols(
     reader: DataSourceReader, table_name: table_name_type, *, dialect: str
 ):
-
     if isinstance(table_name, str):
         table_name = ("dbo", table_name)
     real_table_name = table_name[1] if len(table_name) == 2 else table_name[2]
@@ -153,7 +150,7 @@ def _get_query_cols_first_result_set(
 
 def get_columns(
     reader: DataSourceReader,
-    table_or_query: table_name_type | ex.Query,
+    table_or_query: Union[table_name_type, ex.Query],
     *,
     dialect: str,
 ) -> list[InformationSchemaColInfo]:

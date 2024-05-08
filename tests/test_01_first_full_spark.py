@@ -7,7 +7,7 @@ from deltalake import DeltaTable
 from datetime import date
 from .utils import write_db_to_delta_with_check
 from odbc2deltalake.reader.spark_reader import SparkReader
-from odbc2deltalake import make_writer, DBDeltaPathConfigs
+from odbc2deltalake import DBDeltaPathConfigs
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 def test_first_load_timestamp(
     connection: "DB_Connection", spark_session: "SparkSession"
 ):
-
     reader = SparkReader(spark_session, connection.jdbc_options, jdbc=True)
     base_path = Path("tests/_data/spark/dbo/user")
     write_db_to_delta_with_check(reader, ("dbo", "user"), base_path)
@@ -73,7 +72,7 @@ def test_first_load_sys_start(
 def test_first_load_always_full(
     connection: "DB_Connection", spark_session: "SparkSession"
 ):
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake import write_db_to_delta
 
     reader = SparkReader(spark_session, connection.jdbc_options, jdbc=True)
 

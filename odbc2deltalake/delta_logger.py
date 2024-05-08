@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
-import json
 from odbc2deltalake.destination.destination import Destination
 from pydantic import BaseModel
 import pydantic
 import logging
 from uuid import uuid4
+from typing import Union
 
 from odbc2deltalake.reader.reader import DataSourceReader
 
@@ -15,21 +15,20 @@ class LogMessage(BaseModel):
     message: str
     type: str
     date: datetime
-    sql: str | None = None
-    load: str | None = None
-    sub_load: str | None = None
-    error_trackback: str | None = None
+    sql: Union[str, None] = None
+    load: Union[str, None] = None
+    sub_load: Union[str, None] = None
+    error_trackback: Union[str, None] = None
 
 
 class DeltaLogger:
-
     _pending_logs: list[LogMessage] = []
 
     def __init__(
         self,
         log_file_path: Destination,
         source: DataSourceReader,
-        base_logger: logging.Logger | None = None,
+        base_logger: Union[logging.Logger, None] = None,
         print_to_console: bool = False,
     ):
         self.log_file_path = log_file_path
@@ -68,9 +67,9 @@ class DeltaLogger:
         self,
         message: str,
         *,
-        load: str | None = None,
-        sql: str | None = None,
-        sub_load: str | None = None,
+        load: Union[str, None] = None,
+        sql: Union[str, None] = None,
+        sub_load: Union[str, None] = None,
     ):
         self._log(
             LogMessage(
@@ -87,10 +86,10 @@ class DeltaLogger:
         self,
         message: str,
         *,
-        load: str | None = None,
-        sql: str | None = None,
-        sub_load: str | None = None,
-        error_trackback: str | None = None,
+        load: Union[str, None] = None,
+        sql: Union[str, None] = None,
+        sub_load: Union[str, None] = None,
+        error_trackback: Union[str, None] = None,
     ):
         self._log(
             LogMessage(
@@ -108,10 +107,10 @@ class DeltaLogger:
         self,
         message: str,
         *,
-        load: str | None = None,
-        sql: str | None = None,
-        sub_load: str | None = None,
-        error_trackback: str | None = None,
+        load: Union[str, None] = None,
+        sql: Union[str, None] = None,
+        sub_load: Union[str, None] = None,
+        error_trackback: Union[str, None] = None,
     ):
         self._log(
             LogMessage(

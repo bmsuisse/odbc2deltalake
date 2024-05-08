@@ -1,4 +1,4 @@
-from typing import Literal, TYPE_CHECKING
+from typing import Literal, TYPE_CHECKING, Union
 from .destination import Destination
 from pathlib import Path
 
@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 
 class FileSystemDestination(Destination):
-    def __init__(self, path: str | Path):
+    def __init__(self, path: Union[str, Path]):
         self.path = Path(path)
         import fsspec
 

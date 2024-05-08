@@ -5,7 +5,6 @@ from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
-from .utils import write_db_to_delta_with_check
 
 from odbc2deltalake.query import sql_quote_value
 
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(4)
 def test_first_load_always_full(connection: "DB_Connection"):
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake import write_db_to_delta
 
     base_path = Path(
         "tests/_data/long_schema/long_table_name2"

@@ -8,13 +8,14 @@ from .write_init import (
 from .reader.reader import DataSourceReader
 from .destination.destination import Destination
 from pathlib import Path
+from typing import Union
 
 
 def write_db_to_delta(
-    source: DataSourceReader | str,
+    source: Union[DataSourceReader, str],
     table_or_query: tuple[str, str],
-    destination: Destination | Path,
-    write_config: WriteConfig | None = None,
+    destination: Union[Destination, Path],
+    write_config: Union[WriteConfig, None] = None,
 ):
     make_writer(
         source=source,

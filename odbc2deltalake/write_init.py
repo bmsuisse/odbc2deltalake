@@ -1,26 +1,20 @@
 from dataclasses import dataclass
 import dataclasses
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterable, Literal, Mapping, Sequence, TypeVar, cast
+from typing import Callable, Literal, Mapping, Sequence, TypeVar, Union, cast
 import sqlglot as sg
 from odbc2deltalake.destination.destination import (
     Destination,
 )
 from odbc2deltalake.reader import DataSourceReader
-from .query import sql_quote_name
 from .metadata import (
     get_primary_keys,
     get_columns,
-    table_name_type,
     InformationSchemaColInfo,
 )
-import json
-import time
 import sqlglot.expressions as ex
-from .sql_glot_utils import table_from_tuple, union, count_limit_one
+from .sql_glot_utils import table_from_tuple
 import logging
-import pydantic
 from .delta_logger import DeltaLogger
 
 
@@ -65,14 +59,13 @@ class DBDeltaPathConfigs:
 
 @dataclass(frozen=True)
 class WriteConfig:
-
     dialect: str = "tsql"
     """The sqlglot dialect to use for the SQL generation against the source"""
 
-    primary_keys: list[str] | None = None
+    primary_keys: Union[list[str], None] = None
     """A list of primary keys to use for the delta load. If None, the primary keys will be determined from the source"""
 
-    delta_col: str | None = None
+    delta_col: Union[str, None] = None
     """The column to use for the delta load. If None, the column will be determined from the source. Should be mostly increasing to make load efficient"""
 
     load_mode: Literal[
@@ -108,11 +101,11 @@ class WriteConfig:
 class WriteConfigAndInfos:
     col_infos: Sequence[InformationSchemaColInfo]
     pk_cols: Sequence[InformationSchemaColInfo]
-    delta_col: InformationSchemaColInfo | None
+    delta_col: Union[InformationSchemaColInfo, None]
     write_config: WriteConfig
     destination: Destination
     source: DataSourceReader
-    table_or_query: ex.Query | tuple[str, str] | str
+    table_or_query: Union[ex.Query, tuple[str, str], str]
     logger: DeltaLogger
 
     def execute(self):
@@ -128,8 +121,8 @@ class WriteConfigAndInfos:
 
 def get_delta_col(
     cols: Sequence[InformationSchemaColInfo], dialect: str
-) -> InformationSchemaColInfo | None:
-    row_start_col: InformationSchemaColInfo | None = None
+) -> Union[InformationSchemaColInfo, None]:
+    row_start_col: Union[InformationSchemaColInfo, None] = None
     for c in cols:
         if dialect == "tsql" and c.data_type.this in [
             ex.DataType.Type.ROWVERSION,
@@ -144,10 +137,10 @@ def get_delta_col(
 
 
 def make_writer(
-    source: DataSourceReader | str,
-    table_or_query: str | tuple[str, str] | ex.Query,
-    destination: Destination | Path,
-    write_config: WriteConfig | None = None,
+    source: Union[DataSourceReader, str],
+    table_or_query: Union[str, tuple[str, str], ex.Query],
+    destination: Union[Destination, Path],
+    write_config: Union[WriteConfig, None] = None,
 ):
     if write_config is None:
         write_config = WriteConfig()

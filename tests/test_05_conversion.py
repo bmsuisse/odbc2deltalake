@@ -5,7 +5,6 @@ import pytest
 from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
-from datetime import date
 from .utils import write_db_to_delta_with_check
 import sqlglot.expressions as ex
 
@@ -16,7 +15,6 @@ if TYPE_CHECKING:
 @pytest.mark.order(10)
 def test_first_load_timestamp(connection: "DB_Connection"):
     from odbc2deltalake import (
-        write_db_to_delta,
         DBDeltaPathConfigs,
         WriteConfig,
         DEFAULT_DATA_TYPE_MAP,

@@ -4,7 +4,6 @@ import pytest
 from deltalake2db import get_sql_for_delta
 import duckdb
 from deltalake import DeltaTable
-from datetime import date
 from .utils import write_db_to_delta_with_check
 
 from odbc2deltalake.query import sql_quote_value
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
 @pytest.mark.order(5)
 def test_delta(connection: "DB_Connection"):
     from odbc2deltalake.reader.odbc_reader import ODBCReader
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake import DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/user2")
     write_db_to_delta_with_check(connection.conn_str, ("dbo", "user2$"), base_path)
@@ -105,7 +104,7 @@ def test_delta(connection: "DB_Connection"):
 
 @pytest.mark.order(5)
 def test_delta_sys(connection: "DB_Connection"):
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake import DBDeltaPathConfigs
 
     base_path = Path("tests/_data/dbo/company_2")
     write_db_to_delta_with_check(

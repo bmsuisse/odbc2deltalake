@@ -1,8 +1,6 @@
-from dataclasses import dataclass
 import dataclasses
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Callable, Iterable, Literal, Mapping, Sequence, TypeVar, cast
+from typing import Callable, Iterable, Literal, Mapping, Optional, Sequence, TypeVar
 import sqlglot as sg
 from .utils import is_pydantic_2
 from odbc2deltalake.sql_schema import is_string_type
@@ -13,17 +11,12 @@ from odbc2deltalake.destination.destination import (
 from odbc2deltalake.reader import DataSourceReader
 from .query import sql_quote_name
 from .metadata import (
-    get_primary_keys,
-    get_columns,
     table_name_type,
     InformationSchemaColInfo,
 )
 import json
-import time
 import sqlglot.expressions as ex
 from .sql_glot_utils import table_from_tuple, union, count_limit_one
-import logging
-import pydantic
 from .delta_logger import DeltaLogger
 from .write_init import (
     WriteConfig,
@@ -33,6 +26,7 @@ from .write_init import (
     VALID_FROM_COL_NAME,
     DBDeltaPathConfigs,
 )
+from typing import Union
 
 T = TypeVar("T")
 
@@ -41,8 +35,8 @@ def _source_convert(
     name: str,
     data_type: ex.DataType,
     *,
-    table_alias: str | None = None,
-    type_map: Mapping[str, ex.DataType] | None = None,
+    table_alias: Union[str, None] = None,
+    type_map: Optional[Mapping[str, ex.DataType]] = None,
 ):
     expr = ex.column(name, table_alias, quoted=True)
     if data_type.this in [
@@ -72,13 +66,13 @@ valid_from_expr = ex.cast(
 def _get_cols_select(
     cols: Sequence[InformationSchemaColInfo],
     *,
-    is_deleted: bool | None = None,
-    is_full: bool | None = None,
+    is_deleted: Union[bool, None] = None,
+    is_full: Union[bool, None] = None,
     with_valid_from: bool = False,
-    table_alias: str | None = None,
+    table_alias: Union[str, None] = None,
     system: Literal["source", "target"],
-    data_type_map: Mapping[str, ex.DataType] | None = None,
-    get_target_name: Callable[[InformationSchemaColInfo], str] | None,
+    data_type_map: Optional[Mapping[str, ex.DataType]] = None,
+    get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
@@ -347,7 +341,7 @@ def write_latest_pk(
     )
 
 
-def _temp_table(table: table_name_type | ex.Query):
+def _temp_table(table: Union[table_name_type, ex.Query]):
     if isinstance(table, ex.Query):
         return "temp_" + str(abs(hash(table.sql("duckdb"))))
 
@@ -660,7 +654,6 @@ def do_deletes(
 def _retrieve_primary_key_data(
     infos: WriteConfigAndInfos,
 ):
-
     pk_ts_col_select = infos.from_("t").select(
         *_get_cols_select(
             is_full=None,
@@ -859,8 +852,8 @@ def _handle_additional_updates(
     if update_count == 0:
         _write_delta2(infos, [], mode="overwrite")
     elif (
-        update_count > 1000
-    ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
+        (update_count > 1000) or write_config.no_complex_entries_load
+    ):  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
         _write_delta2(infos, [], mode="overwrite")  # still need to create delta_2_path
         logger.warning(
             f"Start delta step 3, load {update_count} strange updates via normal delta load"
@@ -934,7 +927,7 @@ def _handle_additional_updates(
 
 def _get_update_sql(
     cols: Sequence[InformationSchemaColInfo],
-    criterion: Sequence[ex.Expression] | ex.Expression | None,
+    criterion: Union[Sequence[ex.Expression], ex.Expression, None],
     query: ex.Select,
     write_config: WriteConfig,
 ):
@@ -970,7 +963,7 @@ def _load_updates_to_delta(
     logger: DeltaLogger,
     reader: DataSourceReader,
     delta_path: Destination,
-    sql: str | ex.Query,
+    sql: Union[str, ex.Query],
     delta_name: str,
     write_config: WriteConfig,
 ):

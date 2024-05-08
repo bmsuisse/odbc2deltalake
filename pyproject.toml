@@ -1,16 +1,16 @@
 [tool.poetry]
 name = "odbc2deltalake"
-version = "0.11.3"
+version = "0.11.4"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.9"
 pydantic = ">=1.10.0"
 pyodbc = { version = "^5.1.0", optional = true }
-deltalake2db = { version = ">=0.3.0", optional = true }
+deltalake2db = { version = ">=0.3.3", optional = true }
 arrow-odbc = { version = "^5.0.0", optional = true }
 deltalake = { version = ">=0.16.1", optional = true }
 duckdb = { version = ">=0.10.1", optional = true }
@@ -21,7 +21,7 @@ sqlglot = ">=23.0.5"
 
 [tool.poetry.group.dev.dependencies]
 pyright = "^1.1.352"
-black = "^24.2.0"
+ruff = "^0.4.3"
 
 
 [tool.poetry.group.test.dependencies]
@@ -32,7 +32,7 @@ pytest-cov = "^4.1.0"
 docker = "^7.0.0"
 python-dotenv = "^1.0.1"
 azure-storage-blob = "^12.19.1"
-pandas = "^2.2.2"
+pandas = ">=1.4.2"
 pyspark = "^3.5.1"
 delta-spark = "^3.1.0"
 
@@ -51,7 +51,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.pyright]
 venv = ".venv"
 venvPath = "."
-pythonVersion = "3.10"
+pythonVersion = "3.9"
 typeCheckingMode = "basic"
 
 [tool.coverage.report]

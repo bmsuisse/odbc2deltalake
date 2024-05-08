@@ -3,19 +3,14 @@ from odbc2deltalake.write_init import (
     IS_FULL_LOAD_COL_NAME,
     VALID_FROM_COL_NAME,
     DBDeltaPathConfigs,
-    WriteConfig,
 )
-from odbc2deltalake.delta_logger import DeltaLogger
-from odbc2deltalake.destination.destination import Destination
-from odbc2deltalake.metadata import InformationSchemaColInfo
-from odbc2deltalake.reader.reader import DataSourceReader
 from odbc2deltalake.write_init import WriteConfigAndInfos
 import sqlglot.expressions as ex
 import sqlglot as sg
-
+from typing import Union
 from odbc2deltalake.sql_glot_utils import count_limit_one
 
-table_name_type = str | tuple[str, str] | tuple[str, str, str]
+table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 
 
 def create_last_pk_version_view(
@@ -49,7 +44,7 @@ def create_last_pk_version_view(
                     ex.column(VALID_FROM_COL_NAME),
                 ]
             ),
-            copy=False
+            copy=False,
         )
         .where(
             ex.column(IS_FULL_LOAD_COL_NAME).eq(True)

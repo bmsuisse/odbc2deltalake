@@ -1,10 +1,7 @@
-from pathlib import Path
-
-from pydantic import BaseModel
 from odbc2deltalake.destination.destination import Destination
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal, Protocol, Any, Type
+from typing import TYPE_CHECKING, Literal, Protocol, Any, Union
 from sqlglot.expressions import Query
 
 if TYPE_CHECKING:
@@ -18,9 +15,11 @@ class DeltaOps(Protocol):
         self,
     ) -> int: ...
 
-    def vacuum(self, retention_hours: int | None = None) -> Any: ...
+    def vacuum(self, retention_hours: Union[int, None] = None) -> Any: ...
 
     def restore(self, target: int) -> Any: ...
+
+
 class DataSourceReader(ABC):
     @property
     @abstractmethod
@@ -49,7 +48,7 @@ class DataSourceReader(ABC):
         pass
 
     @abstractmethod
-    def source_sql_to_py(self, sql: str | Query) -> list[dict]:
+    def source_sql_to_py(self, sql: Union[str, Query]) -> list[dict]:
         pass
 
     @abstractmethod
@@ -72,7 +71,7 @@ class DataSourceReader(ABC):
         pylist: list[dict],
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
-        dummy_record: dict | None = None,
+        dummy_record: Union[dict, None] = None,
     ):
         pass
 
@@ -82,6 +81,10 @@ class DataSourceReader(ABC):
 
     @abstractmethod
     def local_register_update_view(
-        self, delta_path: Destination, view_name: str, *, version: int | None = None
+        self,
+        delta_path: Destination,
+        view_name: str,
+        *,
+        version: Union[int, None] = None,
     ):
         pass

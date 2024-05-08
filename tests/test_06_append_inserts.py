@@ -5,8 +5,6 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from deltalake import DeltaTable
-from datetime import date
-from .utils import write_db_to_delta_with_check
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -16,7 +14,6 @@ if TYPE_CHECKING:
 def test_append_inserts(connection: "DB_Connection"):
     from odbc2deltalake import (
         write_db_to_delta,
-        DBDeltaPathConfigs,
         WriteConfig,
     )
 

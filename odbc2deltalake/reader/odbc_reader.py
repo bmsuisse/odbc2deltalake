@@ -1,21 +1,17 @@
 from pathlib import Path
 
-from pydantic import BaseModel
 from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
-from typing import TYPE_CHECKING, Literal, Type
+from typing import TYPE_CHECKING, Literal, Optional, Union
 from sqlglot.expressions import Query, DataType
 
 if TYPE_CHECKING:
     import pyarrow as pa
-    import pyarrow.types as pat
     from odbc2deltalake.metadata import InformationSchemaColInfo
 
 
 def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
-    import pyarrow.types as pat
-
     sc = schema
     for i, n in enumerate(schema.names):
         f = schema.field(n)
@@ -25,7 +21,6 @@ def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
 
 
 def _get_type(tp: "pa.DataType"):
-
     import pyarrow.types as pat
 
     if pat.is_string(tp):
@@ -63,7 +58,7 @@ def _get_type(tp: "pa.DataType"):
     raise ValueError(f"Type {tp} not supported")
 
 
-def _build_type(t: DataType | DataType.Type):
+def _build_type(t: Union[DataType, DataType.Type]):
     if isinstance(t, DataType):
         return t
     return DataType(this=t)
@@ -81,9 +76,13 @@ class ODBCReader(DataSourceReader):
     @property
     def supports_proc_exec(self):
         return True
-        
+
     def local_register_update_view(
-        self, delta_path: Destination, view_name: str, *, version: int | None = None
+        self,
+        delta_path: Destination,
+        view_name: str,
+        *,
+        version: Union[int, None] = None,
     ):
         import duckdb
         from deltalake2db import duckdb_create_view_for_delta
@@ -115,11 +114,9 @@ class ODBCReader(DataSourceReader):
         pylist: list[dict],
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
-        dummy_record: dict | None = None,
+        dummy_record: Union[dict, None] = None,
     ):
-
         from deltalake import write_deltalake
-        from deltalake.exceptions import DeltaError
         import pyarrow as pa
 
         schema = (
@@ -171,7 +168,6 @@ class ODBCReader(DataSourceReader):
             batch_reader = cur.fetch_record_batch()
             schema = batch_reader.schema
             try:
-
                 write_deltalake(
                     dp,
                     batch_reader,
@@ -210,7 +206,7 @@ class ODBCReader(DataSourceReader):
             for n in sc.names
         ]
 
-    def source_sql_to_py(self, sql: str | Query) -> list[dict]:
+    def source_sql_to_py(self, sql: Union[str, Query]) -> list[dict]:
         if isinstance(sql, Query):
             sql = sql.sql("tsql")
         from arrow_odbc import read_arrow_batches_from_odbc
@@ -226,8 +222,8 @@ class ODBCReader(DataSourceReader):
         self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
         from arrow_odbc import read_arrow_batches_from_odbc
-        from deltalake import DeltaTable, WriterProperties, write_deltalake
-        from deltalake.exceptions import TableNotFoundError, DeltaError
+        from deltalake import write_deltalake
+        from deltalake.exceptions import DeltaError
 
         reader = read_arrow_batches_from_odbc(
             query=sql,
@@ -257,10 +253,10 @@ class ODBCReader(DataSourceReader):
     def _write_empty_delta_table(
         self,
         schema: "pa.Schema",
-        path: str | Path,
-        storage_options: dict[str, str] | None,
+        path: Union[str, Path],
+        storage_options: Optional[dict[str, str]],
     ):
-        from deltalake import DeltaTable, WriterProperties, write_deltalake
+        from deltalake import write_deltalake
 
         write_deltalake(
             path,

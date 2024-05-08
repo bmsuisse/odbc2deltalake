@@ -1,5 +1,5 @@
 from .destination import Destination
-from typing import Literal, cast
+from typing import Literal
 from datetime import datetime, timezone
 
 
@@ -7,7 +7,6 @@ class DatabricksDestination(Destination):
     def __init__(
         self, dbutils, container: str, path: str, account: str, scheme: str = "abfss"
     ):
-
         self.path = path
         if "." not in account:
             account = account + ".dfs.core.windows.net"
@@ -48,7 +47,6 @@ class DatabricksDestination(Destination):
         raise NotImplementedError("not an option for databricks")
 
     def as_delta_table(self):
-
         raise NotImplementedError("not an option for databricks")
 
     def __str__(self):
