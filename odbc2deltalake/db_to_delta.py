@@ -346,7 +346,7 @@ def _temp_table(table: Union[table_name_type, ex.Query]):
         return "temp_" + str(abs(hash(table.sql("duckdb"))))
 
     def _clean(input_str: str):
-        return "".join(ch for ch in input_str if ch.isalnum())
+        return "".join(ch for ch in input_str if ch.isalnum() and ch.isascii())
 
     if isinstance(table, str):
         return "temp_" + _clean(table)
