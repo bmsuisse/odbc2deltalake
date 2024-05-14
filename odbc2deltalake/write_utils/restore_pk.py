@@ -38,9 +38,14 @@ def create_last_pk_version_view(
         sg.from_(ex.table_(ex.to_identifier(temp_table), alias="tr"))
         .select(
             *(
-                [ex.column(write_config.get_target_name(c)) for c in infos.pk_cols]
+                [
+                    ex.column(write_config.get_target_name(c), quoted=True)
+                    for c in infos.pk_cols
+                ]
                 + [
-                    ex.column(write_config.get_target_name(infos.delta_col)),
+                    ex.column(
+                        write_config.get_target_name(infos.delta_col), quoted=True
+                    ),
                     ex.column(VALID_FROM_COL_NAME),
                 ]
             ),
@@ -64,10 +69,14 @@ def create_last_pk_version_view(
         .select(
             *(
                 [
-                    ex.column(write_config.get_target_name(c), "tr")
+                    ex.column(write_config.get_target_name(c), "tr", quoted=True)
                     for c in infos.pk_cols
                 ]
-                + [ex.column(write_config.get_target_name(infos.delta_col), "tr")]
+                + [
+                    ex.column(
+                        write_config.get_target_name(infos.delta_col), "tr", quoted=True
+                    )
+                ]
                 + [ex.column(IS_DELETED_COL_NAME, "tr")]
                 + [ex.column(VALID_FROM_COL_NAME, "tr")]
             )
@@ -79,7 +88,8 @@ def create_last_pk_version_view(
             this=ex.Window(
                 this=ex.RowNumber(),
                 partition_by=[
-                    ex.column(write_config.get_target_name(pk)) for pk in infos.pk_cols
+                    ex.column(write_config.get_target_name(pk), quoted=True)
+                    for pk in infos.pk_cols
                 ],
                 order=ex.Order(
                     expressions=[
