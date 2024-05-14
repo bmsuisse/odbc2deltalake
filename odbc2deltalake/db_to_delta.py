@@ -674,10 +674,8 @@ def _retrieve_source_ts_cnt(infos: WriteConfigAndInfos):
     pk_ts_col_select = infos.from_("t").select(
         ex.func(
             "MAX",
-            ex.column(infos.write_config.get_target_name(infos.delta_col)).as_(
-                "max_ts"
-            ),
-        )
+            ex.column(infos.write_config.get_target_name(infos.delta_col)),
+        ).as_("max_ts")
         if infos.delta_col
         else ex.convert(None).as_("max_ts"),
         ex.Count(this=ex.Star()).as_("cnt"),
