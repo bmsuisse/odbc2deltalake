@@ -183,10 +183,17 @@ def make_writer(
         _pks = []
     pk_cols: Sequence[InformationSchemaColInfo] = []
     for pk in _pks:
-        pk_col = next((c for c in cols if c.column_name == pk), None)
+        pk_col = next(
+            (c for c in cols if c.column_name.casefold() == pk.casefold()), None
+        )
         if pk_col is None:
             pk_col = next(
-                (c for c in cols if write_config.get_target_name(c) == pk), None
+                (
+                    c
+                    for c in cols
+                    if write_config.get_target_name(c).casefold() == pk.casefold()
+                ),
+                None,
             )
         if pk_col is None:
             raise ValueError(f"Primary key {pk} not found in source")

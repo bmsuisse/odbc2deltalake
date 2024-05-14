@@ -249,23 +249,23 @@ msal-extensions = ">=0.3.0"
 
 [[package]]
 name = "azure-storage-blob"
-version = "12.19.1"
+version = "12.20.0"
 description = "Microsoft Azure Blob Storage Client Library for Python"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 files = [
-    {file = "azure-storage-blob-12.19.1.tar.gz", hash = "sha256:13e16ba42fc54ac2c7e8f976062173a5c82b9ec0594728e134aac372965a11b0"},
-    {file = "azure_storage_blob-12.19.1-py3-none-any.whl", hash = "sha256:c5530dc51c21c9564e4eb706cd499befca8819b10dd89716d3fc90d747556243"},
+    {file = "azure-storage-blob-12.20.0.tar.gz", hash = "sha256:eeb91256e41d4b5b9bad6a87fd0a8ade07dd58aa52344e2c8d2746e27a017d3b"},
+    {file = "azure_storage_blob-12.20.0-py3-none-any.whl", hash = "sha256:de6b3bf3a90e9341a6bcb96a2ebe981dffff993e9045818f6549afea827a52a9"},
 ]
 
 [package.dependencies]
-azure-core = ">=1.28.0,<2.0.0"
+azure-core = ">=1.28.0"
 cryptography = ">=2.1.4"
 isodate = ">=0.6.1"
-typing-extensions = ">=4.3.0"
+typing-extensions = ">=4.6.0"
 
 [package.extras]
-aio = ["azure-core[aio] (>=1.28.0,<2.0.0)"]
+aio = ["azure-core[aio] (>=1.28.0)"]
 
 [[package]]
 name = "certifi"
@@ -575,13 +575,13 @@ test-randomorder = ["pytest-randomly"]
 
 [[package]]
 name = "delta-spark"
-version = "3.1.0"
+version = "3.2.0"
 description = "Python APIs for using Delta Lake with Apache Spark"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "delta-spark-3.1.0.tar.gz", hash = "sha256:dca2d48d53de8061612a7b1860cd7dd5f9b3b4a1f29a06d1f19f047c4dc6afb9"},
-    {file = "delta_spark-3.1.0-py3-none-any.whl", hash = "sha256:a35cc90b456f02ffad9c5960d6c961cea1526d98fb0928f6989305572696ff72"},
+    {file = "delta-spark-3.2.0.tar.gz", hash = "sha256:641967828e47c64805f8c746513da80bea24b5f19b069cdcf64561cd3692e11d"},
+    {file = "delta_spark-3.2.0-py3-none-any.whl", hash = "sha256:c4ff3fa7218e58a702cb71eb64384b0005c4d6f0bbdd0fe0b38a53564d946e09"},
 ]
 
 [package.dependencies]
@@ -590,17 +590,17 @@ pyspark = ">=3.5.0,<3.6.0"
 
 [[package]]
 name = "deltalake"
-version = "0.17.3"
+version = "0.17.4"
 description = "Native Delta Lake Python binding based on delta-rs with Pandas integration"
 optional = true
 python-versions = ">=3.8"
 files = [
-    {file = "deltalake-0.17.3-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:bde8e2b38e41935e726e195959bced8c59e9e2be5ad4140823611f2fd5348393"},
-    {file = "deltalake-0.17.3-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:0d83a4b1bd5eb2781f39e5c817868c24551b67b292b6a219ac41fc866fdfb1cf"},
-    {file = "deltalake-0.17.3-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c579355192e062c48c6ffff06784d8b2ffcde94308d16c1368e94c02148637a3"},
-    {file = "deltalake-0.17.3-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b9c85e23894dc6b29148d2632e2284dbde52689094ff1f0418cededa3cebab06"},
-    {file = "deltalake-0.17.3-cp38-abi3-win_amd64.whl", hash = "sha256:72228dcff9a5719bac0663050677938de199105171a40466e9491d79ced1fbf5"},
-    {file = "deltalake-0.17.3.tar.gz", hash = "sha256:5f518c04d87c99c1e921dd76fbe7f3a9e5558534a0b21dd822b13eb5a62f3145"},
+    {file = "deltalake-0.17.4-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:3f048bd4cdd3500fbb0d1b34046966ca4b7cefd1e9df71460b881ee8ad7f844a"},
+    {file = "deltalake-0.17.4-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:b539265d8293794872e1dc3b2daad50abe05ab425e961824b3ac1155bb294604"},
+    {file = "deltalake-0.17.4-cp38-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:55e6be5f5ab8d5d34d2ea58d86e93eec2da5d2476e3c15e9520239457618bca4"},
+    {file = "deltalake-0.17.4-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:94dde6c2d0a07e9ce47be367d016541d3a499839350852205819353441e1a9c1"},
+    {file = "deltalake-0.17.4-cp38-abi3-win_amd64.whl", hash = "sha256:f51f499d50dad88bdc18c5ed7c2319114759f3220f83aa2d32166c19accee4ce"},
+    {file = "deltalake-0.17.4.tar.gz", hash = "sha256:c3c10577afc46d4b10ed16246d814a8c40b3663099066681eeba89f908373814"},
 ]
 
 [package.dependencies]
@@ -1658,28 +1658,28 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "ruff"
-version = "0.4.3"
+version = "0.4.4"
 description = "An extremely fast Python linter and code formatter, written in Rust."
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "ruff-0.4.3-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:b70800c290f14ae6fcbb41bbe201cf62dfca024d124a1f373e76371a007454ce"},
-    {file = "ruff-0.4.3-py3-none-macosx_11_0_arm64.whl", hash = "sha256:08a0d6a22918ab2552ace96adeaca308833873a4d7d1d587bb1d37bae8728eb3"},
-    {file = "ruff-0.4.3-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:eba1f14df3c758dd7de5b55fbae7e1c8af238597961e5fb628f3de446c3c40c5"},
-    {file = "ruff-0.4.3-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:819fb06d535cc76dfddbfe8d3068ff602ddeb40e3eacbc90e0d1272bb8d97113"},
-    {file = "ruff-0.4.3-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:0bfc9e955e6dc6359eb6f82ea150c4f4e82b660e5b58d9a20a0e42ec3bb6342b"},
-    {file = "ruff-0.4.3-py3-none-manylinux_2_17_ppc64.manylinux2014_ppc64.whl", hash = "sha256:510a67d232d2ebe983fddea324dbf9d69b71c4d2dfeb8a862f4a127536dd4cfb"},
-    {file = "ruff-0.4.3-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:dc9ff11cd9a092ee7680a56d21f302bdda14327772cd870d806610a3503d001f"},
-    {file = "ruff-0.4.3-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:29efff25bf9ee685c2c8390563a5b5c006a3fee5230d28ea39f4f75f9d0b6f2f"},
-    {file = "ruff-0.4.3-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:18b00e0bcccf0fc8d7186ed21e311dffd19761cb632241a6e4fe4477cc80ef6e"},
-    {file = "ruff-0.4.3-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:262f5635e2c74d80b7507fbc2fac28fe0d4fef26373bbc62039526f7722bca1b"},
-    {file = "ruff-0.4.3-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:7363691198719c26459e08cc17c6a3dac6f592e9ea3d2fa772f4e561b5fe82a3"},
-    {file = "ruff-0.4.3-py3-none-musllinux_1_2_i686.whl", hash = "sha256:eeb039f8428fcb6725bb63cbae92ad67b0559e68b5d80f840f11914afd8ddf7f"},
-    {file = "ruff-0.4.3-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:927b11c1e4d0727ce1a729eace61cee88a334623ec424c0b1c8fe3e5f9d3c865"},
-    {file = "ruff-0.4.3-py3-none-win32.whl", hash = "sha256:25cacda2155778beb0d064e0ec5a3944dcca9c12715f7c4634fd9d93ac33fd30"},
-    {file = "ruff-0.4.3-py3-none-win_amd64.whl", hash = "sha256:7a1c3a450bc6539ef00da6c819fb1b76b6b065dec585f91456e7c0d6a0bbc725"},
-    {file = "ruff-0.4.3-py3-none-win_arm64.whl", hash = "sha256:71ca5f8ccf1121b95a59649482470c5601c60a416bf189d553955b0338e34614"},
-    {file = "ruff-0.4.3.tar.gz", hash = "sha256:ff0a3ef2e3c4b6d133fbedcf9586abfbe38d076041f2dc18ffb2c7e0485d5a07"},
+    {file = "ruff-0.4.4-py3-none-macosx_10_12_x86_64.whl", hash = "sha256:29d44ef5bb6a08e235c8249294fa8d431adc1426bfda99ed493119e6f9ea1bf6"},
+    {file = "ruff-0.4.4-py3-none-macosx_11_0_arm64.whl", hash = "sha256:c4efe62b5bbb24178c950732ddd40712b878a9b96b1d02b0ff0b08a090cbd891"},
+    {file = "ruff-0.4.4-py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4c8e2f1e8fc12d07ab521a9005d68a969e167b589cbcaee354cb61e9d9de9c15"},
+    {file = "ruff-0.4.4-py3-none-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:60ed88b636a463214905c002fa3eaab19795679ed55529f91e488db3fe8976ab"},
+    {file = "ruff-0.4.4-py3-none-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:b90fc5e170fc71c712cc4d9ab0e24ea505c6a9e4ebf346787a67e691dfb72e85"},
+    {file = "ruff-0.4.4-py3-none-manylinux_2_17_ppc64.manylinux2014_ppc64.whl", hash = "sha256:8e7e6ebc10ef16dcdc77fd5557ee60647512b400e4a60bdc4849468f076f6eef"},
+    {file = "ruff-0.4.4-py3-none-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:b9ddb2c494fb79fc208cd15ffe08f32b7682519e067413dbaf5f4b01a6087bcd"},
+    {file = "ruff-0.4.4-py3-none-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:c51c928a14f9f0a871082603e25a1588059b7e08a920f2f9fa7157b5bf08cfe9"},
+    {file = "ruff-0.4.4-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5eb0a4bfd6400b7d07c09a7725e1a98c3b838be557fee229ac0f84d9aa49c36"},
+    {file = "ruff-0.4.4-py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:b1867ee9bf3acc21778dcb293db504692eda5f7a11a6e6cc40890182a9f9e595"},
+    {file = "ruff-0.4.4-py3-none-musllinux_1_2_armv7l.whl", hash = "sha256:1aecced1269481ef2894cc495647392a34b0bf3e28ff53ed95a385b13aa45768"},
+    {file = "ruff-0.4.4-py3-none-musllinux_1_2_i686.whl", hash = "sha256:9da73eb616b3241a307b837f32756dc20a0b07e2bcb694fec73699c93d04a69e"},
+    {file = "ruff-0.4.4-py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:958b4ea5589706a81065e2a776237de2ecc3e763342e5cc8e02a4a4d8a5e6f95"},
+    {file = "ruff-0.4.4-py3-none-win32.whl", hash = "sha256:cb53473849f011bca6e754f2cdf47cafc9c4f4ff4570003a0dad0b9b6890e876"},
+    {file = "ruff-0.4.4-py3-none-win_amd64.whl", hash = "sha256:424e5b72597482543b684c11def82669cc6b395aa8cc69acc1858b5ef3e5daae"},
+    {file = "ruff-0.4.4-py3-none-win_arm64.whl", hash = "sha256:39df0537b47d3b597293edbb95baf54ff5b49589eb7ff41926d8243caa995ea6"},
+    {file = "ruff-0.4.4.tar.gz", hash = "sha256:f87ea42d5cdebdc6a69761a9d0bc83ae9b3b30d0ad78952005ba6568d6c022af"},
 ]
 
 [[package]]
@@ -1711,18 +1711,18 @@ files = [
 
 [[package]]
 name = "sqlglot"
-version = "23.14.0"
+version = "23.15.8"
 description = "An easily customizable SQL parser and transpiler"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "sqlglot-23.14.0-py3-none-any.whl", hash = "sha256:e413e761a74760918ff04548189aaf05224ba4699f16b17b3b8f86f3dca6f063"},
-    {file = "sqlglot-23.14.0.tar.gz", hash = "sha256:d5e92fd7f45a5783e7fed0075e3c4d13d59338a69c11ffe0f4e99729352b3973"},
+    {file = "sqlglot-23.15.8-py3-none-any.whl", hash = "sha256:e1123f7dda94e1b9b2ab200fb52c12e9ea80d18aac8339e8e73959e7f5b49663"},
+    {file = "sqlglot-23.15.8.tar.gz", hash = "sha256:4ca32ece6fd21bb6b42b09927f1fe38da832c6418d7202835313d7abc5d07620"},
 ]
 
 [package.extras]
-dev = ["duckdb (>=0.6)", "maturin (>=1.4,<2.0)", "mypy", "pandas", "pandas-stubs", "pdoc", "pre-commit", "pyspark", "python-dateutil", "ruff (==0.3.2)", "types-python-dateutil", "typing-extensions"]
-rs = ["sqlglotrs (==0.2.0)"]
+dev = ["duckdb (>=0.6)", "maturin (>=1.4,<2.0)", "mypy", "pandas", "pandas-stubs", "pdoc", "pre-commit", "pyspark", "python-dateutil", "ruff (==0.4.3)", "types-python-dateutil", "typing-extensions"]
+rs = ["sqlglotrs (==0.2.5)"]
 
 [[package]]
 name = "tomli"
