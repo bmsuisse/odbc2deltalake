@@ -830,28 +830,51 @@ def _handle_additional_updates(
         version=old_pk_version,
     )
 
-    reader.local_register_view(
-        ex.except_(
-            left=ex.select(
-                *_get_cols_select(
-                    cols=pk_ds_cols,
-                    table_alias="pk",
-                    system="target",
-                    get_target_name=write_config.get_target_name,
-                )
-            ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
-            right=ex.select(
-                *_get_cols_select(
-                    cols=pk_ds_cols,
-                    table_alias="lpk",
-                    system="target",
-                    get_target_name=write_config.get_target_name,
-                )
-            ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
-        ),
-        "additional_updates",
-    )
+    def _local_view_for_updates():
+        reader.local_register_view(
+            ex.except_(
+                left=ex.select(
+                    *_get_cols_select(
+                        cols=pk_ds_cols,
+                        table_alias="pk",
+                        system="target",
+                        get_target_name=write_config.get_target_name,
+                    )
+                ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
+                right=ex.select(
+                    *_get_cols_select(
+                        cols=pk_ds_cols,
+                        table_alias="lpk",
+                        system="target",
+                        get_target_name=write_config.get_target_name,
+                    )
+                ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
+            ),
+            "additional_updates",
+        )
 
+    try:
+        _local_view_for_updates()
+    except Exception as e:
+        import traceback
+
+        logger.warning(
+            f"Could not create view for additional updates: {e}",
+            error_trackback=traceback.format_exc(),
+        )
+        try:
+            from .write_utils.restore_pk import restore_last_pk
+
+            restore_success = restore_last_pk(infos=infos)
+        except Exception as e:
+            logger.warning(f"Could not restore primary keys: {e}")
+            restore_success = False
+        if not restore_success:
+            logger.warning("No primary keys found, do a full load")
+            do_full_load(infos=infos, mode="append")
+            return
+        else:
+            _local_view_for_updates()
     sql_query = ex.except_(
         left=ex.select(
             *_get_cols_select(
