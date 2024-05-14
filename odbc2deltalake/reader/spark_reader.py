@@ -13,6 +13,7 @@ class SparkDeltaOps(DeltaOps):
         from delta.tables import DeltaTable
 
         self.dest = dest
+        self.spark = spark
         self.table = DeltaTable.forPath(spark, str(dest))
 
     def version(self) -> int:
@@ -23,6 +24,30 @@ class SparkDeltaOps(DeltaOps):
 
     def restore(self, target: int):
         self.table.restoreToVersion(target)
+
+    def set_properties(self, props: dict[str, str]):
+        def _escape(s: str):
+            return s.replace("'", "''")
+
+        prop_str = ", ".join(
+            [f"'{_escape(k)}' = '{_escape(v)}'" for k, v in props.items()]
+        )
+        self.spark.sql(
+            f"ALTER TABLE delta.`{str(self.dest)}` SET TBLPROPERTIES {prop_str}"
+        )
+
+    def get_property(self, key: str) -> Optional[str]:
+        from pyspark.sql.functions import col, lit
+
+        res = (
+            self.spark.sql(f"show tblproperties delta.`{str(self.dest)}`")
+            .where(col("key") == lit(key))
+            .select("value")
+            .collect()
+        )
+        if res:
+            return res[0].value
+        return None
 
 
 class SparkReader(DataSourceReader):
