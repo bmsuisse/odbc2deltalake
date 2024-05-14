@@ -24,7 +24,7 @@ class DB_Connection:
             or {
                 "server": "127.0.0.1,1444",
                 "database": "master",
-                "ENCRYPT": "yes",
+                "encrypt": "yes",
                 "TrustServerCertificate": "Yes",
                 "UID": "sa",
                 "PWD": "MyPass@word4tests",
