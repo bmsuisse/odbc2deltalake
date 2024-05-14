@@ -132,6 +132,7 @@ def spark_session():
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
         )
+        .config("spark.jars", str(Path("tests/jar/sqljdbc42.jar").absolute()))
         .config(
             "spark.jars.packages",
             "com.microsoft.azure:spark-mssql-connector_2.12:1.2.0",
