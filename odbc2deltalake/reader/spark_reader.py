@@ -69,9 +69,14 @@ class SparkReader(DataSourceReader):
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
         )
-        self._dialect = (
-            "databricks" if "DATABRICKS_RUNTIME_VERSION" in os.environ else "spark"
-        )
+        try:
+            self._dialect = (
+                "databricks"
+                if "/databricks" in (spark.conf.get("spark.home") or "")
+                else "spark"
+            )
+        except Exception:
+            self._dialect = "spark"
 
     def local_register_update_view(
         self,
@@ -87,17 +92,17 @@ class SparkReader(DataSourceReader):
 
     def local_register_view(self, sql: Query, view_name: str):
         self.spark.sql(
-            f"CREATE OR REPLACE TEMPORARY VIEW {view_name} AS {sql.sql('databricks')}"
+            f"CREATE OR REPLACE TEMPORARY VIEW {view_name} AS {sql.sql(self._dialect)}"
         )
 
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
-        spark_rows = self.spark.sql(sql.sql("databricks")).collect()
+        spark_rows = self.spark.sql(sql.sql(self._dialect)).collect()
         return [row.asDict() for row in spark_rows]
 
     def local_execute_sql_to_delta(
         self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
-        self.spark.sql(sql.sql("databricks")).write.format("delta").option(
+        self.spark.sql(sql.sql(self._dialect)).write.format("delta").option(
             "mergeSchema" if mode == "append" else "overwriteSchema", "true"
         ).mode(mode).save(str(delta_path))
 
