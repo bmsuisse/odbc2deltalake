@@ -184,7 +184,12 @@ class SparkReader(DataSourceReader):
             if "port" in options:
                 jdbcUrl += ":" + str(options.pop("port"))
             if "encrypt" in options:
-                jdbcUrl += ";encrypt=" + options.pop("encrypt")
+                enc_vl = options.pop("encrypt")
+                if enc_vl.lower() == "yes":
+                    enc_vl = "true"
+                elif enc_vl.lower() == "no":
+                    enc_vl = "false"
+                jdbcUrl += ";encrypt=" + enc_vl
             if "database" in options:
                 jdbcUrl += ";databaseName=" + options.pop("database")
 
