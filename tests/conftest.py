@@ -28,7 +28,6 @@ class DB_Connection:
                 "TrustServerCertificate": "Yes",
                 "UID": "sa",
                 "PWD": "MyPass@word4tests",
-                "MultipleActiveResultSets": "True",
             },
             odbc=True,
         )

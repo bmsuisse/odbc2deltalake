@@ -187,19 +187,23 @@ class SparkReader(DataSourceReader):
             for key, value in self.sql_config.items():
                 if key.lower() in ["host", "port"]:
                     continue
-                if key.lower() == "encrypt":
+                if key.lower() in [
+                    "encrypt",
+                    "TrustServerCertificate".lower(),
+                    "integratedSecurity".lower(),
+                ]:
                     enc_vl = value
                     if enc_vl.lower() == "yes":
                         enc_vl = "true"
                     elif enc_vl.lower() == "no":
                         enc_vl = "false"
                     assert enc_vl in ["true", "false"]
-                    jdbcUrl += ";encrypt=" + enc_vl
+                    jdbcUrl += f";{key}=" + enc_vl
                 elif key.lower() == "database":
                     jdbcUrl += ";databaseName=" + value
                 else:
                     options[key] = value
-
+            print(jdbcUrl)
             reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
         else:
             options = self.sql_config
