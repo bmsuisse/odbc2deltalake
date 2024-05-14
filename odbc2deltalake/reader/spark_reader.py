@@ -69,8 +69,11 @@ class SparkReader(DataSourceReader):
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
         )
+
         self._dialect = (
-            "databricks" if "DATABRICKS_RUNTIME_VERSION" in os.environ else "spark"
+            "databricks"
+            if "/databricks" in (spark.conf.get("spark.home") or "")
+            else "spark"
         )
 
     def local_register_update_view(
