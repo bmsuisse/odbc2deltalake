@@ -19,6 +19,10 @@ class DeltaOps(Protocol):
 
     def restore(self, target: int) -> Any: ...
 
+    def set_properties(self, props: dict[str, str]): ...
+
+    def get_property(self, key: str) -> Union[str, None]: ...
+
 
 class DataSourceReader(ABC):
     @property

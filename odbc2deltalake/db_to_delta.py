@@ -1,6 +1,15 @@
 import dataclasses
 from datetime import datetime, timezone
-from typing import Callable, Iterable, Literal, Mapping, Optional, Sequence, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 import sqlglot as sg
 from .utils import is_pydantic_2
 from odbc2deltalake.sql_schema import is_string_type
@@ -396,9 +405,15 @@ def do_delta_load(
         else None
     )
     delta_path = destination / "delta"
-    delta_load_value = _get_latest_delta_value(
-        reader, delta_path, delta_col, write_config
-    )
+    delta_load_value, current_count = _get_latest_delta_value(infos)
+    source_delta, source_count = _retrieve_source_ts_cnt(infos=infos)
+    if (
+        delta_load_value is not None
+        and source_delta is not None
+        and (delta_load_value, current_count) == (source_delta, source_count)
+    ):
+        logger.info("No updates, done")
+        return
 
     if delta_load_value is None:
         logger.warning("No delta load value, do a full load")
@@ -408,7 +423,7 @@ def do_delta_load(
         )
         return
     logger.info(
-        "Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
+        f"Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
     )
     if not simple:
         _retrieve_primary_key_data(infos=infos)
@@ -499,10 +514,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
     logger.info(
         f"Start Append Only Load with Delta Column {infos.delta_col.column_name}"
     )
-    delta_path = infos.destination / "delta"
-    delta_load_value = _get_latest_delta_value(
-        infos.source, delta_path, infos.delta_col, infos.write_config
-    )
+    delta_load_value, _ = _get_latest_delta_value(infos)
 
     criterion = (
         _source_convert(
@@ -525,7 +537,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
             query=infos.from_("t"),
             write_config=write_config,
         ),
-        delta_path=delta_path,
+        delta_path=infos.destination / "delta",
         delta_name="delta_1",
         write_config=write_config,
     )
@@ -534,20 +546,27 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
 
 
 def _get_latest_delta_value(
-    reader: DataSourceReader,
-    delta_path: Destination,
-    delta_col: InformationSchemaColInfo,
-    write_config: WriteConfig,
-):
-    tmp_view_name = "temp_" + str(abs(hash(str(delta_path))))
-    reader.local_register_update_view(delta_path, tmp_view_name)
-    return reader.local_execute_sql_to_py(
-        sg.from_(ex.to_identifier(tmp_view_name)).select(
-            ex.func("MAX", ex.column(write_config.get_target_name(delta_col))).as_(
-                "max_ts"
-            )
+    infos: WriteConfigAndInfos,
+) -> tuple[Any, int]:
+    if (infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS).exists():
+        delta_path = (
+            infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
         )
-    )[0]["max_ts"]
+    else:
+        delta_path = infos.destination / "delta"
+    tmp_view_name = "temp_" + str(abs(hash(str(delta_path))))
+    infos.source.local_register_update_view(delta_path, tmp_view_name)
+    row = infos.source.local_execute_sql_to_py(
+        sg.from_(ex.to_identifier(tmp_view_name)).select(
+            ex.func(
+                "MAX", ex.column(infos.write_config.get_target_name(infos.delta_col))
+            ).as_("max_ts")
+            if infos.delta_col
+            else ex.convert(None).as_("max_ts"),
+            ex.Count(this=ex.Star()).as_("cnt"),
+        )
+    )[0]
+    return row["max_ts"], row["cnt"]
 
 
 def do_deletes(
@@ -649,6 +668,24 @@ def do_deletes(
             destination / "delta",
             mode="append",
         )
+
+
+def _retrieve_source_ts_cnt(infos: WriteConfigAndInfos):
+    pk_ts_col_select = infos.from_("t").select(
+        ex.func(
+            "MAX",
+            ex.column(infos.delta_col.column_name, quoted=True),
+        ).as_("max_ts")
+        if infos.delta_col
+        else ex.convert(None).as_("max_ts"),
+        ex.Count(this=ex.Star()).as_("cnt"),
+    )
+
+    infos.logger.info(
+        "Retrieve all PK/TS", sql=pk_ts_col_select.sql(infos.write_config.dialect)
+    )
+    row = infos.source.source_sql_to_py(sql=pk_ts_col_select)
+    return row[0]["max_ts"], row[0]["cnt"]
 
 
 def _retrieve_primary_key_data(

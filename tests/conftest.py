@@ -24,11 +24,10 @@ class DB_Connection:
             or {
                 "server": "127.0.0.1,1444",
                 "database": "master",
-                "ENCRYPT": "yes",
+                "encrypt": "yes",
                 "TrustServerCertificate": "Yes",
                 "UID": "sa",
                 "PWD": "MyPass@word4tests",
-                "MultipleActiveResultSets": "True",
             },
             odbc=True,
         )
@@ -62,10 +61,6 @@ class DB_Connection:
         part_map = {p.split("=")[0]: p.split("=")[1] for p in parts}
         map_keys = {"UID": "user", "PWD": "password", "server": "host"}
         d = {map_keys.get(k, k): v for k, v in part_map.items()}
-        d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-        jar = str(Path("tests/jar").absolute())
-        d["spark.driver.extraClassPath"] = jar
-        d["spark.executor.extraClassPath"] = jar
         d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
         return d
 
@@ -125,16 +120,18 @@ def spark_session():
     from pyspark.sql import SparkSession
     from delta import configure_spark_with_delta_pip
 
+    jar = str(Path("tests/jar").absolute())
     builder = (
         SparkSession.builder.appName("test_odbc2deltalake")  # type: ignore
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config("spark.driver.extraClassPath", jar)
+        .config("spark.executor.extraClassPath", jar)
         .config(
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
         )
         .config(
-            "spark.jars.packages",
-            "com.microsoft.azure:spark-mssql-connector_2.12:1.2.0",
+            "spark.jars", str(Path("tests/jar/mssql-jdbc-12.6.1.jre11.jar").absolute())
         )
     )
 

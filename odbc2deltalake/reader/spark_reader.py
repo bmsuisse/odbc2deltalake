@@ -2,6 +2,7 @@ from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
 from typing import Literal, TYPE_CHECKING, Callable, Optional, Union
+import os
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession, DataFrame
@@ -13,6 +14,7 @@ class SparkDeltaOps(DeltaOps):
         from delta.tables import DeltaTable
 
         self.dest = dest
+        self.spark = spark
         self.table = DeltaTable.forPath(spark, str(dest))
 
     def version(self) -> int:
@@ -23,6 +25,30 @@ class SparkDeltaOps(DeltaOps):
 
     def restore(self, target: int):
         self.table.restoreToVersion(target)
+
+    def set_properties(self, props: dict[str, str]):
+        def _escape(s: str):
+            return s.replace("'", "''")
+
+        prop_str = ", ".join(
+            [f"'{_escape(k)}' = '{_escape(v)}'" for k, v in props.items()]
+        )
+        self.spark.sql(
+            f"ALTER TABLE delta.`{str(self.dest)}` SET TBLPROPERTIES {prop_str}"
+        )
+
+    def get_property(self, key: str) -> Optional[str]:
+        from pyspark.sql.functions import col, lit
+
+        res = (
+            self.spark.sql(f"show tblproperties delta.`{str(self.dest)}`")
+            .where(col("key") == lit(key))
+            .select("value")
+            .collect()
+        )
+        if res:
+            return res[0].value
+        return None
 
 
 class SparkReader(DataSourceReader):
@@ -42,6 +68,9 @@ class SparkReader(DataSourceReader):
         self.jdbc = jdbc
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
+        )
+        self._dialect = (
+            "databricks" if "DATABRICKS_RUNTIME_VERSION" in os.environ else "spark"
         )
 
     def local_register_update_view(
@@ -89,7 +118,7 @@ class SparkReader(DataSourceReader):
 
     @property
     def query_dialect(self) -> str:
-        return "databricks"
+        return self._dialect
 
     @property
     def supports_proc_exec(self):
@@ -152,17 +181,35 @@ class SparkReader(DataSourceReader):
 
     def _reader(self, sql: Union[str, Query]):
         if self.jdbc:
-            options = self.sql_config.copy()
+            options = {}
             jdbcUrl = f"jdbc:{self.spark_format}://"
-            if "host" in options:
-                jdbcUrl += options.pop("host")
-            if "port" in options:
-                jdbcUrl += ":" + str(options.pop("port"))
-            if "encrypt" in options:
-                jdbcUrl += ";encrypt=" + options.pop("encrypt")
-            if "database" in options:
-                jdbcUrl += ";databaseName=" + options.pop("database")
+            if "host" in self.sql_config:
+                jdbcUrl += self.sql_config["host"].replace(",", ":")
+            if "server" in self.sql_config:
+                jdbcUrl += self.sql_config["server"].replace(",", ":")
+            if "port" in self.sql_config:
+                jdbcUrl += ":" + str(self.sql_config["port"])
 
+            for key, value in self.sql_config.items():
+                if key.lower() in ["host", "port", "server"]:
+                    continue
+                if key.lower() in [
+                    "encrypt",
+                    "TrustServerCertificate".lower(),
+                    "integratedSecurity".lower(),
+                ]:
+                    enc_vl = value
+                    if enc_vl.lower() == "yes":
+                        enc_vl = "true"
+                    elif enc_vl.lower() == "no":
+                        enc_vl = "false"
+                    assert enc_vl in ["true", "false"]
+                    jdbcUrl += f";{key}=" + enc_vl
+                elif key.lower() == "database":
+                    jdbcUrl += ";databaseName=" + value
+                else:
+                    options[key] = value
+            print(jdbcUrl)
             reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
         else:
             options = self.sql_config

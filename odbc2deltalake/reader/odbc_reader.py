@@ -9,6 +9,7 @@ from sqlglot.expressions import Query, DataType
 if TYPE_CHECKING:
     import pyarrow as pa
     from odbc2deltalake.metadata import InformationSchemaColInfo
+    from deltalake import DeltaTable
 
 
 def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
@@ -62,6 +63,26 @@ def _build_type(t: Union[DataType, DataType.Type]):
     if isinstance(t, DataType):
         return t
     return DataType(this=t)
+
+
+class DeltaRSDeltaOps(DeltaOps):
+    def __init__(self, delta_table: "DeltaTable"):
+        self.delta_table = delta_table
+
+    def version(self) -> int:
+        return self.delta_table.version()
+
+    def vacuum(self, retention_hours: Union[int, None] = None):
+        self.delta_table.vacuum(retention_hours)
+
+    def restore(self, target: int):
+        self.delta_table.restore(target)
+
+    def set_properties(self, props: dict[str, str]):
+        self.delta_table.delete("1=0", custom_metadata=props)
+
+    def get_property(self, key: str):
+        return self.delta_table.metadata().configuration.get(key, None)
 
 
 class ODBCReader(DataSourceReader):
@@ -270,4 +291,4 @@ class ODBCReader(DataSourceReader):
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         dt = delta_path.as_delta_table()
-        return dt
+        return DeltaRSDeltaOps(dt)
