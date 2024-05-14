@@ -177,21 +177,28 @@ class SparkReader(DataSourceReader):
 
     def _reader(self, sql: Union[str, Query]):
         if self.jdbc:
-            options = self.sql_config.copy()
+            options = {}
             jdbcUrl = f"jdbc:{self.spark_format}://"
-            if "host" in options:
-                jdbcUrl += options.pop("host")
-            if "port" in options:
-                jdbcUrl += ":" + str(options.pop("port"))
-            if "encrypt" in options:
-                enc_vl = options.pop("encrypt")
-                if enc_vl.lower() == "yes":
-                    enc_vl = "true"
-                elif enc_vl.lower() == "no":
-                    enc_vl = "false"
-                jdbcUrl += ";encrypt=" + enc_vl
-            if "database" in options:
-                jdbcUrl += ";databaseName=" + options.pop("database")
+            if "host" in self.sql_config:
+                jdbcUrl += self.sql_config["host"]
+            if "port" in self.sql_config:
+                jdbcUrl += ":" + str(self.sql_config["port"])
+
+            for key, value in self.sql_config.items():
+                if key.lower() in ["host", "port"]:
+                    continue
+                if key.lower() == "encrypt":
+                    enc_vl = value
+                    if enc_vl.lower() == "yes":
+                        enc_vl = "true"
+                    elif enc_vl.lower() == "no":
+                        enc_vl = "false"
+                    assert enc_vl in ["true", "false"]
+                    jdbcUrl += ";encrypt=" + enc_vl
+                elif key.lower() == "database":
+                    jdbcUrl += ";databaseName=" + value
+                else:
+                    options[key] = value
 
             reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
         else:
