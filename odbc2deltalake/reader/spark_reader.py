@@ -180,12 +180,14 @@ class SparkReader(DataSourceReader):
             options = {}
             jdbcUrl = f"jdbc:{self.spark_format}://"
             if "host" in self.sql_config:
-                jdbcUrl += self.sql_config["host"]
+                jdbcUrl += self.sql_config["host"].replace(",", ":")
+            if "server" in self.sql_config:
+                jdbcUrl += self.sql_config["server"].replace(",", ":")
             if "port" in self.sql_config:
                 jdbcUrl += ":" + str(self.sql_config["port"])
 
             for key, value in self.sql_config.items():
-                if key.lower() in ["host", "port"]:
+                if key.lower() in ["host", "port", "server"]:
                     continue
                 if key.lower() in [
                     "encrypt",
