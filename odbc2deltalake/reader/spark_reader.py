@@ -2,6 +2,7 @@ from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
 from typing import Literal, TYPE_CHECKING, Callable, Optional, Union
+import os
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession, DataFrame
@@ -68,6 +69,9 @@ class SparkReader(DataSourceReader):
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
         )
+        self._dialect = (
+            "databricks" if "DATABRICKS_RUNTIME_VERSION" in os.environ else "spark"
+        )
 
     def local_register_update_view(
         self,
@@ -114,7 +118,7 @@ class SparkReader(DataSourceReader):
 
     @property
     def query_dialect(self) -> str:
-        return "databricks"
+        return self._dialect
 
     @property
     def supports_proc_exec(self):
