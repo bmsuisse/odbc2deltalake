@@ -130,7 +130,9 @@ def spark_session():
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
         )
-        .config("spark.jars", str(Path("tests/jar/sqljdbc42.jar").absolute()))
+        .config(
+            "spark.jars", str(Path("tests/jar/mssql-jdbc-12.6.1.jre11.jar").absolute())
+        )
     )
 
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
