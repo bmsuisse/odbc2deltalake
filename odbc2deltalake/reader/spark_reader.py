@@ -69,12 +69,14 @@ class SparkReader(DataSourceReader):
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
         )
-
-        self._dialect = (
-            "databricks"
-            if "/databricks" in (spark.conf.get("spark.home") or "")
-            else "spark"
-        )
+        try:
+            self._dialect = (
+                "databricks"
+                if "/databricks" in (spark.conf.get("spark.home") or "")
+                else "spark"
+            )
+        except Exception:
+            self._dialect = "spark"
 
     def local_register_update_view(
         self,
