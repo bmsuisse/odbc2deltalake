@@ -136,12 +136,14 @@ def create_last_pk_version_view(
                 .select(
                     *(
                         [
-                            ex.column(write_config.get_target_name(c), "f")
+                            ex.column(write_config.get_target_name(c), "f", quoted=True)
                             for c in infos.pk_cols
                         ]
                         + [
                             ex.column(
-                                write_config.get_target_name(infos.delta_col), "f"
+                                write_config.get_target_name(infos.delta_col),
+                                "f",
+                                quoted=True,
                             ),
                             ex.convert(False).as_(IS_DELETED_COL_NAME),
                         ]
@@ -152,8 +154,12 @@ def create_last_pk_version_view(
                     join_type="anti",
                     on=ex.and_(
                         *[
-                            ex.column(write_config.get_target_name(c), "f").eq(
-                                ex.column(write_config.get_target_name(c), "d")
+                            ex.column(
+                                write_config.get_target_name(c), "f", quoted=True
+                            ).eq(
+                                ex.column(
+                                    write_config.get_target_name(c), "d", quoted=True
+                                )
                             )
                             for c in infos.pk_cols
                         ]
