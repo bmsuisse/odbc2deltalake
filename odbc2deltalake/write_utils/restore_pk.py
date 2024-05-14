@@ -107,12 +107,16 @@ def create_last_pk_version_view(
                 ).select(
                     *(
                         [
-                            ex.column(write_config.get_target_name(c), "df")
+                            ex.column(
+                                write_config.get_target_name(c), "df", quoted=True
+                            )
                             for c in infos.pk_cols
                         ]
                         + [
                             ex.column(
-                                write_config.get_target_name(infos.delta_col), "df"
+                                write_config.get_target_name(infos.delta_col),
+                                "df",
+                                quoted=True,
                             ),
                             ex.column(IS_DELETED_COL_NAME, "df"),
                         ]
