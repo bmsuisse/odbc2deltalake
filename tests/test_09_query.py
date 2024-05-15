@@ -1,32 +1,37 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import get_sql_for_delta
+from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from deltalake import DeltaTable
-from .utils import write_db_to_delta_with_check
+from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import sqlglot as sg
 import sqlglot.expressions as ex
 from odbc2deltalake.query import sql_quote_value
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 @pytest.mark.order(15)
-def test_delta_query(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_delta_query(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake.reader.odbc_reader import ODBCReader
     from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
-    base_path = Path("tests/_data/dbo/user5")
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user5")[
+        conf_name
+    ]
+
     query = sg.parse_one(
         "select * from dbo.[user5] where Age is null or age < 50", dialect="tsql"
     )
     config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
     assert isinstance(query, ex.Query)
-    write_db_to_delta_with_check(
-        connection.conn_str, query, base_path, write_config=config
-    )
+    write_db_to_delta_with_check(reader, query, dest, write_config=config)
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -47,19 +52,19 @@ def test_delta_query(connection: "DB_Connection"):
 
     time.sleep(2)
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_user_5_temp"
+        )
+        res = con.execute("select max(__timestamp) from v_user_5_temp s").fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
 
-    reader = ODBCReader(connection.conn_str, "tests/_data/delta_test5.duck")
-    write_db_to_delta_with_check(reader, query, base_path, write_config=config)
+    write_db_to_delta_with_check(reader, query, dest, write_config=config)
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE VIEW v_user_scd2 AS " + sql)
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+        )
 
         name_tuples = con.execute(
             'SELECT FirstName, LastName, __is_deleted  from v_user_scd2 order by "User_-_iD", __timestamp'
@@ -83,8 +88,12 @@ def test_delta_query(connection: "DB_Connection"):
             ("Markus", "Müller"),
         ]
 
-        con.execute(
-            f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
+        duckdb_create_view_for_delta(
+            con,
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
+            "v_latest_pk",
         )
 
         id_tuples = con.execute(

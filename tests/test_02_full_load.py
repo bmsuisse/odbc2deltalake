@@ -7,30 +7,35 @@ from deltalake import DeltaTable
 from datetime import date
 
 from odbc2deltalake.query import sql_quote_value
+from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 @pytest.mark.order(4)
-def test_first_load_always_full(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_first_load_always_full(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import write_db_to_delta
 
-    base_path = Path(
-        "tests/_data/long_schema/long_table_name2"
-    )  # spaces in file names cause trouble with delta-rs
+    reader, dest = get_test_run_configs(
+        connection, spark_session, "long_schema/long_table_name2"
+    )[conf_name]
 
     write_db_to_delta(
-        connection.conn_str,
+        reader,
         ("long schema", "long table name_as_view"),
-        base_path,
+        dest,
     )
     import time
 
     time.sleep(2)
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
+        sql = get_sql_for_delta((dest / "delta").as_delta_table())
         assert sql is not None
         res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
         assert res is not None
@@ -47,13 +52,13 @@ def test_first_load_always_full(connection: "DB_Connection"):
             )
 
     write_db_to_delta(
-        connection.conn_str,
+        reader,
         ("long schema", "long table name_as_view"),
-        base_path,
+        dest,
     )
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
+        sql = get_sql_for_delta((dest / "delta").as_delta_table())
         assert sql is not None
         con.execute("CREATE VIEW v_long_table_name AS " + sql)
 

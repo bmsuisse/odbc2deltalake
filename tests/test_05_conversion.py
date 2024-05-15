@@ -2,18 +2,23 @@ from pathlib import Path
 import time
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import get_sql_for_delta
+from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from deltalake import DeltaTable
-from .utils import write_db_to_delta_with_check
+
+from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import sqlglot.expressions as ex
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 @pytest.mark.order(10)
-def test_first_load_timestamp(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_first_load_timestamp(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import (
         DBDeltaPathConfigs,
         WriteConfig,
@@ -27,6 +32,9 @@ def test_first_load_timestamp(connection: "DB_Connection"):
         }
         | dict(DEFAULT_DATA_TYPE_MAP)
     )
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user_double")[
+        conf_name
+    ]
     with connection.new_connection() as nc:
         with nc.cursor() as cursor:
             cursor.execute("""DROP TABLE IF EXISTS dbo.User_Double""")
@@ -34,18 +42,15 @@ def test_first_load_timestamp(connection: "DB_Connection"):
             cursor.execute(
                 """ALTER TABLE dbo.User_Double ADD PRIMARY KEY ([User - iD]) """
             )
-    base_path = Path("tests/_data/dbo/user_double")
     write_db_to_delta_with_check(
-        connection.conn_str,
+        reader,
         ("dbo", "User_Double"),
-        base_path,
+        dest,
         write_config=write_config,
     )
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE VIEW v_user AS " + sql)
+        duckdb_create_view_for_delta(con, (dest / "delta").as_delta_table(), "v_user")
 
         name_tuples = con.execute(
             'SELECT FirstName from v_user order by "User_-_iD"'
@@ -55,8 +60,12 @@ def test_first_load_timestamp(connection: "DB_Connection"):
             "select data_type from information_Schema.columns where table_name='v_user' and column_name='Age'"
         ).fetchall()[0]
         assert age_dt[0].upper() == "DOUBLE"
-        con.execute(
-            f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
+        duckdb_create_view_for_delta(
+            con,
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
+            "v_latest_pk",
         )
 
         id_tuples = con.execute(
@@ -77,8 +86,8 @@ def test_first_load_timestamp(connection: "DB_Connection"):
                    """
             )
     write_db_to_delta_with_check(  # some delta load
-        connection.conn_str,
+        reader,
         ("dbo", "User_Double"),
-        base_path,
+        dest,
         write_config=write_config,
     )
