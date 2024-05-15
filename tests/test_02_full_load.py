@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import get_sql_for_delta
+from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from deltalake import DeltaTable
 from datetime import date
@@ -35,9 +35,12 @@ def test_first_load_always_full(
 
     time.sleep(2)
     with duckdb.connect() as con:
-        sql = get_sql_for_delta((dest / "delta").as_delta_table())
-        assert sql is not None
-        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_long_table_name_temp"
+        )
+        res = con.execute(
+            "select max(__timestamp) from v_long_table_name_temp s"
+        ).fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
@@ -58,9 +61,9 @@ def test_first_load_always_full(
     )
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta((dest / "delta").as_delta_table())
-        assert sql is not None
-        con.execute("CREATE VIEW v_long_table_name AS " + sql)
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_long_table_name"
+        )
 
         name_tuples = con.execute(
             f'SELECT date from v_long_table_name where __timestamp>{sql_quote_value(max_valid_from)} order by "long_column_name"'

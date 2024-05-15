@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import get_sql_for_delta, duckdb_create_view_for_delta
+from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from deltalake import DeltaTable
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
@@ -61,9 +61,9 @@ def test_delta(
         dest,
     )
     with duckdb.connect() as con:
-        sql = get_sql_for_delta((dest / "delta").as_delta_table())
-        assert sql is not None
-        con.execute("CREATE VIEW v_user_scd2 AS " + sql)
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+        )
 
         name_tuples = con.execute(
             'SELECT FirstName, LastName, __is_deleted  from v_user_scd2 order by "User_-_iD", __timestamp'
