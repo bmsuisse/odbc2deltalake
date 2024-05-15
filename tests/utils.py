@@ -69,13 +69,16 @@ def get_test_run_configs(
     from odbc2deltalake.destination.file_system import FileSystemDestination
     from odbc2deltalake.reader.odbc_reader import ODBCReader
 
+    sub_path = "/".join(tbl_dest_name.split("/")[0:-1])
+    os.makedirs("tests/_db/_azure/" + sub_path, exist_ok=True)
+    os.makedirs("tests/_db/_local/" + sub_path, exist_ok=True)
     cfg = {
         "azure": (
-            ODBCReader(connection.conn_str),
+            ODBCReader(connection.conn_str, f"tests/_db/_azure/{tbl_dest_name}.duckdb"),
             AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
         ),
         "local": (
-            ODBCReader(connection.conn_str),
+            ODBCReader(connection.conn_str, f"tests/_db/_local/{tbl_dest_name}.duckdb"),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
         ),
     }
