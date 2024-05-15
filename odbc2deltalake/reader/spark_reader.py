@@ -100,11 +100,28 @@ class SparkReader(DataSourceReader):
         return [row.asDict() for row in spark_rows]
 
     def local_execute_sql_to_delta(
-        self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
+        self,
+        sql: Query,
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        *,
+        based_on_self: bool = False,
     ):
-        self.spark.sql(sql.sql(self._dialect)).write.format("delta").option(
+        if based_on_self:
+            temp_target = delta_path.parent / (
+                "_temp_" + str(abs(hash(str(delta_path))))
+            )
+            self.spark.sql(sql.sql(self._dialect)).write.format("delta").option(
+                "overwriteSchema", "true"
+            ).mode("overwrite").save(str(temp_target))
+            df = self.spark.read.format("delta").load(str(temp_target))
+        else:
+            df = self.spark.sql(sql.sql(self._dialect))
+        df.write.format("delta").option(
             "mergeSchema" if mode == "append" else "overwriteSchema", "true"
         ).mode(mode).save(str(delta_path))
+        if based_on_self:
+            temp_target.remove(True)
 
     def local_pylist_to_delta(
         self,

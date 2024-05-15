@@ -347,6 +347,7 @@ def write_latest_pk(
         latest_pk_query,
         destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
+        based_on_self=merge_delta,
     )
 
 

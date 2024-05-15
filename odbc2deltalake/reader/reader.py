@@ -70,7 +70,7 @@ class DataSourceReader(ABC):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         *,
-        based_on_itself: bool = False,
+        based_on_self: bool = False,
     ):
         pass
 
