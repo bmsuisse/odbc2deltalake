@@ -117,6 +117,8 @@ def spawn_azurite():
 
 @pytest.fixture(scope="session")
 def spark_session():
+    if os.getenv("NO_SPARK", "0") == "1":
+        return None
     from pyspark.sql import SparkSession
     from delta import configure_spark_with_delta_pip
 

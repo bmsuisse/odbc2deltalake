@@ -7,6 +7,7 @@ import pandas as pd
 from sqlglot import from_
 import sqlglot.expressions as ex
 from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
+import os
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -52,7 +53,11 @@ def write_db_to_delta_with_check(
     return w
 
 
-config_names = ["azure", "spark", "local"]
+config_names = (
+    ["azure", "spark", "local"]
+    if not os.getenv("NO_SPARK", "0") == "1"
+    else ["azure", "local"]
+)
 
 
 def get_test_run_configs(
@@ -64,17 +69,19 @@ def get_test_run_configs(
     from odbc2deltalake.destination.file_system import FileSystemDestination
     from odbc2deltalake.reader.odbc_reader import ODBCReader
 
-    return {
+    cfg = {
         "azure": (
             ODBCReader(connection.conn_str),
             AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
-        ),
-        "spark": (
-            SparkReader(spark_session, connection.jdbc_options, jdbc=True),
-            FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}")),
         ),
         "local": (
             ODBCReader(connection.conn_str),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
         ),
     }
+    if spark_session is not None:
+        cfg["spark"] = (
+            SparkReader(spark_session, connection.jdbc_options, jdbc=True),
+            FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}")),
+        )
+    return cfg

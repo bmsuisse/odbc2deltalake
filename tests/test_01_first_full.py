@@ -79,6 +79,7 @@ def test_first_load_sys_start(
 
 
 @pytest.mark.order(3)
+@pytest.mark.parametrize("conf_name", config_names)
 def test_first_load_always_full(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
