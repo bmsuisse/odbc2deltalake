@@ -958,8 +958,11 @@ def _handle_additional_updates(
                 5
                 + (
                     10
-                    if p.data_type
-                    in ["bit", "int", "bigint", "tinyint", "bool", "smallint"]
+                    if p.data_type.this
+                    in [
+                        ex.DataType.Type.BOOLEAN,
+                        *ex.DataType.NUMERIC_TYPES,
+                    ]
                     else 40
                 )
                 for p in pk_cols

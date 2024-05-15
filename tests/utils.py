@@ -9,7 +9,8 @@ import sqlglot.expressions as ex
 from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
 
 if TYPE_CHECKING:
-    pass
+    from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 def check_latest_pk(infos: WriteConfigAndInfos):
@@ -49,3 +50,31 @@ def write_db_to_delta_with_check(
 
     check_latest_pk(w)
     return w
+
+
+config_names = ["azure", "spark", "local"]
+
+
+def get_test_run_configs(
+    connection: "DB_Connection", spark_session: "SparkSession", tbl_dest_name: str
+) -> dict[str, tuple[DataSourceReader, Destination]]:
+    from odbc2deltalake.reader.spark_reader import SparkReader
+    from odbc2deltalake.destination.azure import AzureDestination
+    from pathlib import Path
+    from odbc2deltalake.destination.file_system import FileSystemDestination
+    from odbc2deltalake.reader.odbc_reader import ODBCReader
+
+    return {
+        "azure": (
+            ODBCReader(connection.conn_str),
+            AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
+        ),
+        "spark": (
+            SparkReader(spark_session, connection.jdbc_options, jdbc=True),
+            FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}")),
+        ),
+        "local": (
+            ODBCReader(connection.conn_str),
+            FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
+        ),
+    }
