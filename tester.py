@@ -1,4 +1,3 @@
-import sqlglot.expressions as ex
 import sqlglot
 
 print(

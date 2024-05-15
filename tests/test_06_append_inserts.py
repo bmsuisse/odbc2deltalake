@@ -1,11 +1,9 @@
-from pathlib import Path
 import time
 from typing import TYPE_CHECKING
 import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from deltalake import DeltaTable
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+from .utils import config_names, get_test_run_configs
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection

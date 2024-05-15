@@ -2,7 +2,6 @@ from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
 from typing import Literal, TYPE_CHECKING, Callable, Optional, Union
-import os
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession, DataFrame

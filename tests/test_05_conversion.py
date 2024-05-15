@@ -1,10 +1,8 @@
-from pathlib import Path
 import time
 from typing import TYPE_CHECKING
 import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from deltalake import DeltaTable
 
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import sqlglot.expressions as ex

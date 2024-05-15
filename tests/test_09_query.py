@@ -1,9 +1,7 @@
-from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from deltalake import DeltaTable
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import sqlglot as sg
 import sqlglot.expressions as ex
@@ -19,7 +17,6 @@ if TYPE_CHECKING:
 def test_delta_query(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake.reader.odbc_reader import ODBCReader
     from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user5")[
