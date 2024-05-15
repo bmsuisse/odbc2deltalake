@@ -28,7 +28,7 @@ def test_delta_sys(
     t = (dest / "delta").as_delta_table()
     col_names = [f.name for f in t.schema().fields]
     assert "__timestamp" in col_names
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """
@@ -70,7 +70,7 @@ select 'c500',
         ]
 
     time.sleep(1)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """

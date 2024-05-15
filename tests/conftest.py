@@ -32,49 +32,49 @@ class DB_Connection:
             odbc=True,
         )
         self.conn_str_master = conn_str
-        self.conn = pyodbc.connect(conn_str, autocommit=True)
-        with self.conn.cursor() as cursor:
-            try:
-                cursor.execute(" drop DATABASE if exists db_to_delta_test")
-                cursor.execute("CREATE DATABASE db_to_delta_test")
-            except Exception as e:
-                logger.error("Error drop creating db", exc_info=e)
-        with self.conn.cursor() as cursor:
-            cursor.execute("USE db_to_delta_test")
-        with open("tests/sqls/init.sql", encoding="utf-8-sig") as f:
-            sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
-            for sql in sqls:
-                with self.conn.cursor() as cursor:
-                    cursor.execute(sql)
-        self.conn_str = conn_str.replace(
-            "database=master", "database=db_to_delta_test"
-        ).replace("Database=master", "Database=db_to_delta_test")
-        if "db_to_delta_test" not in self.conn_str:
-            raise ValueError("Database not created correctly")
+        self.master_conn = pyodbc.connect(conn_str, autocommit=True)
+        configs = ["azure", "spark", "local"]
+        self.conn_str: dict[str, str] = dict()
+        for cfg in configs:
+            db_name = "db_to_delta_test_" + cfg
+            with self.master_conn.cursor() as cursor:
+                try:
+                    cursor.execute(" drop DATABASE if exists " + db_name)
+                    cursor.execute("CREATE DATABASE " + db_name)
+                except Exception as e:
+                    logger.error("Error drop creating db", exc_info=e)
+            with self.master_conn.cursor() as cursor:
+                cursor.execute("USE " + db_name)
+            with open("tests/sqls/init.sql", encoding="utf-8-sig") as f:
+                sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
+                for sql in sqls:
+                    with self.master_conn.cursor() as cursor:
+                        cursor.execute(sql)
+            self.conn_str[cfg] = conn_str.replace(
+                "database=master", "database=" + db_name
+            ).replace("Database=master", "Database=" + db_name)
+            if db_name not in self.conn_str[cfg]:
+                raise ValueError("Database not created correctly")
 
     def __enter__(self):
         return self
 
-    @property
-    def jdbc_options(self):
-        parts = self.conn_str.split(";")
+    def get_jdbc_options(self, cfg_name: str):
+        parts = self.conn_str[cfg_name].split(";")
         part_map = {p.split("=")[0]: p.split("=")[1] for p in parts}
         map_keys = {"UID": "user", "PWD": "password", "server": "host"}
         d = {map_keys.get(k, k): v for k, v in part_map.items()}
         d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
         return d
 
-    def new_connection(self):
-        return pyodbc.connect(self.conn_str, autocommit=True)
-
-    def cursor(self):
-        return self.conn.cursor()
+    def new_connection(self, cfg_name: str):
+        return pyodbc.connect(self.conn_str[cfg_name], autocommit=True)
 
     def close(self):
-        self.conn.close()
+        self.master_conn.close()
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.conn.close()
+        self.master_conn.close()
 
 
 @pytest.fixture(scope="session")

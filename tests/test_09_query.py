@@ -32,7 +32,7 @@ def test_delta_query(
     config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
     assert isinstance(query, ex.Query)
     write_db_to_delta_with_check(reader, query, dest, write_config=config)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO [dbo].[user5] ([FirstName], [LastName], [Age], companyid)

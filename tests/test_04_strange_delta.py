@@ -24,7 +24,7 @@ def test_strange_delta(
         conf_name
     ]
     write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """
@@ -51,7 +51,7 @@ def test_strange_delta(
     write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
     # so far we have no strange data yet. But we make it happen ;)
     # we rename user4 to user3, which will through around timestamps especially for record Johniingham
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """exec sp_rename 'dbo.user3', 'user3_';
@@ -67,7 +67,7 @@ def test_strange_delta(
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute("""select * from user3""")
             alls = cursor.fetchall()
@@ -122,7 +122,7 @@ def test_strange_delta_sys(
         conf_name
     ]
     write_db_to_delta(reader, ("dbo", "company2"), dest)  # empty
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
@@ -141,7 +141,7 @@ def test_strange_delta_sys(
         max_valid_from = res[0]
         assert max_valid_from is not None
     time.sleep(2)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute("ALTER TABLE dbo.company2 drop PERIOD FOR SYSTEM_TIME;")
         with nc.cursor() as cursor:

@@ -41,7 +41,7 @@ def test_append_inserts(
         assert id_tuples == [(1, "The first log message")]
 
     time.sleep(1)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO [dbo].[log] ([message])

@@ -35,7 +35,7 @@ def test_first_load_timestamp(
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user_double")[
         conf_name
     ]
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute("""DROP TABLE IF EXISTS dbo.User_Double""")
             cursor.execute("""SELECT * INTO dbo.User_Double FROM dbo.[User] """)
@@ -74,7 +74,7 @@ def test_first_load_timestamp(
         assert id_tuples == [(1,), (2,), (3,)]
 
     time.sleep(1)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO [dbo].[User_Double] ([FirstName], [LastName], [Age], companyid)

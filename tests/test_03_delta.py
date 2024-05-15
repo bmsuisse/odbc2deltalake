@@ -25,7 +25,7 @@ def test_delta(
         conf_name
     ]
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO [dbo].[user2$] ([FirstName], [LastName], [Age], companyid)
@@ -122,7 +122,7 @@ def test_delta_sys(
         conf_name
     ]
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # full load
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """

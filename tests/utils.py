@@ -74,17 +74,21 @@ def get_test_run_configs(
     os.makedirs("tests/_db/_local/" + sub_path, exist_ok=True)
     cfg = {
         "azure": (
-            ODBCReader(connection.conn_str, f"tests/_db/_azure/{tbl_dest_name}.duckdb"),
+            ODBCReader(
+                connection.conn_str["azure"], f"tests/_db/_azure/{tbl_dest_name}.duckdb"
+            ),
             AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
         ),
         "local": (
-            ODBCReader(connection.conn_str, f"tests/_db/_local/{tbl_dest_name}.duckdb"),
+            ODBCReader(
+                connection.conn_str["local"], f"tests/_db/_local/{tbl_dest_name}.duckdb"
+            ),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
         ),
     }
     if spark_session is not None:
         cfg["spark"] = (
-            SparkReader(spark_session, connection.jdbc_options, jdbc=True),
+            SparkReader(spark_session, connection.get_jdbc_options("spark"), jdbc=True),
             FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}")),
         )
     return cfg
