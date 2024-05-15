@@ -111,6 +111,7 @@ def test_strange_delta(
 
 
 @pytest.mark.order(7)
+@pytest.mark.parametrize("conf_name", config_names)
 def test_strange_delta_sys(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
