@@ -69,7 +69,7 @@ def _source_convert(
 
 valid_from_expr = ex.cast(
     ex.func("GETUTCDATE", dialect="tsql"), ex.DataType(this="datetime2(6)")
-).as_(VALID_FROM_COL_NAME)
+).as_(VALID_FROM_COL_NAME, quoted=True)
 
 
 def _get_cols_select(
@@ -102,12 +102,20 @@ def _get_cols_select(
         ]
         + ([valid_from_expr] if with_valid_from else [])
         + (
-            [ex.cast(ex.convert(int(is_deleted)), "bit").as_(IS_DELETED_COL_NAME)]
+            [
+                ex.cast(ex.convert(int(is_deleted)), "bit").as_(
+                    IS_DELETED_COL_NAME, quoted=True
+                )
+            ]
             if is_deleted is not None
             else []
         )
         + (
-            [ex.cast(ex.convert(int(is_full)), "bit").as_(IS_FULL_LOAD_COL_NAME)]
+            [
+                ex.cast(ex.convert(int(is_full)), "bit").as_(
+                    IS_FULL_LOAD_COL_NAME, quoted=True
+                )
+            ]
             if is_full is not None
             else []
         )
@@ -347,6 +355,7 @@ def write_latest_pk(
         latest_pk_query,
         destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
+        based_on_self=merge_delta,
     )
 
 
@@ -634,9 +643,9 @@ def do_deletes(
                 ex.AtTimeZone(
                     this=ex.CurrentTimestamp(),
                     zone=ex.Literal(this="UTC", is_string=True),
-                ).as_(VALID_FROM_COL_NAME),
-                ex.convert(True).as_(IS_DELETED_COL_NAME),
-                ex.convert(False).as_(IS_FULL_LOAD_COL_NAME),
+                ).as_(VALID_FROM_COL_NAME, quoted=True),
+                ex.convert(True).as_(IS_DELETED_COL_NAME, quoted=True),
+                ex.convert(False).as_(IS_FULL_LOAD_COL_NAME, quoted=True),
             )
             .from_(table_from_tuple("delta_1", alias="d1"))
             .where("1=0"),  # only used to get correct datatypes
@@ -648,11 +657,13 @@ def do_deletes(
                 ex.AtTimeZone(
                     this=ex.CurrentTimestamp(),
                     zone=ex.Literal(this="UTC", is_string=True),
-                ).as_(VALID_FROM_COL_NAME),
+                ).as_(VALID_FROM_COL_NAME, quoted=True),
                 append=True,
             )
-            .select(ex.convert(True).as_(IS_DELETED_COL_NAME), append=True)
-            .select(ex.convert(False).as_(IS_FULL_LOAD_COL_NAME), append=True)
+            .select(ex.convert(True).as_(IS_DELETED_COL_NAME, quoted=True), append=True)
+            .select(
+                ex.convert(False).as_(IS_FULL_LOAD_COL_NAME, quoted=True), append=True
+            )
             .from_(table_from_tuple("deletes", alias="d")),
         ],
         distinct=False,
@@ -958,8 +969,11 @@ def _handle_additional_updates(
                 5
                 + (
                     10
-                    if p.data_type
-                    in ["bit", "int", "bigint", "tinyint", "bool", "smallint"]
+                    if p.data_type.this
+                    in [
+                        ex.DataType.Type.BOOLEAN,
+                        *ex.DataType.NUMERIC_TYPES,
+                    ]
                     else 40
                 )
                 for p in pk_cols

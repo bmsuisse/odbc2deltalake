@@ -1,30 +1,32 @@
-from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from deltalake import DeltaTable
-from .utils import write_db_to_delta_with_check
+from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import time
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 @pytest.mark.order(14)
-def test_delta_sys(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_delta_sys(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import write_db_to_delta, WriteConfig
 
     cfg = WriteConfig(load_mode="simple_delta_check")
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_3_dc")[
+        conf_name
+    ]
 
-    base_path = Path("tests/_data/dbo/company_3_dc")
-    write_db_to_delta_with_check(
-        connection.conn_str, ("dbo", "company3"), base_path, cfg
-    )  # full load
-    t = DeltaTable(base_path / "delta")
+    write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load
+    t = (dest / "delta").as_delta_table()
     col_names = [f.name for f in t.schema().fields]
     assert "__timestamp" in col_names
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """
@@ -39,9 +41,7 @@ select 'c500',
                    """
             )
 
-    write_db_to_delta(
-        connection.conn_str, ("dbo", "company3"), base_path, cfg
-    )  # delta load
+    write_db_to_delta(reader, ("dbo", "company3"), dest, cfg)  # delta load
     t.update_incremental()
     col_names = [f.name for f in t.schema().fields]
     assert "__timestamp" in col_names
@@ -51,7 +51,7 @@ select 'c500',
         print(alls)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, DeltaTable(base_path / "delta"), "v_company_scd2"
+            con, (dest / "delta").as_delta_table(), "v_company_scd2"
         )
         name_tuples = con.execute(
             """SELECT lf.name, lf.__is_deleted from v_company_scd2 lf 
@@ -68,7 +68,7 @@ select 'c500',
         ]
 
     time.sleep(1)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """
@@ -76,13 +76,11 @@ delete from dbo.[company3] where id='c400'
                    """
             )
     time.sleep(1)
-    write_db_to_delta_with_check(
-        connection.conn_str, ("dbo", "company3"), base_path, write_config=cfg
-    )
+    write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, write_config=cfg)
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, DeltaTable(base_path / "delta"), "v_company_scd2"
+            con, (dest / "delta").as_delta_table(), "v_company_scd2"
         )
         name_tuples = con.execute(
             """SELECT lf.name, lf.__is_deleted from v_company_scd2 lf 
@@ -98,4 +96,4 @@ delete from dbo.[company3] where id='c400'
             ("The 500 company", False),
         ]
     time.sleep(1)
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "company3"), base_path)
+    write_db_to_delta_with_check(reader, ("dbo", "company3"), dest)

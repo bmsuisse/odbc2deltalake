@@ -7,9 +7,11 @@ import pandas as pd
 from sqlglot import from_
 import sqlglot.expressions as ex
 from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
+import os
 
 if TYPE_CHECKING:
-    pass
+    from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 def check_latest_pk(infos: WriteConfigAndInfos):
@@ -49,3 +51,44 @@ def write_db_to_delta_with_check(
 
     check_latest_pk(w)
     return w
+
+
+config_names = (
+    ["azure", "spark", "local"]
+    if not os.getenv("NO_SPARK", "0") == "1"
+    else ["azure", "local"]
+)
+
+
+def get_test_run_configs(
+    connection: "DB_Connection", spark_session: "SparkSession", tbl_dest_name: str
+) -> dict[str, tuple[DataSourceReader, Destination]]:
+    from odbc2deltalake.reader.spark_reader import SparkReader
+    from odbc2deltalake.destination.azure import AzureDestination
+    from pathlib import Path
+    from odbc2deltalake.destination.file_system import FileSystemDestination
+    from odbc2deltalake.reader.odbc_reader import ODBCReader
+
+    sub_path = "/".join(tbl_dest_name.split("/")[0:-1])
+    os.makedirs("tests/_db/_azure/" + sub_path, exist_ok=True)
+    os.makedirs("tests/_db/_local/" + sub_path, exist_ok=True)
+    cfg = {
+        "azure": (
+            ODBCReader(
+                connection.conn_str["azure"], f"tests/_db/_azure/{tbl_dest_name}.duckdb"
+            ),
+            AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
+        ),
+        "local": (
+            ODBCReader(
+                connection.conn_str["local"], f"tests/_db/_local/{tbl_dest_name}.duckdb"
+            ),
+            FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
+        ),
+    }
+    if spark_session is not None:
+        cfg["spark"] = (
+            SparkReader(spark_session, connection.get_jdbc_options("spark"), jdbc=True),
+            FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}")),
+        )
+    return cfg

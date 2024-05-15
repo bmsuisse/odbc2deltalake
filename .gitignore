@@ -160,6 +160,7 @@ cython_debug/
 #.idea/
 
 tests/_data
+tests/_db
 __azurite*
 __blob*
 debug.sql

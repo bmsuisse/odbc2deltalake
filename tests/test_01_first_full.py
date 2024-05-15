@@ -1,34 +1,40 @@
-from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import get_sql_for_delta
+from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from deltalake import DeltaTable
 from datetime import date
-from .utils import write_db_to_delta_with_check
+from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 @pytest.mark.order(1)
-def test_first_load_timestamp(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_first_load_timestamp(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import DBDeltaPathConfigs
 
-    base_path = Path("tests/_data/dbo/user")
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user"), base_path)
-    with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE VIEW v_user AS " + sql)
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user")[
+        conf_name
+    ]
 
+    write_db_to_delta_with_check(reader, ("dbo", "user"), dest)
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(con, (dest / "delta").as_delta_table(), "v_user")
         name_tuples = con.execute(
             'SELECT FirstName from v_user order by "User_-_iD"'
         ).fetchall()
         assert name_tuples == [("John",), ("Peter",), ("Petra",)]
 
-        con.execute(
-            f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
+        duckdb_create_view_for_delta(
+            con,
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
+            "v_latest_pk",
         )
 
         id_tuples = con.execute(
@@ -38,45 +44,59 @@ def test_first_load_timestamp(connection: "DB_Connection"):
 
 
 @pytest.mark.order(2)
-def test_first_load_sys_start(connection: "DB_Connection"):
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+@pytest.mark.parametrize("conf_name", config_names)
+def test_first_load_sys_start(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
+    from odbc2deltalake import DBDeltaPathConfigs, write_db_to_delta
 
-    base_path = Path("tests/_data/dbo/company")
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company")[
+        conf_name
+    ]
 
-    write_db_to_delta(connection.conn_str, ("dbo", "company"), base_path)
+    write_db_to_delta(reader, ("dbo", "company"), dest)
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE VIEW v_company AS " + sql)
-
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_company"
+        )
         name_tuples = con.execute('SELECT name from v_company order by "id"').fetchall()
         assert name_tuples == [("The First company",), ("The Second company",)]
-        con.execute(
-            f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
-        )
 
-        id_tuples = con.execute('SELECT "id" from v_latest_pk order by "id"').fetchall()
+        duckdb_create_view_for_delta(
+            con,
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
+            "v_latest_pk_company",
+        )
+        id_tuples = con.execute(
+            'SELECT "id" from v_latest_pk_company order by "id"'
+        ).fetchall()
         assert id_tuples == [("c1",), ("c2",)]
 
 
 @pytest.mark.order(3)
-def test_first_load_always_full(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_first_load_always_full(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import write_db_to_delta
 
-    base_path = Path(
-        "tests/_data/long_schema/long_table_name"
-    )  # spaces in file names cause trouble with delta-rs
+    reader, dest = get_test_run_configs(
+        connection, spark_session, "long_schema/long_table_name"
+    )[conf_name]
+
     write_db_to_delta(
-        connection.conn_str,
+        reader,
         ("long schema", "long table name"),
-        base_path,
+        dest,
     )
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE VIEW v_long_table_name AS " + sql)
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_long_table_name"
+        )
 
         name_tuples = con.execute(
             'SELECT date from v_long_table_name order by "long_column_name"'

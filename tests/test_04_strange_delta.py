@@ -1,24 +1,27 @@
-from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import get_sql_for_delta, duckdb_create_view_for_delta
+from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from deltalake import DeltaTable
-from .utils import write_db_to_delta_with_check
+from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 @pytest.mark.order(6)
-def test_strange_delta(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_strange_delta(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import DBDeltaPathConfigs
-    from odbc2deltalake.reader.odbc_reader import ODBCReader
 
-    base_path = Path("tests/_data/dbo/user3")
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user3"), base_path)
-    with connection.new_connection() as nc:
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user3")[
+        conf_name
+    ]
+    write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """
@@ -42,10 +45,10 @@ def test_strange_delta(connection: "DB_Connection"):
     import time
 
     time.sleep(2)
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user3"), base_path)
+    write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
     # so far we have no strange data yet. But we make it happen ;)
     # we rename user4 to user3, which will through around timestamps especially for record Johniingham
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """exec sp_rename 'dbo.user3', 'user3_';
@@ -54,13 +57,14 @@ def test_strange_delta(connection: "DB_Connection"):
             )
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_user3_scd2_temp"
+        )
+        res = con.execute("select max(__timestamp) from v_user3_scd2_temp s").fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute("""select * from user3""")
             alls = cursor.fetchall()
@@ -68,18 +72,21 @@ def test_strange_delta(connection: "DB_Connection"):
             dicts = [dict(zip(cols, row)) for row in alls]
             print(dicts)
     write_db_to_delta_with_check(
-        ODBCReader(connection.conn_str, "tests/_data/debug_user2.duck"),
+        reader,
         ("dbo", "user3"),
-        base_path,
+        dest,
     )
 
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE OR REPLACE VIEW v_user3_scd2 AS " + sql)
-
-        con.execute(
-            f'create view v_latest_pk_user3 as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_user3_scd2"
+        )
+        duckdb_create_view_for_delta(
+            con,
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
+            "v_latest_pk_user3",
         )
 
         id_tuples = con.execute(
@@ -101,32 +108,38 @@ def test_strange_delta(connection: "DB_Connection"):
 
 
 @pytest.mark.order(7)
-def test_strange_delta_sys(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_strange_delta_sys(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
 
     import time
 
-    base_path = Path("tests/_data/dbo/company2_1")
-    write_db_to_delta(connection.conn_str, ("dbo", "company2"), base_path)  # empty
-    with connection.new_connection() as nc:
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company2_1")[
+        conf_name
+    ]
+    write_db_to_delta(reader, ("dbo", "company2"), dest)  # empty
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
             )
     write_db_to_delta_with_check(  # normal full load
-        connection.conn_str, ("dbo", "company2"), base_path
+        reader, ("dbo", "company2"), dest
     )
 
     time.sleep(2)
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_company2_temp"
+        )
+        res = con.execute("select max(__timestamp) from v_company2_temp s").fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
     time.sleep(2)
-    with connection.new_connection() as nc:
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute("ALTER TABLE dbo.company2 drop PERIOD FOR SYSTEM_TIME;")
         with nc.cursor() as cursor:
@@ -151,15 +164,17 @@ def test_strange_delta_sys(connection: "DB_Connection"):
             cols = [c[0] for c in cursor.description]
             dicts = [dict(zip(cols, row)) for row in alls]
             print(dicts)
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "company2"), base_path)
+    write_db_to_delta_with_check(reader, ("dbo", "company2"), dest)
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, DeltaTable(base_path / "delta"), "v_company2_scd2"
+            con, (dest / "delta").as_delta_table(), "v_company2_scd2"
         )
         duckdb_create_view_for_delta(
             con,
-            DeltaTable(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION),
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
             "v_latest_pk_company2",
         )
 

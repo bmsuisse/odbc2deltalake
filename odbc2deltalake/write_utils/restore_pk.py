@@ -27,8 +27,12 @@ def create_last_pk_version_view(
 
     sq_valid_from = reader.local_execute_sql_to_py(
         sg.from_(ex.to_identifier(temp_table))
-        .select(ex.func("max", ex.column(VALID_FROM_COL_NAME)).as_(VALID_FROM_COL_NAME))
-        .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
+        .select(
+            ex.func("max", ex.column(VALID_FROM_COL_NAME, quoted=True)).as_(
+                VALID_FROM_COL_NAME, quoted=True
+            )
+        )
+        .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True))
     )
     if sq_valid_from is None or len(sq_valid_from) == 0:
         return None, None, False
@@ -46,18 +50,22 @@ def create_last_pk_version_view(
                     ex.column(
                         write_config.get_target_name(infos.delta_col), quoted=True
                     ),
-                    ex.column(VALID_FROM_COL_NAME),
+                    ex.column(VALID_FROM_COL_NAME, quoted=True),
                 ]
             ),
             copy=False,
         )
         .where(
-            ex.column(IS_FULL_LOAD_COL_NAME).eq(True)
-            and ex.column(VALID_FROM_COL_NAME).eq(
+            ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True)
+            and ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
                 ex.Subquery(
-                    this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME, "ts")))
+                    this=ex.select(
+                        ex.func(
+                            "MAX", ex.column(VALID_FROM_COL_NAME, "ts", quoted=True)
+                        )
+                    )
                     .from_(ex.table_(ex.to_identifier(temp_table), alias="ts"))
-                    .where(ex.column(IS_FULL_LOAD_COL_NAME).eq(True))
+                    .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True))
                 )
             )
         ),
@@ -77,11 +85,14 @@ def create_last_pk_version_view(
                         write_config.get_target_name(infos.delta_col), "tr", quoted=True
                     )
                 ]
-                + [ex.column(IS_DELETED_COL_NAME, "tr")]
-                + [ex.column(VALID_FROM_COL_NAME, "tr")]
+                + [ex.column(IS_DELETED_COL_NAME, "tr", quoted=True)]
+                + [ex.column(VALID_FROM_COL_NAME, "tr", quoted=True)]
             )
         )
-        .where(ex.column(VALID_FROM_COL_NAME) > ex.convert(latest_full_load_date))
+        .where(
+            ex.column(VALID_FROM_COL_NAME, quoted=True)
+            > ex.convert(latest_full_load_date)
+        )
     )
     sq = sq.qualify(
         ex.EQ(
@@ -94,7 +105,7 @@ def create_last_pk_version_view(
                 order=ex.Order(
                     expressions=[
                         ex.Ordered(
-                            this=ex.column(VALID_FROM_COL_NAME),
+                            this=ex.column(VALID_FROM_COL_NAME, quoted=True),
                             desc=True,
                             nulls_first=False,
                         )
@@ -108,7 +119,7 @@ def create_last_pk_version_view(
     reader.local_register_view(sq, view_prefix + "delta_after_full_load")
     last_pk_query = (
         sg.from_("base")
-        .where(~ex.column(IS_DELETED_COL_NAME))
+        .where(~ex.column(IS_DELETED_COL_NAME, quoted=True))
         .with_(
             "base",
             as_=ex.union(
@@ -128,7 +139,7 @@ def create_last_pk_version_view(
                                 "df",
                                 quoted=True,
                             ),
-                            ex.column(IS_DELETED_COL_NAME, "df"),
+                            ex.column(IS_DELETED_COL_NAME, "df", quoted=True),
                         ]
                     )
                 ),
@@ -145,7 +156,7 @@ def create_last_pk_version_view(
                                 "f",
                                 quoted=True,
                             ),
-                            ex.convert(False).as_(IS_DELETED_COL_NAME),
+                            ex.convert(False).as_(IS_DELETED_COL_NAME, quoted=True),
                         ]
                     )
                 )
@@ -168,7 +179,10 @@ def create_last_pk_version_view(
                 distinct=False,
             ),
         )
-        .select(ex.Star(**{"except": [ex.column(IS_DELETED_COL_NAME)]}), append=False)
+        .select(
+            ex.Star(**{"except": [ex.column(IS_DELETED_COL_NAME, quoted=True)]}),
+            append=False,
+        )
     )
     reader.local_register_view(
         last_pk_query,

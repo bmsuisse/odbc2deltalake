@@ -65,7 +65,12 @@ class DataSourceReader(ABC):
 
     @abstractmethod
     def local_execute_sql_to_delta(
-        self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
+        self,
+        sql: Query,
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        *,
+        based_on_self: bool = False,
     ):
         pass
 

@@ -1,25 +1,28 @@
-from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import get_sql_for_delta
+from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from deltalake import DeltaTable
-from .utils import write_db_to_delta_with_check
+from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 
 from odbc2deltalake.query import sql_quote_value
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
+    from pyspark.sql import SparkSession
 
 
 @pytest.mark.order(5)
-def test_delta(connection: "DB_Connection"):
-    from odbc2deltalake.reader.odbc_reader import ODBCReader
+@pytest.mark.parametrize("conf_name", config_names)
+def test_delta(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import DBDeltaPathConfigs
 
-    base_path = Path("tests/_data/dbo/user2")
-    write_db_to_delta_with_check(connection.conn_str, ("dbo", "user2$"), base_path)
-    with connection.new_connection() as nc:
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[
+        conf_name
+    ]
+    write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """INSERT INTO [dbo].[user2$] ([FirstName], [LastName], [Age], companyid)
@@ -41,23 +44,23 @@ def test_delta(connection: "DB_Connection"):
 
     time.sleep(2)
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        res = con.execute("select max(__timestamp) from (" + sql + ") s").fetchone()
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_user_2_temp"
+        )
+        res = con.execute("select max(__timestamp) from v_user_2_temp s").fetchone()
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
 
-    reader = ODBCReader(connection.conn_str, "tests/_data/delta_test.duck")
     write_db_to_delta_with_check(
         reader,
         ("dbo", "user2$"),
-        base_path,
+        dest,
     )
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE VIEW v_user_scd2 AS " + sql)
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+        )
 
         name_tuples = con.execute(
             'SELECT FirstName, LastName, __is_deleted  from v_user_scd2 order by "User_-_iD", __timestamp'
@@ -82,9 +85,12 @@ def test_delta(connection: "DB_Connection"):
             ("Markus", "Müller"),
             ("Heiri", "Meier"),
         ]
-
-        con.execute(
-            f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
+        duckdb_create_view_for_delta(
+            con,
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
+            "v_latest_pk",
         )
 
         id_tuples = con.execute(
@@ -103,14 +109,17 @@ def test_delta(connection: "DB_Connection"):
 
 
 @pytest.mark.order(5)
-def test_delta_sys(connection: "DB_Connection"):
+@pytest.mark.parametrize("conf_name", config_names)
+def test_delta_sys(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
     from odbc2deltalake import DBDeltaPathConfigs
 
-    base_path = Path("tests/_data/dbo/company_2")
-    write_db_to_delta_with_check(
-        connection.conn_str, ("dbo", "company"), base_path
-    )  # full load
-    with connection.new_connection() as nc:
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_2")[
+        conf_name
+    ]
+    write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # full load
+    with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """
@@ -123,20 +132,22 @@ set id='c2 '
                    """
             )
 
-    write_db_to_delta_with_check(
-        connection.conn_str, ("dbo", "company"), base_path
-    )  # delta load
+    write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
     with nc.cursor() as cursor:
         cursor.execute("SELECT * FROM [dbo].[company]")
         alls = cursor.fetchall()
         print(alls)
     with duckdb.connect() as con:
-        sql = get_sql_for_delta(DeltaTable(base_path / "delta"))
-        assert sql is not None
-        con.execute("CREATE VIEW v_company_scd2 AS " + sql)
+        duckdb_create_view_for_delta(
+            con, (dest / "delta").as_delta_table(), "v_company_scd2"
+        )
 
-        con.execute(
-            f'create view v_latest_pk as {get_sql_for_delta(base_path / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION) }'
+        duckdb_create_view_for_delta(
+            con,
+            (
+                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).as_delta_table(),
+            "v_latest_pk",
         )
         name_tuples = con.execute(
             """SELECT lf.id, lf.name from v_company_scd2 lf 
