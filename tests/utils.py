@@ -14,6 +14,17 @@ if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
 
+def _ntz(df_in: pd.DataFrame):
+    df = df_in.copy()
+    col_times = [
+        col for col in df.columns if any([isinstance(x, pd.Timestamp) for x in df[col]])
+    ]
+    for col in col_times:
+        df[col] = pd.to_datetime(df[col], infer_datetime_format=True)
+        df[col] = df[col].dt.tz_localize(None)
+    return df
+
+
 def check_latest_pk(infos: WriteConfigAndInfos):
     lpk_path = infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     lpk_df = lpk_path.as_delta_table()
@@ -27,7 +38,8 @@ def check_latest_pk(infos: WriteConfigAndInfos):
         .sort_values(sort_cols)
         .reset_index(drop=True)
     )
-    comp = lpk_pd.compare(latest_pd)
+    latest_pd = _ntz(latest_pd)
+    comp = _ntz(lpk_pd).compare(latest_pd)
     if comp.shape[0] > 0:
         print(comp)
     assert comp.shape[0] == 0
