@@ -799,7 +799,7 @@ def _write_delta2(
             sub_load="delta_additional",
             sql=full_sql(f"[/* {len(data)} entries */]"),
         )
-    sql = full_sql(json.dumps(data))
+    sql = full_sql(json.dumps(data, default=str))
     if (
         len(sql) > 7000
     ):  ## oops, spark will not like this (actually the limit is 8000, but spark might use something on it's own)
@@ -807,12 +807,12 @@ def _write_delta2(
         chunk_1 = data[:ch_split]
         chunk_2 = data[ch_split:]
         infos.source.source_write_sql_to_delta(
-            full_sql(json.dumps(chunk_1)),
+            full_sql(json.dumps(chunk_1, default=str)),
             delta_2_path,
             mode=mode,
         )
         infos.source.source_write_sql_to_delta(
-            full_sql(json.dumps(chunk_2)),
+            full_sql(json.dumps(chunk_2, default=str)),
             delta_2_path,
             mode="append",
         )
