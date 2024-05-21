@@ -118,8 +118,8 @@ def create_last_pk_version_view(
     )
     reader.local_register_view(sq, view_prefix + "delta_after_full_load")
     last_pk_query = (
-        sg.from_("base")
-        .where(~ex.column(IS_DELETED_COL_NAME, quoted=True))
+        sg.from_("base", alias="b")
+        .where(~ex.column(IS_DELETED_COL_NAME, quoted=True, table="b"))
         .with_(
             "base",
             as_=ex.union(
@@ -180,7 +180,19 @@ def create_last_pk_version_view(
             ),
         )
         .select(
-            ex.Star(**{"except": [ex.column(IS_DELETED_COL_NAME, quoted=True)]}),
+            *(
+                [
+                    ex.column(write_config.get_target_name(c), "b", quoted=True)
+                    for c in infos.pk_cols
+                ]
+                + [
+                    ex.column(
+                        write_config.get_target_name(infos.delta_col),
+                        "b",
+                        quoted=True,
+                    )
+                ]
+            ),
             append=False,
         )
     )
