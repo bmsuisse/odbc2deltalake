@@ -50,8 +50,7 @@ class SparkDeltaOps(DeltaOps):
         return None
 
     def columns(self):
-        sql = f"select * from delta.`{str(self.dest)}` limit 0"
-        return self.spark.sql(sql).columns
+        return self.spark.read.format("delta").load(str(self.dest)).columns
 
 
 class SparkReader(DataSourceReader):
