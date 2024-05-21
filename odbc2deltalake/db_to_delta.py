@@ -401,10 +401,8 @@ def do_delta_load(
             logger.warning("No primary keys found, do a full load")
             do_full_load(infos=infos, mode="append")
             return
-    else:
-        cols = reader.get_local_delta_ops(
-            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-        ).columns()
+    elif last_pk_path:
+        cols = reader.get_local_delta_ops(last_pk_path).columns()
         cols = set((c.lower() for c in cols))
         pk_set = set((write_config.get_target_name(pk).lower() for pk in infos.pk_cols))
         if not cols.issuperset(pk_set):
