@@ -449,15 +449,18 @@ def do_delta_load(
             mode="append",
         )
         return
-    logger.info(
-        f"Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
-    )
     if not simple:
+        logger.info(
+            f"Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
+        )
         _retrieve_primary_key_data(infos=infos)
     else:
         source_count = reader.source_sql_to_py(
             infos.from_("t").select(ex.Count(this=ex.Star()).as_("cnt"))
         )[0]["cnt"]
+        logger.info(
+            f"Start delta step 1, MAX({delta_col.column_name}): {delta_load_value}. Total RowCount: {source_count}"
+        )
     criterion = _source_convert(
         delta_col.column_name,
         delta_col.data_type,
@@ -532,6 +535,8 @@ def do_delta_load(
             )
             if simple_check:
                 do_delta_load(infos, simple=False)
+        else:
+            logger.info(f"Source and target count match: {source_count}")
 
 
 def do_append_inserts_load(infos: WriteConfigAndInfos):
