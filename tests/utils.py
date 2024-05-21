@@ -89,6 +89,8 @@ def get_test_run_configs(
     if spark_session is not None:
         cfg["spark"] = (
             SparkReader(spark_session, connection.get_jdbc_options("spark"), jdbc=True),
-            FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}")),
+            FileSystemDestination(
+                Path(f"tests/_data/spark/{tbl_dest_name}").absolute()
+            ),
         )
     return cfg
