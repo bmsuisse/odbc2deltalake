@@ -126,7 +126,6 @@ def get_delta_col(
     for c in cols:
         if dialect == "tsql" and c.data_type.this in [
             ex.DataType.Type.ROWVERSION,
-            ex.DataType.Type.TIMESTAMP,
         ]:
             return c
         if c.generated_always_type_desc == "AS_ROW_START":
