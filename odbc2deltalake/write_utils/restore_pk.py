@@ -118,7 +118,7 @@ def create_last_pk_version_view(
     )
     reader.local_register_view(sq, view_prefix + "delta_after_full_load")
     last_pk_query = (
-        sg.from_("base", alias="b")
+        sg.from_(ex.table_("base", alias="b"))
         .where(~ex.column(IS_DELETED_COL_NAME, quoted=True, table="b"))
         .with_(
             "base",
