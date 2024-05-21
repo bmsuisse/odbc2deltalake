@@ -1902,4 +1902,4 @@ local-azure = ["adlfs", "azure-identity"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "8d9fccade5d3485ac05e04bed239dd2d446fca3f25f849c3efd414900fa86224"
+content-hash = "b307f62ac3eaf422ee979e4bd9d623f1ffab050dde15cad869927037c0384ab2"
