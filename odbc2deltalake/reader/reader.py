@@ -1,7 +1,7 @@
 from odbc2deltalake.destination.destination import Destination
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal, Protocol, Any, Union
+from typing import TYPE_CHECKING, Literal, Protocol, Any, Sequence, Union
 from sqlglot.expressions import Query
 
 if TYPE_CHECKING:
@@ -22,6 +22,8 @@ class DeltaOps(Protocol):
     def set_properties(self, props: dict[str, str]): ...
 
     def get_property(self, key: str) -> Union[str, None]: ...
+
+    def columns(self) -> Sequence[str]: ...
 
 
 class DataSourceReader(ABC):

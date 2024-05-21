@@ -49,6 +49,9 @@ class SparkDeltaOps(DeltaOps):
             return res[0].value
         return None
 
+    def columns(self):
+        return self.spark.read.format("delta").load(str(self.dest)).columns
+
 
 class SparkReader(DataSourceReader):
     def __init__(

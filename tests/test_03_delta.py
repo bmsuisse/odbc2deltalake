@@ -47,6 +47,12 @@ def test_delta(
         duckdb_create_view_for_delta(
             con, (dest / "delta").as_delta_table(), "v_user_2_temp"
         )
+        res = con.execute(
+            'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
+        ).fetchone()
+        assert res is not None
+        assert isinstance(res[0], int), "time_stamp is not an integer"
+
         res = con.execute("select max(__timestamp) from v_user_2_temp s").fetchone()
         assert res is not None
         max_valid_from = res[0]

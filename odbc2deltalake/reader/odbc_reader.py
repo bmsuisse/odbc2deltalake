@@ -84,6 +84,9 @@ class DeltaRSDeltaOps(DeltaOps):
     def get_property(self, key: str):
         return self.delta_table.metadata().configuration.get(key, None)
 
+    def columns(self):
+        return [f.name for f in self.delta_table.schema().fields]
+
 
 class ODBCReader(DataSourceReader):
     def __init__(self, connection_string: str, local_db: str = ":memory:") -> None:
