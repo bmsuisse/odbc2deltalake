@@ -1,6 +1,7 @@
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
+import sqlglot as sg
 from typing import Literal, TYPE_CHECKING, Callable, Optional, Sequence, Union
 
 if TYPE_CHECKING:
@@ -250,7 +251,15 @@ class SparkReader(DataSourceReader):
 
         assert len(merge_cols) > 0
         df_source = self.spark.sql(local_sql_source.sql(self._dialect))
+
         DeltaTable.forPath(self.spark, str(target_delta)).alias("tgt").merge(
             df_source.alias("src"),
-            " AND ".join((f'tgt."{mc}" = src."{mc}"' for mc in merge_cols)),
+            sg.and_(
+                *[
+                    sg.column(mc, "tgt", quoted=True).eq(
+                        sg.column(mc, "src", quoted=True)
+                    )
+                    for mc in merge_cols
+                ]
+            ).sql(self._dialect),
         ).whenNotMatchedInsertAll().whenMatchedUpdateAll().execute()

@@ -5,6 +5,7 @@ from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
 from typing import TYPE_CHECKING, Literal, Optional, Sequence, Union
 from sqlglot.expressions import Query, DataType
+import sqlglot as sg
 
 if TYPE_CHECKING:
     import pyarrow as pa
@@ -122,7 +123,7 @@ class ODBCReader(DataSourceReader):
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         with self.duck_con.cursor() as cursor:
-            cursor.execute(sql.sql("duckdb"))
+            cursor.execute(sql.sql(self.query_dialect))
             assert cursor.description is not None
             col_names = [desc[0] for desc in cursor.description]
             return [dict(zip(col_names, row)) for row in cursor.fetchall()]
@@ -131,7 +132,9 @@ class ODBCReader(DataSourceReader):
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
-        self.duck_con.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql('duckdb')}")
+        self.duck_con.sql(
+            f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql(self.query_dialect)}"
+        )
 
     def local_pylist_to_delta(
         self,
@@ -187,7 +190,7 @@ class ODBCReader(DataSourceReader):
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
 
         with self.duck_con.cursor() as cur:
-            cur.execute(sql.sql("duckdb"))
+            cur.execute(sql.sql(self.query_dialect))
             dp, do = delta_path.as_path_options("object_store")
             batch_reader = cur.fetch_record_batch()
             schema = batch_reader.schema
@@ -308,12 +311,19 @@ class ODBCReader(DataSourceReader):
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
 
         with self.duck_con.cursor() as cursor:
-            cursor.execute(local_sql_source.sql("duckdb"))
+            cursor.execute(local_sql_source.sql(self.query_dialect))
             dt = target_delta.as_delta_table()
             res = (
                 dt.merge(
                     cursor.fetch_record_batch(),
-                    " AND ".join((f'tgt."{mc}" = src."{mc}"' for mc in merge_cols)),
+                    sg.and_(
+                        *[
+                            sg.column(mc, "tgt", quoted=True).eq(
+                                sg.column(mc, "src", quoted=True)
+                            )
+                            for mc in merge_cols
+                        ]
+                    ).sql(self.query_dialect),
                     "src",
                     "tgt",
                     writer_properties=self.writer_properties,
