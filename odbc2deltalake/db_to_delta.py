@@ -401,7 +401,7 @@ def do_delta_load(
             logger.warning("No primary keys found, do a full load")
             do_full_load(infos=infos, mode="append")
             return
-    elif last_pk_path:
+    elif last_pk_path and not simple:
         cols = reader.get_local_delta_ops(last_pk_path).columns()
         cols = set((c.lower() for c in cols))
         pk_set = set((write_config.get_target_name(pk).lower() for pk in infos.pk_cols))
