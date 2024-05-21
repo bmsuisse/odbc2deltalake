@@ -67,12 +67,7 @@ class DataSourceReader(ABC):
 
     @abstractmethod
     def local_execute_sql_to_delta(
-        self,
-        sql: Query,
-        delta_path: Destination,
-        mode: Literal["overwrite", "append"],
-        *,
-        based_on_self: bool = False,
+        self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
         pass
 
@@ -97,5 +92,14 @@ class DataSourceReader(ABC):
         view_name: str,
         *,
         version: Union[int, None] = None,
+    ):
+        pass
+
+    @abstractmethod
+    def local_upsert_into(
+        self,
+        local_sql_source: Query,
+        target_delta: Destination,
+        merge_cols: Sequence[str],
     ):
         pass

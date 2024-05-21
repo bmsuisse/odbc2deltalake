@@ -3,7 +3,7 @@ from pathlib import Path
 from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
-from typing import TYPE_CHECKING, Literal, Optional, Union
+from typing import TYPE_CHECKING, Literal, Optional, Sequence, Union
 from sqlglot.expressions import Query, DataType
 
 if TYPE_CHECKING:
@@ -178,12 +178,7 @@ class ODBCReader(DataSourceReader):
         return False
 
     def local_execute_sql_to_delta(
-        self,
-        sql: Query,
-        delta_path: Destination,
-        mode: Literal["overwrite", "append"],
-        *,
-        based_on_self: bool = False,
+        self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
     ):
         import duckdb
         from deltalake import write_deltalake
@@ -300,3 +295,31 @@ class ODBCReader(DataSourceReader):
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         dt = delta_path.as_delta_table()
         return DeltaRSDeltaOps(dt)
+
+    def local_upsert_into(
+        self,
+        local_sql_source: Query,
+        target_delta: Destination,
+        merge_cols: Sequence[str],
+    ):
+        import duckdb
+        from deltalake import WriterProperties
+
+        self.duck_con = self.duck_con or duckdb.connect(self.local_db)
+
+        with self.duck_con.cursor() as cursor:
+            cursor.execute(local_sql_source.sql("duckdb"))
+            dt = target_delta.as_delta_table()
+            res = (
+                dt.merge(
+                    cursor.fetch_record_batch(),
+                    " AND ".join((f'tgt."{mc}" = src."{mc}"' for mc in merge_cols)),
+                    "src",
+                    "tgt",
+                    writer_properties=self.writer_properties,
+                )
+                .when_matched_update_all()
+                .when_not_matched_insert_all()
+                .execute()
+            )
+            print(res)
