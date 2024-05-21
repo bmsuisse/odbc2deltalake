@@ -1003,7 +1003,7 @@ def _handle_additional_updates(
         batch_size = max(10, int(7000 / char_size_pks))
 
         logger.warning(
-            "Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
+            f"Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
         )
         first = True
         for chunk in _list_to_chunks(jsd, batch_size):
