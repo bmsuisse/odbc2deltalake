@@ -256,102 +256,115 @@ def write_latest_pk(
             destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
             "primary_keys_ts_for_write",
         )
-    else:
-        reader.local_register_update_view(
-            destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
-            "primary_keys_ts_for_write",
-            version=1,
-        )
+
+    def _nn(ls):
+        return [l for l in ls if l is not None]
 
     latest_pk_query = union(
-        [
-            ex.select(
-                *_get_cols_select(
-                    cols=concat_seq(pks, [delta_col]),
-                    table_alias="au",
-                    system="target",
-                    get_target_name=write_config.get_target_name,
-                )
-            ).from_(table_from_tuple("delta_2", alias="au")),
-            (
+        _nn(
+            [
                 ex.select(
                     *_get_cols_select(
                         cols=concat_seq(pks, [delta_col]),
-                        table_alias="d1",
+                        table_alias="au",
                         system="target",
                         get_target_name=write_config.get_target_name,
                     )
-                )
-                .from_(ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="d1"))
-                .join(
-                    ex.table_("delta_2", alias="au2"),
-                    ex.and_(
-                        *[
-                            ex.column(
-                                write_config.get_target_name(c), "d1", quoted=True
-                            ).eq(
+                ).from_(table_from_tuple("delta_2", alias="au")),
+                (
+                    ex.select(
+                        *_get_cols_select(
+                            cols=concat_seq(pks, [delta_col]),
+                            table_alias="d1",
+                            system="target",
+                            get_target_name=write_config.get_target_name,
+                        )
+                    )
+                    .from_(ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="d1"))
+                    .join(
+                        ex.table_("delta_2", alias="au2"),
+                        ex.and_(
+                            *[
                                 ex.column(
-                                    write_config.get_target_name(c), "au2", quoted=True
+                                    write_config.get_target_name(c), "d1", quoted=True
+                                ).eq(
+                                    ex.column(
+                                        write_config.get_target_name(c),
+                                        "au2",
+                                        quoted=True,
+                                    )
                                 )
-                            )
-                            for c in pks
-                        ]
-                    ),
-                    join_type="anti",
-                )
-            ),
-            (
-                ex.select(
-                    *_get_cols_select(
-                        cols=concat_seq(pks, [delta_col]),
-                        table_alias="cpk",
-                        system="target",
-                        get_target_name=write_config.get_target_name,
+                                for c in pks
+                            ]
+                        ),
+                        join_type="anti",
+                    )
+                ),
+                (
+                    ex.select(
+                        *_get_cols_select(
+                            cols=concat_seq(pks, [delta_col]),
+                            table_alias="cpk",
+                            system="target",
+                            get_target_name=write_config.get_target_name,
+                        )
+                    )
+                    .from_(ex.table_("primary_keys_ts_for_write", alias="cpk"))
+                    .join(
+                        ex.table_("delta_2", alias="au3"),
+                        ex.and_(
+                            *[
+                                ex.column(
+                                    write_config.get_target_name(c), "cpk", quoted=True
+                                ).eq(
+                                    ex.column(
+                                        write_config.get_target_name(c),
+                                        "au3",
+                                        quoted=True,
+                                    )
+                                )
+                                for c in pks
+                            ]
+                        ),
+                        join_type="anti",
+                    )
+                    .join(
+                        ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
+                        ex.and_(
+                            *[
+                                ex.column(
+                                    write_config.get_target_name(c), "cpk", quoted=True
+                                ).eq(
+                                    ex.column(
+                                        write_config.get_target_name(c),
+                                        "au4",
+                                        quoted=True,
+                                    )
+                                )
+                                for c in pks
+                            ]
+                        ),
+                        join_type="anti",
                     )
                 )
-                .from_(ex.table_("primary_keys_ts_for_write", alias="cpk"))
-                .join(
-                    ex.table_("delta_2", alias="au3"),
-                    ex.and_(
-                        *[
-                            ex.column(
-                                write_config.get_target_name(c), "cpk", quoted=True
-                            ).eq(
-                                ex.column(
-                                    write_config.get_target_name(c), "au3", quoted=True
-                                )
-                            )
-                            for c in pks
-                        ]
-                    ),
-                    join_type="anti",
-                )
-                .join(
-                    ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
-                    ex.and_(
-                        *[
-                            ex.column(
-                                write_config.get_target_name(c), "cpk", quoted=True
-                            ).eq(
-                                ex.column(
-                                    write_config.get_target_name(c), "au4", quoted=True
-                                )
-                            )
-                            for c in pks
-                        ]
-                    ),
-                    join_type="anti",
-                )
-            ),
-        ],
+                if not merge_delta
+                else None,
+            ]
+        ),
         distinct=False,
     )
-    reader.local_execute_sql_to_delta(
-        latest_pk_query,
-        destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
-        mode="overwrite",
-        based_on_self=merge_delta,
-    )
+    if merge_delta:
+        reader.local_upsert_into(
+            latest_pk_query,
+            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
+            [write_config.get_target_name(pk) for pk in pks],
+        )
+    else:
+        reader.local_execute_sql_to_delta(
+            latest_pk_query,
+            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
+            mode="overwrite",
+        )
 
 
 def _temp_table(table: Union[table_name_type, ex.Query]):
@@ -990,7 +1003,7 @@ def _handle_additional_updates(
         batch_size = max(10, int(7000 / char_size_pks))
 
         logger.warning(
-            "Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
+            f"Start delta step 3, load {update_count} strange updates via batches of size {batch_size}"
         )
         first = True
         for chunk in _list_to_chunks(jsd, batch_size):
