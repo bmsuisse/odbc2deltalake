@@ -407,7 +407,7 @@ def do_delta_load(
         ).columns()
         cols = set((c.lower() for c in cols))
         pk_set = set((write_config.get_target_name(pk).lower() for pk in infos.pk_cols))
-        if cols != pk_set:
+        if not cols.issuperset(pk_set):
             logger.warning(
                 f"Primary keys do not match. Expected: {', '.join(pk_set)}, Found: {', '.join(cols)}. Do a full load"
             )
