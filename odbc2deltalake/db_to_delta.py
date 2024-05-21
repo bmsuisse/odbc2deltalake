@@ -48,17 +48,12 @@ def _source_convert(
     type_map: Optional[Mapping[str, ex.DataType]] = None,
 ):
     expr = ex.column(name, table_alias, quoted=True)
-    if data_type.this in [
-        ex.DataType.Type.ROWVERSION,
-        ex.DataType.Type.TIMESTAMP,
-    ]:  # can be removed after https://github.com/tobymao/sqlglot/issues/3345 is fixed
-        data_type_str = "rowversion"
-    else:
-        data_type_str = (
-            data_type
-            if isinstance(data_type, str)
-            else ex.DataType(this=data_type.this).sql("tsql").lower()
-        )
+
+    data_type_str = (
+        data_type
+        if isinstance(data_type, str)
+        else ex.DataType(this=data_type.this).sql("tsql").lower()
+    )
     mapped_type = type_map.get(data_type_str) if type_map else None
     if mapped_type:
         expr = ex.cast(expr, mapped_type)
@@ -404,6 +399,18 @@ def do_delta_load(
             restore_success = False
         if not restore_success:
             logger.warning("No primary keys found, do a full load")
+            do_full_load(infos=infos, mode="append")
+            return
+    else:
+        cols = reader.get_local_delta_ops(
+            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+        ).columns()
+        cols = set((c.lower() for c in cols))
+        pk_set = set((write_config.get_target_name(pk).lower() for pk in infos.pk_cols))
+        if cols != pk_set:
+            logger.warning(
+                f"Primary keys do not match. Expected: {', '.join(pk_set)}, Found: {', '.join(cols)}. Do a full load"
+            )
             do_full_load(infos=infos, mode="append")
             return
     old_pk_version = (

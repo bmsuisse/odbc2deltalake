@@ -49,6 +49,17 @@ class SparkDeltaOps(DeltaOps):
             return res[0].value
         return None
 
+    def columns(self):
+        sql = f"describe table delta.`{str(self.dest)}`"
+        result = self.spark.sql(sql).collect()
+        result_list = list()
+        for row in result:
+            if row["col_name"].startswith("#"):
+                continue
+            if row["col_name"] not in result_list:
+                result_list.append(row["col_name"])
+        return result_list
+
 
 class SparkReader(DataSourceReader):
     def __init__(
