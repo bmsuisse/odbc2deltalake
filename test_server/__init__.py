@@ -49,7 +49,7 @@ def start_mssql_server() -> Container:
     assert sql_server is not None
     sql_server.start()
     print(sql_server.status)
-    sleep(15)
+    sleep(20)
     print("Successfully created sql container...")
     return sql_server
 
