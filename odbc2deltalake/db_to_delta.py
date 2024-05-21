@@ -580,7 +580,10 @@ def _get_latest_delta_value(
             ex.Count(this=ex.Star()).as_("cnt"),
         )
     )[0]
-    return row["max_ts"], row["cnt"]
+    mt, cnt = row["max_ts"], row["cnt"]
+    if isinstance(mt, bytearray):
+        return bytes(mt), cnt
+    return mt, cnt
 
 
 def do_deletes(
