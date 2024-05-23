@@ -30,6 +30,7 @@ _default_type_map = {
     "datetime2": ex.DataType(this="datetime2(6)"),
     "rowversion": ex.DataType.Type.BIGINT,
     "timestamp": ex.DataType.Type.BIGINT,
+    "tinyint": ex.DataType.Type.SMALLINT,  # tinyint is unsigned in T-SQL, therefore we map it to smallint in spark
 }
 DEFAULT_DATA_TYPE_MAP: Mapping[str, ex.DataType] = _default_type_map
 

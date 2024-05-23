@@ -22,6 +22,10 @@ def test_delta(
         conf_name
     ]
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
+    nbr_field = next(
+        f for f in (dest / "delta").as_delta_table().schema().fields if f.name == "nbr"
+    )
+    assert nbr_field.type.type == "short"
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
