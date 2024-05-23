@@ -46,7 +46,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install poetry
-          poetry install --all-extras --with test
+          poetry install --all-extras --with test,dev,spark
           poetry run pip install git+https://github.com/tobymao/sqlglot.git # temporary workaround
       - name: Pyright
         run: |

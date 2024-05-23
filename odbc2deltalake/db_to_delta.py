@@ -234,7 +234,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
         dest_logger.flush()
 
 
-def write_latest_pk(
+def _get_latest_pk_query(
     reader: DataSourceReader,
     destination: Destination,
     pks: Sequence[InformationSchemaColInfo],
@@ -260,7 +260,7 @@ def write_latest_pk(
     def _nn(ls):
         return [l for l in ls if l is not None]
 
-    latest_pk_query = union(
+    return union(
         _nn(
             [
                 ex.select(
@@ -352,6 +352,19 @@ def write_latest_pk(
             ]
         ),
         distinct=False,
+    )
+
+
+def write_latest_pk(
+    reader: DataSourceReader,
+    destination: Destination,
+    pks: Sequence[InformationSchemaColInfo],
+    delta_col: InformationSchemaColInfo,
+    write_config: WriteConfig,
+    merge_delta=False,
+):
+    latest_pk_query = _get_latest_pk_query(
+        reader, destination, pks, delta_col, write_config, merge_delta
     )
     if merge_delta:
         reader.local_upsert_into(
@@ -449,15 +462,18 @@ def do_delta_load(
             mode="append",
         )
         return
-    logger.info(
-        f"Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
-    )
     if not simple:
+        logger.info(
+            f"Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
+        )
         _retrieve_primary_key_data(infos=infos)
     else:
         source_count = reader.source_sql_to_py(
             infos.from_("t").select(ex.Count(this=ex.Star()).as_("cnt"))
         )[0]["cnt"]
+        logger.info(
+            f"Start delta step 1, MAX({delta_col.column_name}): {delta_load_value}. Total RowCount: {source_count}"
+        )
     criterion = _source_convert(
         delta_col.column_name,
         delta_col.data_type,
@@ -487,13 +503,7 @@ def do_delta_load(
         )
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
 
-        logger.info("Start delta step 3.5, write meta for next delta load")
-
-        write_latest_pk(
-            reader, destination, infos.pk_cols, delta_col, write_config=write_config
-        )
-
-        logger.info("Start delta step 4.5, write deletes")
+        logger.info("Start delta step 3.5, write deletes")
         do_deletes(
             reader=infos.source,
             destination=infos.destination,
@@ -501,7 +511,14 @@ def do_delta_load(
             pk_cols=infos.pk_cols,
             old_pk_version=old_pk_version,
             write_config=infos.write_config,
+            delta_col=delta_col,
         )
+        reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
+        logger.info("Start delta step 4, write meta for next delta load")
+        write_latest_pk(
+            reader, destination, infos.pk_cols, delta_col, write_config=write_config
+        )
+
         logger.info("Done delta load")
     else:
         _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
@@ -532,6 +549,8 @@ def do_delta_load(
             )
             if simple_check:
                 do_delta_load(infos, simple=False)
+        else:
+            logger.info(f"Source and target count match: {source_count}")
 
 
 def do_append_inserts_load(infos: WriteConfigAndInfos):
@@ -605,12 +624,17 @@ def do_deletes(
     # delta_table: DeltaTable,
     cols: Sequence[InformationSchemaColInfo],
     pk_cols: Sequence[InformationSchemaColInfo],
+    delta_col: InformationSchemaColInfo,
     old_pk_version: int,
     write_config: WriteConfig,
 ):
-    reader.local_register_update_view(
-        destination / f"delta_load/{ DBDeltaPathConfigs.LATEST_PK_VERSION}",
-        DBDeltaPathConfigs.LATEST_PK_VERSION,
+    latest_pk_query = _get_latest_pk_query(
+        reader,
+        destination,
+        pk_cols,
+        delta_col=delta_col,
+        write_config=write_config,
+        merge_delta=False,
     )
     LAST_PK_VERSION = "LAST_PK_VERSION"
     reader.local_register_update_view(
@@ -634,8 +658,8 @@ def do_deletes(
                 system="target",
                 get_target_name=write_config.get_target_name,
             )
-        ).from_(table_from_tuple(DBDeltaPathConfigs.LATEST_PK_VERSION, alias="cpk")),
-    )
+        ).from_(table_from_tuple("current_pk_version", alias="cpk")),
+    ).with_("current_pk_version", as_=latest_pk_query)
 
     non_pk_cols = [c for c in cols if c not in pk_cols]
     non_pk_select = [

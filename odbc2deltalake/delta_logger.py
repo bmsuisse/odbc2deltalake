@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import pydantic
 import logging
 from uuid import uuid4
-from typing import Union
+from typing import Optional, Union
 
 from odbc2deltalake.reader.reader import DataSourceReader
 
@@ -30,12 +30,14 @@ class DeltaLogger:
         source: DataSourceReader,
         base_logger: Union[logging.Logger, None] = None,
         print_to_console: bool = False,
+        log_name: Optional[str] = None,
     ):
         self.log_file_path = log_file_path
         self.base_logger = base_logger
         self.source = source
         self.id = uuid4()
         self.print_to_console = print_to_console
+        self.log_name = log_name
 
     def _log(self, msg: LogMessage):
         self._pending_logs.append(msg)
@@ -124,8 +126,9 @@ class DeltaLogger:
             )
         )
 
-    def _append_fields(self, log: dict) -> dict:
+    def _append_fields(self, log: dict, dummy=False) -> dict:
         log["logger_id"] = str(self.id)
+        log["logger_name"] = self.log_name or ("dummy" if dummy else None)
         return log
 
     def flush(self):
@@ -145,6 +148,8 @@ class DeltaLogger:
             ],
             self.log_file_path,
             "append",
-            dummy_record=dummy.model_dump() if is_pydantic_2 else dummy.dict(),
+            dummy_record=self._append_fields(
+                dummy.model_dump() if is_pydantic_2 else dummy.dict(), dummy=True
+            ),
         )
         self._pending_logs.clear()

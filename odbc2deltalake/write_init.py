@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import dataclasses
 from pathlib import Path
-from typing import Callable, Literal, Mapping, Sequence, TypeVar, Union, cast
+from typing import Callable, Literal, Mapping, Optional, Sequence, TypeVar, Union, cast
 import sqlglot as sg
 from odbc2deltalake.destination.destination import (
     Destination,
@@ -113,6 +113,19 @@ class WriteConfigAndInfos:
 
         exec_write_db_to_delta(self)
 
+    def check_delta_consistency(self, auto_fix=False):
+        from .consistency import check_latest_pk
+
+        res = check_latest_pk(self, raise_if_not_consistent=not auto_fix)
+        if res and auto_fix:
+            self.logger.warning("PK's inconsistent, remove them")
+            (
+                self.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).remove(True)
+
+    def exec_source_query(self, query: Union[ex.Query, str]):
+        return self.source.source_sql_to_py(query)
+
     def from_(self, alias: str) -> ex.Select:
         if isinstance(self.table_or_query, ex.Query):
             return sg.from_(self.table_or_query.subquery().as_(alias))
@@ -140,6 +153,8 @@ def make_writer(
     table_or_query: Union[str, tuple[str, str], ex.Query],
     destination: Union[Destination, Path],
     write_config: Union[WriteConfig, None] = None,
+    logger_name: Optional[str] = None,
+    log_file_path: Optional[Destination] = None,
 ):
     if write_config is None:
         write_config = WriteConfig()
@@ -206,6 +221,11 @@ def make_writer(
         write_config=write_config,
         destination=destination,
         source=source,
-        logger=DeltaLogger(destination / "log", source, logging.getLogger(__name__)),
+        logger=DeltaLogger(
+            log_file_path if log_file_path is not None else destination / "log",
+            source,
+            logging.getLogger(__name__),
+            log_name=logger_name,
+        ),
         table_or_query=table_or_query,
     )

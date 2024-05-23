@@ -7,6 +7,7 @@ import pandas as pd
 from sqlglot import from_
 import sqlglot.expressions as ex
 from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
+from odbc2deltalake.consistency import check_latest_pk
 import os
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ def _ntz(df_in: pd.DataFrame):
     return df
 
 
-def check_latest_pk(infos: WriteConfigAndInfos):
+def check_latest_pk_pandas(infos: WriteConfigAndInfos):
     lpk_path = infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     lpk_df = lpk_path.as_delta_table()
     sort_cols = [infos.write_config.get_target_name(pk) for pk in infos.pk_cols]
@@ -62,6 +63,7 @@ def write_db_to_delta_with_check(
     w.source.local_register_update_view(w.destination / "delta", "last_delta_view")
 
     check_latest_pk(w)
+    check_latest_pk_pandas(w)
     return w
 
 
