@@ -124,7 +124,7 @@ def _vacuum(source: DataSourceReader, dest: Destination):
 
 def _transform_dt(dt: dict, dialect_src: str, dialect_trg: str):
     dt["data_type_src"] = dt["data_type"].sql(dialect_src)
-    dt["data_type_tgt"] = dt["data_type"].sql(dialect_trg)
+    dt["data_type"] = dt["data_type"].sql(dialect_trg)
     return dt
 
 
