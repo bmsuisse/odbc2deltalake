@@ -113,6 +113,19 @@ class WriteConfigAndInfos:
 
         exec_write_db_to_delta(self)
 
+    def check_delta_consistency(self, auto_fix=False):
+        from .consistency import check_latest_pk
+
+        res = check_latest_pk(self, raise_if_not_consistent=not auto_fix)
+        if res and auto_fix:
+            self.logger.info("PK's inconsistent, remove them")
+            (
+                self.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+            ).remove(True)
+
+    def exec_source_query(self, query: Union[ex.Query, str]):
+        return self.source.source_sql_to_py(query)
+
     def from_(self, alias: str) -> ex.Select:
         if isinstance(self.table_or_query, ex.Query):
             return sg.from_(self.table_or_query.subquery().as_(alias))
