@@ -59,6 +59,7 @@ create table dbo.[user2$](
     LastName nvarchar(max),
     Age decimal(15, 3),
     companyid varchar(10) collate Icelandic_100_CI_AI_SC  not null references dbo.company(id),
+    nbr tinyint,
     [time stamp] timestamp
 );
 create table dbo.[user3](
@@ -101,11 +102,12 @@ FROM (
             ('Petra', 'wayne', 24, 'c1')
     ) as x(fn, ln, a, ci);
 ;
-insert into dbo.[user2$](FirstName, LastName, Age, companyid)
+insert into dbo.[user2$](FirstName, LastName, Age, companyid, nbr)
 select FirstName,
     LastName,
     Age,
-    companyid
+    companyid,
+    150 + row_number() over(order by [User - iD])
 from dbo.[user];
 insert into dbo.[user3](FirstName, LastName, Age, companyid)
 select FirstName,

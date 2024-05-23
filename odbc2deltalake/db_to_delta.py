@@ -122,8 +122,9 @@ def _vacuum(source: DataSourceReader, dest: Destination):
         source.get_local_delta_ops(dest).vacuum()
 
 
-def _transform_dt(dt: dict):
-    dt["data_type"] = dt["data_type"].sql()
+def _transform_dt(dt: dict, dialect_src: str, dialect_trg: str):
+    dt["data_type_src"] = dt["data_type"].sql(dialect_src)
+    dt["data_type_tgt"] = dt["data_type"].sql(dialect_trg)
     return dt
 
 
@@ -140,7 +141,11 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
     (destination / "meta/schema.json").upload_str(
         json.dumps(
             [
-                _transform_dt(c.model_dump() if is_pydantic_2 else c.dict())
+                _transform_dt(
+                    c.model_dump() if is_pydantic_2 else c.dict(),
+                    infos.write_config.dialect,
+                    source.query_dialect,
+                )
                 for c in cols
             ],
             indent=4,
