@@ -229,14 +229,22 @@ class SparkReader(DataSourceReader):
         return reader
 
     def source_write_sql_to_delta(
-        self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
+        self,
+        sql: str,
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        *,
+        allow_schema_drift: bool,
     ):
         reader = self._reader(sql)
-        self.transformation_hook(reader.load(), "sql2delta").write.format(
+        writer = self.transformation_hook(reader.load(), "sql2delta").write.format(
             "delta"
-        ).option("mergeSchema" if mode == "append" else "overwriteSchema", "true").mode(
-            mode
-        ).save(str(delta_path))
+        )
+        if allow_schema_drift:
+            writer = writer.option(
+                "mergeSchema" if mode == "append" else "overwriteSchema", "true"
+            ).mode(mode)
+        writer.save(str(delta_path))
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         return SparkDeltaOps(delta_path, self.spark)

@@ -45,7 +45,12 @@ class DataSourceReader(ABC):
 
     @abstractmethod
     def source_write_sql_to_delta(
-        self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
+        self,
+        sql: str,
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        *,
+        allow_schema_drift: bool,
     ):
         pass
 

@@ -246,7 +246,12 @@ class ODBCReader(DataSourceReader):
         return result
 
     def source_write_sql_to_delta(
-        self, sql: str, delta_path: Destination, mode: Literal["overwrite", "append"]
+        self,
+        sql: str,
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        *,
+        allow_schema_drift: bool,
     ):
         from arrow_odbc import read_arrow_batches_from_odbc
         from deltalake import write_deltalake
@@ -266,7 +271,11 @@ class ODBCReader(DataSourceReader):
                 schema=_all_nullable(reader.schema),
                 mode=mode,
                 writer_properties=self.writer_properties,
-                schema_mode="overwrite" if mode == "overwrite" else "merge",
+                schema_mode=(
+                    ("overwrite" if mode == "overwrite" else "merge")
+                    if allow_schema_drift
+                    else None
+                ),
                 engine="rust",
                 storage_options=do,
             )

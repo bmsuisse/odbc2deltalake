@@ -97,6 +97,8 @@ class WriteConfig:
     """A method that returns the target name of a column. This is used to map the source column names to the target column names.
     Use if you want to apply some naming convention or avoid special characters in the target. """
 
+    allow_schema_drift: bool = True
+
 
 @dataclass(frozen=True)
 class WriteConfigAndInfos:
