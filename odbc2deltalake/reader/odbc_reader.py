@@ -251,11 +251,11 @@ class ODBCReader(DataSourceReader):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         *,
-        allow_schema_drift: bool,
+        allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
         from arrow_odbc import read_arrow_batches_from_odbc
-        from deltalake import write_deltalake
-        from deltalake.exceptions import DeltaError
+        from deltalake import write_deltalake, DeltaTable
+        from deltalake.exceptions import DeltaError, TableNotFoundError
 
         reader = read_arrow_batches_from_odbc(
             query=sql,
@@ -264,6 +264,24 @@ class ODBCReader(DataSourceReader):
             max_text_size=20000,
         )
         dp, do = delta_path.as_path_options(flavor="object_store")
+        schema_mode = None
+        if allow_schema_drift == "new_only":
+            try:
+                existing_schema = delta_path.as_delta_table().schema().fields
+                existing_field_names = [f.name for f in existing_schema]
+                new_schema = _all_nullable(reader.schema)
+                new_fields = [
+                    new_schema.field(n)
+                    for n in new_schema.names
+                    if n not in existing_field_names
+                ]
+                if new_fields:
+                    new_schema = pa.schema(new_fields)
+                    self._write_empty_delta_table(new_schema, dp, do)
+            except TableNotFoundError:
+                pass
+        elif allow_schema_drift:
+            schema_mode = "overwrite" if mode == "overwrite" else "merge"
         try:
             write_deltalake(
                 dp,
@@ -271,11 +289,7 @@ class ODBCReader(DataSourceReader):
                 schema=_all_nullable(reader.schema),
                 mode=mode,
                 writer_properties=self.writer_properties,
-                schema_mode=(
-                    ("overwrite" if mode == "overwrite" else "merge")
-                    if allow_schema_drift
-                    else None
-                ),
+                schema_mode=schema_mode,
                 engine="rust",
                 storage_options=do,
             )

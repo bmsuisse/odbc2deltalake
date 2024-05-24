@@ -234,13 +234,33 @@ class SparkReader(DataSourceReader):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         *,
-        allow_schema_drift: bool,
+        allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
         reader = self._reader(sql)
-        writer = self.transformation_hook(reader.load(), "sql2delta").write.format(
-            "delta"
-        )
-        if allow_schema_drift:
+        reader = self.transformation_hook(reader.load(), "sql2delta")
+        writer = reader.write.format("delta")
+        if allow_schema_drift == "new_only":
+            from delta import DeltaTable
+            from pyspark.sql.functions import col
+
+            if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
+                empty_read_df = (
+                    self.spark.read.format("delta").load(str(delta_path)).limit(0)
+                )
+                existing_schema = empty_read_df.schema
+                existing_fields = existing_schema.fieldNames
+                nf = [
+                    f.name
+                    for f in reader.schema.fields
+                    if f.name not in existing_fields
+                ]
+                if nf:
+                    new_cols = empty_read_df.select(*[col(f) for f in nf])
+                    new_cols.write.format("delta").option("mergeSchema", "true").mode(
+                        "append"
+                    ).save(str(delta_path))
+
+        elif allow_schema_drift:
             writer = writer.option(
                 "mergeSchema" if mode == "append" else "overwriteSchema", "true"
             ).mode(mode)

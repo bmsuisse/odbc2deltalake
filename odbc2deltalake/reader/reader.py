@@ -50,7 +50,7 @@ class DataSourceReader(ABC):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         *,
-        allow_schema_drift: bool,
+        allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
         pass
 
