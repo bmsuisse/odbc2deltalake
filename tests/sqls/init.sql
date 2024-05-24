@@ -4,6 +4,7 @@ drop table if exists dbo.[user3_];
 drop table if exists dbo.[user4];
 drop table if exists dbo.[user5];
 drop table if exists dbo.[user6];
+drop table if exists dbo.[user7];
 drop table if exists dbo.[user];
 drop table if exists dbo.[company];
 drop table if exists dbo.[company2];
@@ -94,6 +95,14 @@ create table dbo.[user6](
     companyid varchar(10)  collate Icelandic_100_CI_AI_SC not null references dbo.company(id),
     [time stamp] timestamp
 );
+create table dbo.[user7](
+    [User - iD] bigint primary key identity(1, 1),
+    FirstName varchar(100),
+    LastName nvarchar(max),
+    Age decimal(15, 3),
+    companyid varchar(10)  collate Icelandic_100_CI_AI_SC not null references dbo.company(id),
+    [time stamp] timestamp
+);
 insert into dbo.[user](FirstName, LastName, Age, companyid)
 select *
 FROM (
@@ -128,6 +137,12 @@ select FirstName,
     companyid
 from dbo.[user];
 insert into dbo.[user6](FirstName, LastName, Age, companyid)
+select FirstName,
+    LastName,
+    Age,
+    companyid
+from dbo.[user];
+insert into dbo.[user7](FirstName, LastName, Age, companyid)
 select FirstName,
     LastName,
     Age,

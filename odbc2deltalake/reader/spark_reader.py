@@ -248,7 +248,7 @@ class SparkReader(DataSourceReader):
                     self.spark.read.format("delta").load(str(delta_path)).limit(0)
                 )
                 existing_schema = empty_read_df.schema
-                existing_fields = existing_schema.fieldNames
+                existing_fields = existing_schema.fieldNames()
                 nf = [
                     f.name
                     for f in reader.schema.fields
