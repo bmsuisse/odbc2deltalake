@@ -180,8 +180,54 @@ class ODBCReader(DataSourceReader):
                 return False
         return False
 
+    def _handle_schema_drift(
+        self,
+        delta_path: Destination,
+        allow_schema_drift: Union[bool, Literal["new_only"]],
+        mode: Literal["overwrite", "append"],
+        input_schema,
+    ):
+        from deltalake.exceptions import TableNotFoundError
+
+        dp, do = delta_path.as_path_options("object_store")
+        schema_mode = None
+        if allow_schema_drift == "new_only":
+            try:
+                existing_schema = delta_path.as_delta_table().schema().fields
+                existing_field_names = [f.name for f in existing_schema]
+                new_schema = _all_nullable(input_schema)
+                new_fields = [
+                    new_schema.field(n)
+                    for n in new_schema.names
+                    if n not in existing_field_names
+                ]
+
+                if new_fields:
+                    import pyarrow as pa
+
+                    merge_schema_fields = list()
+
+                    pas_schema = delta_path.as_delta_table().schema().to_pyarrow()
+                    for n in input_schema.names:
+                        if n in existing_field_names:
+                            merge_schema_fields.append(pas_schema.field(n))
+                        else:
+                            merge_schema_fields.append(input_schema.field(n))
+
+                    return pa.schema(merge_schema_fields), "merge"
+            except TableNotFoundError:
+                pass
+        elif allow_schema_drift:
+            schema_mode = "overwrite" if mode == "overwrite" else "merge"
+        return None, schema_mode
+
     def local_execute_sql_to_delta(
-        self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
+        self,
+        sql: Query,
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        *,
+        allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
         import duckdb
         from deltalake import write_deltalake
@@ -194,12 +240,20 @@ class ODBCReader(DataSourceReader):
             dp, do = delta_path.as_path_options("object_store")
             batch_reader = cur.fetch_record_batch()
             schema = batch_reader.schema
+            cast_schema, schema_mode = self._handle_schema_drift(
+                delta_path, allow_schema_drift, mode, schema
+            )
+            if cast_schema:
+                schema = cast_schema
+                batch_reader = pa.RecordBatchReader.from_batches(
+                    cast_schema, (b.cast(cast_schema) for b in batch_reader)
+                )
             try:
                 write_deltalake(
                     dp,
                     batch_reader,
                     mode=mode,
-                    schema_mode="overwrite" if mode == "overwrite" else "merge",
+                    schema_mode=schema_mode,
                     writer_properties=self.writer_properties,
                     engine="rust",
                     storage_options=do,
@@ -264,24 +318,16 @@ class ODBCReader(DataSourceReader):
             max_text_size=20000,
         )
         dp, do = delta_path.as_path_options(flavor="object_store")
-        schema_mode = None
-        if allow_schema_drift == "new_only":
-            try:
-                existing_schema = delta_path.as_delta_table().schema().fields
-                existing_field_names = [f.name for f in existing_schema]
-                new_schema = _all_nullable(reader.schema)
-                new_fields = [
-                    new_schema.field(n)
-                    for n in new_schema.names
-                    if n not in existing_field_names
-                ]
-                if new_fields:
-                    new_schema = pa.schema(new_fields)
-                    self._write_empty_delta_table(new_schema, dp, do)
-            except TableNotFoundError:
-                pass
-        elif allow_schema_drift:
-            schema_mode = "overwrite" if mode == "overwrite" else "merge"
+        cast_schema, schema_mode = self._handle_schema_drift(
+            delta_path, allow_schema_drift, mode, reader.schema
+        )
+
+        if cast_schema:
+            import pyarrow as pa
+
+            reader = pa.RecordBatchReader.from_batches(
+                cast_schema, (b.cast(cast_schema) for b in reader)
+            )
         try:
             write_deltalake(
                 dp,

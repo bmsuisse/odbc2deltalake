@@ -31,7 +31,7 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] add some_date date default('2000-01-01');
+                """ALTER TABLE dbo.[user7] add some_date date not null default('2000-01-01');
                   """
             )
 
@@ -44,17 +44,18 @@ def test_schema_drift(
         duckdb_create_view_for_delta(
             con, (dest / "delta").as_delta_table(), "v_user_scd2"
         )
+        from datetime import date
 
         name_tuples = con.execute(
             'SELECT FirstName, LastName, some_date, __is_deleted  from v_user_scd2 order by "User_-_iD", __timestamp'
         ).fetchall()
         assert name_tuples == [
             ("John", "Anders", None, False),
+            ("John", "Anders", date(2000, 1, 1), False),
             ("Peter", "Johniingham", None, False),
+            ("Peter", "Johniingham", date(2000, 1, 1), False),
             ("Petra", "wayne", None, False),
-            ("John", "Anders", "2000-01-01", False),
-            ("Peter", "Johniingham", "2000-01-01", False),
-            ("Petra", "wayne", "2000-01-01", False),
+            ("Petra", "wayne", date(2000, 1, 1), False),
         ]
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:

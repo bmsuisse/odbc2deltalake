@@ -6,6 +6,7 @@ from typing import Literal, TYPE_CHECKING, Callable, Optional, Sequence, Union
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession, DataFrame
+    from pyspark.sql.types import StructType
     from odbc2deltalake.metadata import InformationSchemaColInfo
 
 
@@ -103,12 +104,22 @@ class SparkReader(DataSourceReader):
         return [row.asDict() for row in spark_rows]
 
     def local_execute_sql_to_delta(
-        self, sql: Query, delta_path: Destination, mode: Literal["overwrite", "append"]
+        self,
+        sql: Query,
+        delta_path: Destination,
+        mode: Literal["overwrite", "append"],
+        *,
+        allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
         df = self.spark.sql(sql.sql(self._dialect))
-        df.write.format("delta").option(
-            "mergeSchema" if mode == "append" else "overwriteSchema", "true"
-        ).mode(mode).save(str(delta_path))
+        writer = df.write.format("delta")
+        if allow_schema_drift == "new_only":
+            self._append_new_cols(delta_path, df.schema)
+        elif allow_schema_drift:
+            writer = writer.option(
+                "mergeSchema" if mode == "append" else "overwriteSchema", "true"
+            )
+        writer.mode(mode).save(str(delta_path))
 
     def local_pylist_to_delta(
         self,
@@ -228,6 +239,23 @@ class SparkReader(DataSourceReader):
             reader = reader.option(k, v)
         return reader
 
+    def _append_new_cols(self, delta_path: Destination, source_schema: "StructType"):
+        from delta import DeltaTable
+        from pyspark.sql.functions import col
+
+        if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
+            empty_read_df = (
+                self.spark.read.format("delta").load(str(delta_path)).limit(0)
+            )
+            existing_schema = empty_read_df.schema
+            existing_fields = existing_schema.fieldNames()
+            nf = [f.name for f in source_schema.fields if f.name not in existing_fields]
+            if nf:
+                new_cols = empty_read_df.select(*[col(f) for f in nf])
+                new_cols.write.format("delta").option("mergeSchema", "true").mode(
+                    "append"
+                ).save(str(delta_path))
+
     def source_write_sql_to_delta(
         self,
         sql: str,
@@ -240,26 +268,7 @@ class SparkReader(DataSourceReader):
         reader = self.transformation_hook(reader.load(), "sql2delta")
         writer = reader.write.format("delta")
         if allow_schema_drift == "new_only":
-            from delta import DeltaTable
-            from pyspark.sql.functions import col
-
-            if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
-                empty_read_df = (
-                    self.spark.read.format("delta").load(str(delta_path)).limit(0)
-                )
-                existing_schema = empty_read_df.schema
-                existing_fields = existing_schema.fieldNames()
-                nf = [
-                    f.name
-                    for f in reader.schema.fields
-                    if f.name not in existing_fields
-                ]
-                if nf:
-                    new_cols = empty_read_df.select(*[col(f) for f in nf])
-                    new_cols.write.format("delta").option("mergeSchema", "true").mode(
-                        "append"
-                    ).save(str(delta_path))
-
+            self._append_new_cols(delta_path, reader.schema)
         elif allow_schema_drift:
             writer = writer.option(
                 "mergeSchema" if mode == "append" else "overwriteSchema", "true"

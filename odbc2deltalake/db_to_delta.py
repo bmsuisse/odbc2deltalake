@@ -388,6 +388,7 @@ def write_latest_pk(
             latest_pk_query,
             destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
             mode="overwrite",
+            allow_schema_drift=True,
         )
 
 
@@ -414,6 +415,20 @@ def do_delta_load(
     write_config = infos.write_config
     assert delta_col is not None, "Must have a delta_col for delta loads"
     reader = infos.source
+
+    existing_cols = set(
+        (c.lower() for c in reader.get_local_delta_ops(destination / "delta").columns())
+    )
+    missing_cols = [
+        write_config.get_target_name(c)
+        for c in infos.col_infos
+        if write_config.get_target_name(c).lower() not in existing_cols
+    ]
+    if any(missing_cols) and infos.write_config.allow_schema_drift:
+        logger.warning(f"New columns from source: {missing_cols}. Do a full load")
+        do_full_load(infos=infos, mode="append")
+        return
+
     last_pk_path = (
         destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
         if not simple
@@ -737,6 +752,7 @@ def do_deletes(
             sg.from_("deletes_with_schema").select("*"),
             destination / "delta",
             mode="append",
+            allow_schema_drift=write_config.allow_schema_drift,
         )
 
 
@@ -990,8 +1006,8 @@ def _handle_additional_updates(
     if update_count == 0:
         _write_delta2(infos, [], mode="overwrite")
     elif (
-        update_count > 1000
-    ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
+        (update_count > 1000) or write_config.no_complex_entries_load
+    ):  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
         _write_delta2(infos, [], mode="overwrite")  # still need to create delta_2_path
         logger.warning(
             f"Start delta step 3, load {update_count} strange updates via normal delta load"
@@ -1063,6 +1079,7 @@ def _handle_additional_updates(
             sg.from_("delta_2").select(ex.Star()),
             infos.destination / "delta",
             mode="append",
+            allow_schema_drift=True,
         )
 
 
@@ -1124,7 +1141,10 @@ def _load_updates_to_delta(
     if count == 0:
         return
     reader.local_execute_sql_to_delta(
-        sg.from_(delta_name).select(ex.Star()), delta_path, mode="append"
+        sg.from_(delta_name).select(ex.Star()),
+        delta_path,
+        mode="append",
+        allow_schema_drift=write_config.allow_schema_drift,
     )
 
 
@@ -1133,6 +1153,7 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
     write_config = infos.write_config
     delta_path = infos.destination / "delta"
     reader = infos.source
+
     logger.info("Start Full Load")
     sql = (
         infos.from_("t")
@@ -1160,16 +1181,32 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
 
     reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
     (delta_path.parent / "delta_load").mkdir()
-    query = sg.from_(ex.to_identifier(_temp_table(infos.table_or_query))).select(
-        *(
-            [
-                ex.column(write_config.get_target_name(pk), quoted=True)
-                for pk in infos.pk_cols
-            ]
-            + (
-                [ex.column(write_config.get_target_name(infos.delta_col), quoted=True)]
-                if infos.delta_col
-                else []
+    ident = ex.to_identifier(_temp_table(infos.table_or_query))
+    query = (
+        sg.from_(ident)
+        .select(
+            *(
+                [
+                    ex.column(write_config.get_target_name(pk), quoted=True)
+                    for pk in infos.pk_cols
+                ]
+                + (
+                    [
+                        ex.column(
+                            write_config.get_target_name(infos.delta_col), quoted=True
+                        )
+                    ]
+                    if infos.delta_col
+                    else []
+                )
+            )
+        )
+        .where(
+            ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
+                sg.from_(ident)
+                .select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME, quoted=True)))
+                .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True))
+                .subquery()
             )
         )
     )
@@ -1177,4 +1214,5 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
         query,
         delta_path.parent / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
+        allow_schema_drift=True,
     )
