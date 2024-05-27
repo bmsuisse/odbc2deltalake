@@ -60,7 +60,7 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] alter column Age double;
+                """ALTER TABLE dbo.[user7] alter column Age float ;
                 """
             )
 
