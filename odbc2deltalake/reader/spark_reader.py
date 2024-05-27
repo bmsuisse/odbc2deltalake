@@ -251,7 +251,9 @@ class SparkReader(DataSourceReader):
             existing_fields = existing_schema.fieldNames()
             nf = [f.name for f in source_schema.fields if f.name not in existing_fields]
             if nf:
-                new_cols = empty_read_df.select(*[col(f) for f in nf])
+                new_cols = self.spark.createDataFrame([], source_schema).select(
+                    *[col(f) for f in nf]
+                )
                 new_cols.write.format("delta").option("mergeSchema", "true").mode(
                     "append"
                 ).save(str(delta_path))
