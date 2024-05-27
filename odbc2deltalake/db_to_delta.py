@@ -306,54 +306,60 @@ def _get_latest_pk_query(
                     )
                 ),
                 (
-                    ex.select(
-                        *_get_cols_select(
-                            cols=concat_seq(pks, [delta_col]),
-                            table_alias="cpk",
-                            system="target",
-                            get_target_name=write_config.get_target_name,
+                    (
+                        ex.select(
+                            *_get_cols_select(
+                                cols=concat_seq(pks, [delta_col]),
+                                table_alias="cpk",
+                                system="target",
+                                get_target_name=write_config.get_target_name,
+                            )
+                        )
+                        .from_(ex.table_("primary_keys_ts_for_write", alias="cpk"))
+                        .join(
+                            ex.table_("delta_2", alias="au3"),
+                            ex.and_(
+                                *[
+                                    ex.column(
+                                        write_config.get_target_name(c),
+                                        "cpk",
+                                        quoted=True,
+                                    ).eq(
+                                        ex.column(
+                                            write_config.get_target_name(c),
+                                            "au3",
+                                            quoted=True,
+                                        )
+                                    )
+                                    for c in pks
+                                ]
+                            ),
+                            join_type="anti",
+                        )
+                        .join(
+                            ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
+                            ex.and_(
+                                *[
+                                    ex.column(
+                                        write_config.get_target_name(c),
+                                        "cpk",
+                                        quoted=True,
+                                    ).eq(
+                                        ex.column(
+                                            write_config.get_target_name(c),
+                                            "au4",
+                                            quoted=True,
+                                        )
+                                    )
+                                    for c in pks
+                                ]
+                            ),
+                            join_type="anti",
                         )
                     )
-                    .from_(ex.table_("primary_keys_ts_for_write", alias="cpk"))
-                    .join(
-                        ex.table_("delta_2", alias="au3"),
-                        ex.and_(
-                            *[
-                                ex.column(
-                                    write_config.get_target_name(c), "cpk", quoted=True
-                                ).eq(
-                                    ex.column(
-                                        write_config.get_target_name(c),
-                                        "au3",
-                                        quoted=True,
-                                    )
-                                )
-                                for c in pks
-                            ]
-                        ),
-                        join_type="anti",
-                    )
-                    .join(
-                        ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="au4"),
-                        ex.and_(
-                            *[
-                                ex.column(
-                                    write_config.get_target_name(c), "cpk", quoted=True
-                                ).eq(
-                                    ex.column(
-                                        write_config.get_target_name(c),
-                                        "au4",
-                                        quoted=True,
-                                    )
-                                )
-                                for c in pks
-                            ]
-                        ),
-                        join_type="anti",
-                    )
-                )
-                if not merge_delta
-                else None,
+                    if not merge_delta
+                    else None
+                ),
             ]
         ),
         distinct=False,
@@ -382,6 +388,7 @@ def write_latest_pk(
             latest_pk_query,
             destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
             mode="overwrite",
+            allow_schema_drift=True,
         )
 
 
@@ -408,6 +415,20 @@ def do_delta_load(
     write_config = infos.write_config
     assert delta_col is not None, "Must have a delta_col for delta loads"
     reader = infos.source
+
+    existing_cols = set(
+        (c.lower() for c in reader.get_local_delta_ops(destination / "delta").columns())
+    )
+    missing_cols = [
+        write_config.get_target_name(c)
+        for c in infos.col_infos
+        if write_config.get_target_name(c).lower() not in existing_cols
+    ]
+    if any(missing_cols) and infos.write_config.allow_schema_drift:
+        logger.warning(f"New columns from source: {missing_cols}. Do a full load")
+        do_full_load(infos=infos, mode="append")
+        return
+
     last_pk_path = (
         destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
         if not simple
@@ -609,11 +630,14 @@ def _get_latest_delta_value(
     infos.source.local_register_update_view(delta_path, tmp_view_name)
     row = infos.source.local_execute_sql_to_py(
         sg.from_(ex.to_identifier(tmp_view_name)).select(
-            ex.func(
-                "MAX", ex.column(infos.write_config.get_target_name(infos.delta_col))
-            ).as_("max_ts")
-            if infos.delta_col
-            else ex.convert(None).as_("max_ts"),
+            (
+                ex.func(
+                    "MAX",
+                    ex.column(infos.write_config.get_target_name(infos.delta_col)),
+                ).as_("max_ts")
+                if infos.delta_col
+                else ex.convert(None).as_("max_ts")
+            ),
             ex.Count(this=ex.Star()).as_("cnt"),
         )
     )[0]
@@ -728,17 +752,20 @@ def do_deletes(
             sg.from_("deletes_with_schema").select("*"),
             destination / "delta",
             mode="append",
+            allow_schema_drift=write_config.allow_schema_drift,
         )
 
 
 def _retrieve_source_ts_cnt(infos: WriteConfigAndInfos):
     pk_ts_col_select = infos.from_("t").select(
-        ex.func(
-            "MAX",
-            ex.column(infos.delta_col.column_name, quoted=True),
-        ).as_("max_ts")
-        if infos.delta_col
-        else ex.convert(None).as_("max_ts"),
+        (
+            ex.func(
+                "MAX",
+                ex.column(infos.delta_col.column_name, quoted=True),
+            ).as_("max_ts")
+            if infos.delta_col
+            else ex.convert(None).as_("max_ts")
+        ),
         ex.Count(this=ex.Star()).as_("cnt"),
     )
 
@@ -770,7 +797,10 @@ def _retrieve_primary_key_data(
     pk_path = infos.destination / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}"
     infos.logger.info("Retrieve all PK/TS", sql=pk_ts_reader_sql)
     infos.source.source_write_sql_to_delta(
-        sql=pk_ts_reader_sql, delta_path=pk_path, mode="overwrite"
+        sql=pk_ts_reader_sql,
+        delta_path=pk_path,
+        mode="overwrite",
+        allow_schema_drift=True,
     )
     return pk_path
 
@@ -852,17 +882,20 @@ def _write_delta2(
             full_sql(json.dumps(chunk_1, default=str)),
             delta_2_path,
             mode=mode,
+            allow_schema_drift=write_config.allow_schema_drift,
         )
         infos.source.source_write_sql_to_delta(
             full_sql(json.dumps(chunk_2, default=str)),
             delta_2_path,
             mode="append",
+            allow_schema_drift=write_config.allow_schema_drift,
         )
     else:
         infos.source.source_write_sql_to_delta(
             sql,
             delta_2_path,
             mode=mode,
+            allow_schema_drift=write_config.allow_schema_drift,
         )
 
 
@@ -1046,6 +1079,7 @@ def _handle_additional_updates(
             sg.from_("delta_2").select(ex.Star()),
             infos.destination / "delta",
             mode="append",
+            allow_schema_drift=True,
         )
 
 
@@ -1096,13 +1130,21 @@ def _load_updates_to_delta(
 
     delta_name_path = delta_path.parent / f"delta_load/{delta_name}"
     logger.info("Executing sql", load="delta", sub_load=delta_name, sql=sql)
-    reader.source_write_sql_to_delta(sql, delta_name_path, mode="overwrite")
+    reader.source_write_sql_to_delta(
+        sql,
+        delta_name_path,
+        mode="overwrite",
+        allow_schema_drift=write_config.allow_schema_drift,
+    )
     reader.local_register_update_view(delta_name_path, delta_name)
     count = reader.local_execute_sql_to_py(count_limit_one(delta_name))[0]["cnt"]
     if count == 0:
         return
     reader.local_execute_sql_to_delta(
-        sg.from_(delta_name).select(ex.Star()), delta_path, mode="append"
+        sg.from_(delta_name).select(ex.Star()),
+        delta_path,
+        mode="append",
+        allow_schema_drift=write_config.allow_schema_drift,
     )
 
 
@@ -1111,6 +1153,7 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
     write_config = infos.write_config
     delta_path = infos.destination / "delta"
     reader = infos.source
+
     logger.info("Start Full Load")
     sql = (
         infos.from_("t")
@@ -1128,7 +1171,9 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
         .sql(write_config.dialect)
     )
     logger.info("executing sql", sql=sql, load="full")
-    reader.source_write_sql_to_delta(sql, delta_path, mode=mode)
+    reader.source_write_sql_to_delta(
+        sql, delta_path, mode=mode, allow_schema_drift=write_config.allow_schema_drift
+    )
     if infos.delta_col is None:
         logger.info("Full Load done")
         return
@@ -1136,16 +1181,32 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
 
     reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
     (delta_path.parent / "delta_load").mkdir()
-    query = sg.from_(ex.to_identifier(_temp_table(infos.table_or_query))).select(
-        *(
-            [
-                ex.column(write_config.get_target_name(pk), quoted=True)
-                for pk in infos.pk_cols
-            ]
-            + (
-                [ex.column(write_config.get_target_name(infos.delta_col), quoted=True)]
-                if infos.delta_col
-                else []
+    ident = ex.to_identifier(_temp_table(infos.table_or_query))
+    query = (
+        sg.from_(ident)
+        .select(
+            *(
+                [
+                    ex.column(write_config.get_target_name(pk), quoted=True)
+                    for pk in infos.pk_cols
+                ]
+                + (
+                    [
+                        ex.column(
+                            write_config.get_target_name(infos.delta_col), quoted=True
+                        )
+                    ]
+                    if infos.delta_col
+                    else []
+                )
+            )
+        )
+        .where(
+            ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
+                sg.from_(ident)
+                .select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME, quoted=True)))
+                .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True))
+                .subquery()
             )
         )
     )
@@ -1153,4 +1214,5 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
         query,
         delta_path.parent / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
+        allow_schema_drift=True,
     )

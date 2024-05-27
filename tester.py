@@ -1,8 +1,4 @@
 import sqlglot
+import sqlglot.expressions as exp
 
-print(
-    sqlglot.parse_one(
-        "SELECT cast(1 as float)",
-        dialect="tsql",
-    ).sql("spark")
-)
+print(sqlglot.parse_one("select X'1A2B'", dialect="spark").sql("databricks"))

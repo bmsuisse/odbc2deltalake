@@ -223,5 +223,6 @@ def restore_last_pk(infos: WriteConfigAndInfos):
         sg.from_(view_name).select(ex.Star()),
         infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         mode="overwrite",
+        allow_schema_drift=True,
     )
     return True
