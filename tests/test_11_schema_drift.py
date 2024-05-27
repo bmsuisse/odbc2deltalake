@@ -6,13 +6,13 @@ from .utils import write_db_to_delta_with_check, config_names, get_test_run_conf
 import sqlglot as sg
 import sqlglot.expressions as ex
 from odbc2deltalake.query import sql_quote_value
+import dataclasses
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
 
 
-@pytest.mark.order(17)
 @pytest.mark.parametrize("conf_name", config_names)
 def test_schema_drift(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
@@ -60,7 +60,7 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] alter column Age float ;
+                """ALTER TABLE dbo.[user7] alter column [Age] float
                 """
             )
 
@@ -83,10 +83,9 @@ def test_schema_drift(
             )
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] add column Age xml;
+                """ALTER TABLE dbo.[user7] add Age xml not null default('<a></a>');
                 """
             )
     with pytest.raises(Exception):
-        write_db_to_delta_with_check(
-            reader, ("dbo", "user7"), dest, write_config=config
-        )
+        c2 = dataclasses.replace(config, load_mode="force_full")
+        write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=c2)

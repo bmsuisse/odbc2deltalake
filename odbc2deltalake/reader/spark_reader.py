@@ -272,8 +272,8 @@ class SparkReader(DataSourceReader):
         elif allow_schema_drift:
             writer = writer.option(
                 "mergeSchema" if mode == "append" else "overwriteSchema", "true"
-            ).mode(mode)
-        writer.save(str(delta_path))
+            )
+        writer.mode(mode).save(str(delta_path))
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         return SparkDeltaOps(delta_path, self.spark)
