@@ -155,7 +155,7 @@ def spark_session():
     return spark
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def session_clear(spark_session: "SparkSession"):
     yield
     if spark_session:
