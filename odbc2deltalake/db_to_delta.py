@@ -246,6 +246,7 @@ def _get_latest_pk_query(
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
     merge_delta=False,
+    delta_load_value=None,
 ):
     reader.local_register_update_view(
         destination / f"delta_load/{DBDeltaPathConfigs.DELTA_1_NAME}",
@@ -316,6 +317,16 @@ def _get_latest_pk_query(
                             )
                         )
                         .from_(ex.table_("primary_keys_ts_for_write", alias="cpk"))
+                        .where(
+                            (
+                                ex.column(
+                                    write_config.get_target_name(delta_col), quoted=True
+                                )
+                                <= delta_load_value
+                            )
+                            if delta_load_value
+                            else ex.convert(True)
+                        )
                         .join(
                             ex.table_("delta_2", alias="au3"),
                             ex.and_(
@@ -373,9 +384,16 @@ def write_latest_pk(
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
     merge_delta=False,
+    delta_load_value=None,
 ):
     latest_pk_query = _get_latest_pk_query(
-        reader, destination, pks, delta_col, write_config, merge_delta
+        reader,
+        destination,
+        pks,
+        delta_col,
+        write_config,
+        merge_delta,
+        delta_load_value=delta_load_value,
     )
     if merge_delta:
         reader.local_upsert_into(
@@ -506,7 +524,11 @@ def do_delta_load(
         table_alias="t",
         type_map=write_config.data_type_map,
     ) > ex.convert(delta_load_value)
-    logger.info(f"Start delta step 2, load updates by {delta_col.column_name}")
+    logger.info(
+        f"Start delta step 2, load updates by {delta_col.column_name}",
+        load="delta",
+        sub_load="delta_1",
+    )
     upds_sql = _get_update_sql(
         cols=infos.col_infos,
         criterion=criterion,
@@ -523,10 +545,11 @@ def do_delta_load(
     )
     if not simple:
         assert old_pk_version is not None
-        _handle_additional_updates(
+        new_delta_load_value = _handle_additional_updates(
             infos=infos,
             old_pk_version=old_pk_version,
         )
+        delta_load_value = new_delta_load_value or delta_load_value
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
 
         logger.info("Start delta step 3.5, write deletes")
@@ -542,7 +565,12 @@ def do_delta_load(
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
         logger.info("Start delta step 4, write meta for next delta load")
         write_latest_pk(
-            reader, destination, infos.pk_cols, delta_col, write_config=write_config
+            reader,
+            destination,
+            infos.pk_cols,
+            delta_col,
+            write_config=write_config,
+            delta_load_value=delta_load_value,
         )
 
         logger.info("Done delta load")
@@ -1044,6 +1072,7 @@ def _handle_additional_updates(
             delta_name="delta_1",
             write_config=write_config,
         )
+        return delta_load_value
     else:
         # we don't want to overshoot 8000 chars here because of spark. we estimate how much space in json a record of pk's will take
 
@@ -1081,6 +1110,7 @@ def _handle_additional_updates(
             mode="append",
             allow_schema_drift=True,
         )
+        return None
 
 
 def _get_update_sql(
