@@ -30,15 +30,21 @@ def check_latest_pk_pandas(infos: WriteConfigAndInfos):
     lpk_path = infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     lpk_df = lpk_path.as_delta_table()
     sort_cols = [infos.write_config.get_target_name(pk) for pk in infos.pk_cols]
-    lpk_pd = lpk_df.to_pandas().sort_values(sort_cols).reset_index(drop=True)
+
+    def _sort_pd(df: pd.DataFrame):
+        if df.shape[0] == 0:
+            return df
+        return df.sort_values(sort_cols).reset_index(drop=True)
+
+    lpk_pd = _sort_pd(lpk_df.to_pandas())
     _, view_name, success = create_last_pk_version_view(infos, view_prefix="v_tester_")
     assert success
     assert view_name is not None
-    latest_pd = (
+    latest_pd = _sort_pd(
         pd.DataFrame(infos.source.local_execute_sql_to_py(from_(view_name).select("*")))
-        .sort_values(sort_cols)
-        .reset_index(drop=True)
     )
+    if latest_pd.shape[0] == 0 and lpk_pd.shape[0] == 0:
+        return
     latest_pd = _ntz(latest_pd)
     comp = _ntz(lpk_pd).compare(latest_pd)
     if comp.shape[0] > 0:
