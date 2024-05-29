@@ -141,6 +141,7 @@ def spark_session():
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config("spark.driver.extraClassPath", jar)
         .config("spark.executor.extraClassPath", jar)
+        .config("spark.memory.fraction", 0.8)
         .config(
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
