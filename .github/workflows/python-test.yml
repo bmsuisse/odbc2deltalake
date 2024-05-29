@@ -9,12 +9,13 @@ on:
     paths-ignore: ["README.md", "docs", ".github"]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11"]
+        test_config: ["local", "spark", "azure"]
 
     steps:
       - uses: actions/checkout@v3
@@ -46,10 +47,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install poetry
-          poetry install --all-extras --with test,dev,spark
-          poetry run pip install git+https://github.com/tobymao/sqlglot.git # temporary workaround
+      - name: Install project dependencies incl Spark
+        if: matrix.test_config == 'spark'
+        run: poetry install --all-extras --with test,dev,spark
+      - name: Install project dependencies
+        if: matrix.test_config != 'spark'
+        run: poetry install --all-extras --with test,dev
       - name: Pyright
         run: |
           poetry run pyright odbc2deltalake
       - name: Test with pytest
         run: poetry run pytest --cov=odbc2deltalake tests
+        env:
+          ODBCLAKE_TEST_CONFIGURATION: ${{ matrix.test_config }}

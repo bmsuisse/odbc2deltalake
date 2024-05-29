@@ -34,6 +34,9 @@ class DB_Connection:
         self.conn_str_master = conn_str
         self.master_conn = pyodbc.connect(conn_str, autocommit=True)
         configs = ["azure", "spark", "local"]
+        tc = os.getenv("ODBCLAKE_TEST_CONFIGURATION")
+        if tc:
+            configs = [tc]
         self.conn_str: dict[str, str] = dict()
         for cfg in configs:
             db_name = "db_to_delta_test_" + cfg
@@ -103,9 +106,13 @@ def spawn_azurite():
     import test_server
     import os
 
+    if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() != "azure":
+        yield None
+        return
     if os.getenv("NO_AZURITE_DOCKER", "0") == "1":
         test_server.create_test_blobstorage()
         yield None
+        return
     else:
         azurite = test_server.start_azurite()
         yield azurite
@@ -118,6 +125,8 @@ def spawn_azurite():
 @pytest.fixture(scope="session")
 def spark_session():
     if os.getenv("NO_SPARK", "0") == "1":
+        return None
+    if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "spark").lower() != "spark":
         return None
     from pyspark.sql import SparkSession
     from delta import configure_spark_with_delta_pip
