@@ -4,6 +4,10 @@ import os
 import logging
 from dotenv import load_dotenv
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyspark.sql import SparkSession
 
 load_dotenv()
 
@@ -149,3 +153,10 @@ def spark_session():
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
     return spark
+
+
+@pytest.fixture(scope="session", autouse=True)
+def session_clear(spark_session: "SparkSession"):
+    yield
+    if spark_session:
+        spark_session.catalog.clearCache()
