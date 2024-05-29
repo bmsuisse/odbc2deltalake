@@ -4,6 +4,10 @@ import os
 import logging
 from dotenv import load_dotenv
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyspark.sql import SparkSession
 
 load_dotenv()
 
@@ -137,6 +141,7 @@ def spark_session():
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config("spark.driver.extraClassPath", jar)
         .config("spark.executor.extraClassPath", jar)
+        .config("spark.memory.fraction", 0.8)
         .config(
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
@@ -149,3 +154,10 @@ def spark_session():
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
     return spark
+
+
+@pytest.fixture(autouse=True)
+def session_clear(spark_session: "SparkSession"):
+    yield
+    if spark_session:
+        spark_session.catalog.clearCache()
