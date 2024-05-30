@@ -38,7 +38,7 @@ def get_local_delta_value_and_count(
     return mt, cnt
 
 
-def retrieve_source_ts_cnt(infos: WriteConfigAndInfos):
+def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos"):
     pk_ts_col_select = infos.from_("t").select(
         (
             ex.func(
