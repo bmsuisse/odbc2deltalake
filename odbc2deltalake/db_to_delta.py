@@ -11,6 +11,17 @@ from typing import (
     TypeVar,
 )
 import sqlglot as sg
+
+from odbc2deltalake.load_infos import (
+    get_local_delta_value_and_count,
+    retrieve_source_ts_cnt,
+)
+from odbc2deltalake.load_result import (
+    DeltaLoadResult,
+    FullLoadResult,
+    LoadResult,
+    NoLoadResult,
+)
 from .utils import is_pydantic_2
 from odbc2deltalake.sql_schema import is_string_type
 from .utils import concat_seq
@@ -426,7 +437,8 @@ def do_delta_load(
     infos: WriteConfigAndInfos,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
     simple_check=False,  # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
-):
+) -> LoadResult:
+    delta_result = DeltaLoadResult()
     destination = infos.destination
     logger = infos.logger
     delta_col = infos.delta_col
@@ -444,8 +456,7 @@ def do_delta_load(
     ]
     if any(missing_cols) and infos.write_config.allow_schema_drift:
         logger.warning(f"New columns from source: {missing_cols}. Do a full load")
-        do_full_load(infos=infos, mode="append")
-        return
+        return do_full_load(infos=infos, mode="append")
 
     last_pk_path = (
         destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
@@ -469,8 +480,8 @@ def do_delta_load(
             restore_success = False
         if not restore_success:
             logger.warning("No primary keys found, do a full load")
-            do_full_load(infos=infos, mode="append")
-            return
+            return do_full_load(infos=infos, mode="append")
+
     elif last_pk_path and not simple:
         cols = reader.get_local_delta_ops(last_pk_path).columns()
         cols = set((c.lower() for c in cols))
@@ -479,8 +490,8 @@ def do_delta_load(
             logger.warning(
                 f"Primary keys do not match. Expected: {', '.join(pk_set)}, Found: {', '.join(cols)}. Do a full load"
             )
-            do_full_load(infos=infos, mode="append")
-            return
+            return do_full_load(infos=infos, mode="append")
+
     old_pk_version = (
         reader.get_local_delta_ops(
             destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
@@ -489,32 +500,31 @@ def do_delta_load(
         else None
     )
     delta_path = destination / "delta"
-    delta_load_value, current_count = _get_latest_delta_value(infos)
-    source_delta, source_count = _retrieve_source_ts_cnt(infos=infos)
+    delta_load_value, current_count = get_local_delta_value_and_count(infos)
+    delta_result.starting_local_state = delta_load_value, current_count
+    source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
+    delta_result.starting_source_state = source_delta, source_count
     if (
         delta_load_value is not None
         and source_delta is not None
         and (delta_load_value, current_count) == (source_delta, source_count)
     ):
         logger.info("No updates, done")
-        return
+        return NoLoadResult()
 
     if delta_load_value is None:
         logger.warning("No delta load value, do a full load")
-        do_full_load(
+        return do_full_load(
             infos=infos,
             mode="append",
         )
-        return
+
     if not simple:
         logger.info(
             f"Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
         )
         _retrieve_primary_key_data(infos=infos)
     else:
-        source_count = reader.source_sql_to_py(
-            infos.from_("t").select(ex.Count(this=ex.Star()).as_("cnt"))
-        )[0]["cnt"]
         logger.info(
             f"Start delta step 1, MAX({delta_col.column_name}): {delta_load_value}. Total RowCount: {source_count}"
         )
@@ -573,7 +583,24 @@ def do_delta_load(
             delta_load_value=delta_load_value,
         )
 
-        logger.info("Done delta load")
+        logger.info("Done delta load, do some last checks")
+        target_count = _get_local_pk_count(infos)
+        delta_result.dirty = source_count != target_count
+        if source_count != target_count:
+            logger.warning(
+                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. { 'Do a normal delta' if simple_check else ''}"
+            )
+            source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
+            delta_result.end_source_state = source_delta, source_count
+            if delta_result.end_source_state != delta_result.starting_source_state:
+                logger.warning(
+                    f"Source state changed during load: {delta_result.starting_source_state} -> {delta_result.end_source_state}"
+                )
+            return delta_result
+
+        else:
+            logger.info(f"Source and target count match: {source_count}")
+            return delta_result
     else:
         _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
         pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
@@ -588,23 +615,39 @@ def do_delta_load(
             write_config=write_config,
             merge_delta=True,
         )
-        reader.local_register_update_view(
-            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
-            DBDeltaPathConfigs.LATEST_PK_VERSION,
-        )
-        target_count = reader.local_execute_sql_to_py(
-            sg.from_(DBDeltaPathConfigs.LATEST_PK_VERSION).select(
-                ex.Count(this=ex.Star()).as_("cnt")
-            )
-        )[0]["cnt"]
+        target_count = _get_local_pk_count(infos)
+        delta_result.dirty = source_count != target_count
         if source_count != target_count:
             logger.warning(
                 f"Source and target count do not match. Source: {source_count}, Target: {target_count}. { 'Do a normal delta' if simple_check else ''}"
             )
             if simple_check:
-                do_delta_load(infos, simple=False)
+                return do_delta_load(infos, simple=False)
+            else:
+                source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
+                delta_result.end_source_state = source_delta, source_count
+                if delta_result.end_source_state != delta_result.starting_source_state:
+                    logger.warning(
+                        f"Source state changed during load: {delta_result.starting_source_state} -> {delta_result.end_source_state}"
+                    )
+                return delta_result
         else:
             logger.info(f"Source and target count match: {source_count}")
+            return delta_result
+
+
+def _get_local_pk_count(infos: WriteConfigAndInfos):
+    reader = infos.source
+
+    reader.local_register_update_view(
+        infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
+        DBDeltaPathConfigs.LATEST_PK_VERSION,
+    )
+    return reader.local_execute_sql_to_py(
+        sg.from_(DBDeltaPathConfigs.LATEST_PK_VERSION).select(
+            ex.Count(this=ex.Star()).as_("cnt")
+        )
+    )[0]["cnt"]
 
 
 def do_append_inserts_load(infos: WriteConfigAndInfos):
@@ -614,7 +657,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
     logger.info(
         f"Start Append Only Load with Delta Column {infos.delta_col.column_name}"
     )
-    delta_load_value, _ = _get_latest_delta_value(infos)
+    delta_load_value, _ = get_local_delta_value_and_count(infos)
 
     criterion = (
         _source_convert(
@@ -643,36 +686,6 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
     )
 
     logger.info("Done Append only load")
-
-
-def _get_latest_delta_value(
-    infos: WriteConfigAndInfos,
-) -> tuple[Any, int]:
-    if (infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS).exists():
-        delta_path = (
-            infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
-        )
-    else:
-        delta_path = infos.destination / "delta"
-    tmp_view_name = "temp_" + str(abs(hash(str(delta_path))))
-    infos.source.local_register_update_view(delta_path, tmp_view_name)
-    row = infos.source.local_execute_sql_to_py(
-        sg.from_(ex.to_identifier(tmp_view_name)).select(
-            (
-                ex.func(
-                    "MAX",
-                    ex.column(infos.write_config.get_target_name(infos.delta_col)),
-                ).as_("max_ts")
-                if infos.delta_col
-                else ex.convert(None).as_("max_ts")
-            ),
-            ex.Count(this=ex.Star()).as_("cnt"),
-        )
-    )[0]
-    mt, cnt = row["max_ts"], row["cnt"]
-    if isinstance(mt, bytearray):
-        return bytes(mt), cnt
-    return mt, cnt
 
 
 def do_deletes(
@@ -782,26 +795,6 @@ def do_deletes(
             mode="append",
             allow_schema_drift=write_config.allow_schema_drift,
         )
-
-
-def _retrieve_source_ts_cnt(infos: WriteConfigAndInfos):
-    pk_ts_col_select = infos.from_("t").select(
-        (
-            ex.func(
-                "MAX",
-                ex.column(infos.delta_col.column_name, quoted=True),
-            ).as_("max_ts")
-            if infos.delta_col
-            else ex.convert(None).as_("max_ts")
-        ),
-        ex.Count(this=ex.Star()).as_("cnt"),
-    )
-
-    infos.logger.info(
-        "Retrieve all PK/TS", sql=pk_ts_col_select.sql(infos.write_config.dialect)
-    )
-    row = infos.source.source_sql_to_py(sql=pk_ts_col_select)
-    return row[0]["max_ts"], row[0]["cnt"]
 
 
 def _retrieve_primary_key_data(
@@ -1178,7 +1171,9 @@ def _load_updates_to_delta(
     )
 
 
-def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"]):
+def do_full_load(
+    infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"]
+) -> FullLoadResult:
     logger = infos.logger
     write_config = infos.write_config
     delta_path = infos.destination / "delta"
@@ -1206,7 +1201,7 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
     )
     if infos.delta_col is None:
         logger.info("Full Load done")
-        return
+        return FullLoadResult()
     logger.info(" Full Load done, write meta for delta load")
 
     reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
@@ -1246,3 +1241,4 @@ def do_full_load(infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"
         mode="overwrite",
         allow_schema_drift=True,
     )
+    return FullLoadResult()
