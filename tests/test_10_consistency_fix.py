@@ -24,9 +24,10 @@ def test_delta_query(
     ]
 
     config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
-    w = write_db_to_delta_with_check(
+    w, r = write_db_to_delta_with_check(
         reader, ("dbo", "user6"), dest, write_config=config
     )
+    assert r.executed_type == "full"
 
     stats = (  # we're evil and manipulate the latest pk!
         (dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION)
@@ -35,7 +36,8 @@ def test_delta_query(
     )
     assert stats["num_deleted_rows"] == 1
 
-    w.check_delta_consistency(auto_fix=True)
+    _, fixed = w.check_delta_consistency(auto_fix=True)
+    assert fixed
 
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:

@@ -17,6 +17,7 @@ from odbc2deltalake.load_infos import (
     retrieve_source_ts_cnt,
 )
 from odbc2deltalake.load_result import (
+    AppendOnlyLoadResult,
     DeltaLoadResult,
     FullLoadResult,
     LoadResult,
@@ -139,7 +140,7 @@ def _transform_dt(dt: dict, dialect_src: str, dialect_trg: str):
     return dt
 
 
-def exec_write_db_to_delta(infos: WriteConfigAndInfos):
+def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
     write_config = infos.write_config
     cols = infos.col_infos
     pk_cols = infos.pk_cols
@@ -191,13 +192,12 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
         ):
             lock_file_path.remove()
         lock_file_path.upload_str("")
-
         if (
             not source.local_delta_table_exists(delta_path)
             or write_config.load_mode == "overwrite"
         ):
             delta_path.mkdir()
-            do_full_load(infos=infos, mode="overwrite")
+            load_result = do_full_load(infos=infos, mode="overwrite")
         elif write_config.load_mode == "append_inserts":
             if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
                 delta_col = pk_cols[0]  # identity columns are usually increasing
@@ -205,19 +205,19 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
             assert (
                 delta_col is not None
             ), "Must provide delta column for append_inserts load"
-            do_append_inserts_load(infos)
+            load_result = do_append_inserts_load(infos)
         else:
             if (
                 delta_col is None
                 or len(pk_cols) == 0
                 or write_config.load_mode == "force_full"
             ):
-                do_full_load(
+                load_result = do_full_load(
                     infos=infos,
                     mode="append",
                 )
             else:
-                do_delta_load(
+                load_result = do_delta_load(
                     infos=infos,
                     simple=write_config.load_mode
                     in ["simple_delta", "simple_delta_check"],
@@ -230,6 +230,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos):
         _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.DELTA_1_NAME)
         _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.DELTA_2_NAME)
         _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS)
+        return load_result
     except Exception as e:
         # restore files
         if last_version_pk is not None:
@@ -650,7 +651,7 @@ def _get_local_pk_count(infos: WriteConfigAndInfos):
     )[0]["cnt"]
 
 
-def do_append_inserts_load(infos: WriteConfigAndInfos):
+def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
     logger = infos.logger
     write_config = infos.write_config
     assert infos.delta_col is not None, "must have a delta col"
@@ -686,6 +687,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos):
     )
 
     logger.info("Done Append only load")
+    return AppendOnlyLoadResult()
 
 
 def do_deletes(

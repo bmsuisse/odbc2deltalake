@@ -30,4 +30,11 @@ class NoLoadResult:
         self.executed_type = "none"
 
 
-LoadResult = Union[FullLoadResult, DeltaLoadResult, NoLoadResult]
+class AppendOnlyLoadResult:
+    executed_type: Literal["append_only"]
+
+    def __init__(self):
+        self.executed_type = "append_only"
+
+
+LoadResult = Union[FullLoadResult, DeltaLoadResult, NoLoadResult, AppendOnlyLoadResult]

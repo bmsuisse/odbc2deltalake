@@ -62,11 +62,13 @@ def test_delta(
         max_valid_from = res[0]
         assert max_valid_from is not None
 
-    write_db_to_delta_with_check(
+    _, l2 = write_db_to_delta_with_check(
         reader,
         ("dbo", "user2$"),
         dest,
     )
+    assert l2.executed_type == "delta"
+    assert not l2.dirty
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con, (dest / "delta").as_delta_table(), "v_user_scd2"
