@@ -1,4 +1,4 @@
-from typing import Literal, Union, Any
+from typing import Literal, Union, Any, Optional
 
 
 class FullLoadResult:
@@ -17,7 +17,7 @@ class DeltaLoadResult:
     starting_source_state: State
     end_source_state: State
 
-    dirty: bool | None = None  # True if the count does not match
+    dirty: Optional[bool] = None  # True if the count does not match
 
     def __init__(self):
         self.executed_type = "delta"
