@@ -39,7 +39,11 @@ def test_schema_drift(
 
     time.sleep(2)
 
-    write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=config)
+    _, r = write_db_to_delta_with_check(
+        reader, ("dbo", "user7"), dest, write_config=config
+    )
+    assert r.executed_type == "full"
+
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con, (dest / "delta").as_delta_table(), "v_user_scd2"
@@ -65,7 +69,10 @@ def test_schema_drift(
             )
 
     # we assume we can safely insert double into decimal
-    write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=config)
+    _, r = write_db_to_delta_with_check(
+        reader, ("dbo", "user7"), dest, write_config=config
+    )
+    assert r.executed_type == "delta"
 
     age_field = next(
         (
