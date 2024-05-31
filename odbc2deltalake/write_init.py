@@ -114,7 +114,7 @@ class WriteConfigAndInfos:
     def execute(self):
         from .db_to_delta import exec_write_db_to_delta
 
-        exec_write_db_to_delta(self)
+        return exec_write_db_to_delta(self)
 
     def check_delta_consistency(self, auto_fix=False):
         from .consistency import check_latest_pk
@@ -125,6 +125,8 @@ class WriteConfigAndInfos:
             (
                 self.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).remove(True)
+            return res, True
+        return res, False
 
     def exec_source_query(self, query: Union[ex.Query, str]):
         return self.source.source_sql_to_py(query)

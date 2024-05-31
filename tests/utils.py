@@ -65,12 +65,12 @@ def write_db_to_delta_with_check(
         write_config=write_config,
     )
     w.logger.print_to_console = True
-    w.execute()
+    r = w.execute()
     w.source.local_register_update_view(w.destination / "delta", "last_delta_view")
 
     check_latest_pk(w)
     check_latest_pk_pandas(w)
-    return w
+    return w, r
 
 
 if os.getenv("ODBCLAKE_TEST_CONFIGURATION"):
