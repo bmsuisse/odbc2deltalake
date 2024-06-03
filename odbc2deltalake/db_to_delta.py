@@ -447,13 +447,15 @@ def do_delta_load(
     assert delta_col is not None, "Must have a delta_col for delta loads"
     reader = infos.source
 
-    existing_cols = set(
-        (c.lower() for c in reader.get_local_delta_ops(destination / "delta").columns())
-    )
+    existing_col_infos = reader.get_local_delta_ops(
+        destination / "delta"
+    ).column_infos()
+
+    existing_col_names = set((c.name.lower() for c in existing_col_infos))
     missing_cols = [
         write_config.get_target_name(c)
         for c in infos.col_infos
-        if write_config.get_target_name(c).lower() not in existing_cols
+        if write_config.get_target_name(c).lower() not in existing_col_names
     ]
     if any(missing_cols) and infos.write_config.allow_schema_drift:
         logger.warning(f"New columns from source: {missing_cols}. Do a full load")
@@ -484,8 +486,8 @@ def do_delta_load(
             return do_full_load(infos=infos, mode="append")
 
     elif last_pk_path and not simple:
-        cols = reader.get_local_delta_ops(last_pk_path).columns()
-        cols = set((c.lower() for c in cols))
+        cols = reader.get_local_delta_ops(last_pk_path).column_infos()
+        cols = set((c.name.lower() for c in cols))
         pk_set = set((write_config.get_target_name(pk).lower() for pk in infos.pk_cols))
         if not cols.issuperset(pk_set):
             logger.warning(

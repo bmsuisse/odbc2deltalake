@@ -1,8 +1,9 @@
+from odbc2deltalake.reader.reader import ColInfo
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
 import sqlglot as sg
-from typing import Literal, TYPE_CHECKING, Callable, Optional, Sequence, Union
+from typing import Literal, TYPE_CHECKING, Callable, Mapping, Optional, Sequence, Union
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession, DataFrame
@@ -53,6 +54,20 @@ class SparkDeltaOps(DeltaOps):
 
     def columns(self):
         return self.spark.read.format("delta").load(str(self.dest)).columns
+
+    def column_infos(self) -> Sequence[ColInfo]:
+        return self.spark.catalog.listColumns("delta.`" + str(self.dest) + "`")
+
+    def set_nullable(self, cols: Mapping[str, bool]):
+        for c, n in cols.items():
+            if n:
+                self.spark.sql(
+                    f"ALTER TABLE delta.`{str(self.dest)}` CHANGE COLUMN `{c}` DROP NOT NULL"
+                )
+            else:
+                self.spark.sql(
+                    f"ALTER TABLE delta.`{str(self.dest)}` CHANGE COLUMN `{c}` SET NOT NULL"
+                )
 
 
 class SparkReader(DataSourceReader):
@@ -249,11 +264,16 @@ class SparkReader(DataSourceReader):
             )
             existing_schema = empty_read_df.schema
             existing_fields = existing_schema.fieldNames()
-            nf = [f.name for f in source_schema.fields if f.name not in existing_fields]
-            if nf:
-                new_cols = self.spark.createDataFrame([], source_schema).select(
-                    *[col(f) for f in nf]
-                )
+            existing_fields_lower = [f.lower() for f in existing_fields]
+            new_schema = existing_schema
+            has_new = False
+            for f in source_schema.fields:
+                if f.name.lower() not in existing_fields_lower:
+                    has_new = True
+                    new_schema = new_schema.add(f.name, f.dataType)
+
+            if has_new:
+                new_cols = self.spark.createDataFrame([], new_schema)
                 new_cols.write.format("delta").option("mergeSchema", "true").mode(
                     "append"
                 ).save(str(delta_path))
