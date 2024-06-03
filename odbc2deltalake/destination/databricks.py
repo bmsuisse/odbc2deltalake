@@ -7,7 +7,7 @@ class DatabricksDestination(Destination):
     def __init__(
         self, dbutils, container: str, path: str, account: str, scheme: str = "abfss"
     ):
-        self.path = path
+        self.path = path.removeprefix("/")
         if "." not in account:
             account = account + ".dfs.core.windows.net"
         self.account = account
