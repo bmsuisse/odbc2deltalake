@@ -56,7 +56,7 @@ class SparkDeltaOps(DeltaOps):
         return self.spark.read.format("delta").load(str(self.dest)).columns
 
     def column_infos(self) -> Sequence[ColInfo]:
-        return self.spark.catalog.listColumns(str(self.dest))
+        return self.spark.catalog.listColumns("delta.`" + str(self.dest) + "`")
 
     def set_nullable(self, cols: Mapping[str, bool]):
         for c, n in cols.items():
