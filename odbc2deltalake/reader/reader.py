@@ -10,6 +10,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class ColInfo(Protocol):
+    name: str
+    nullable: bool
+
+
 class DeltaOps(Protocol):
     def version(
         self,
@@ -23,7 +28,7 @@ class DeltaOps(Protocol):
 
     def get_property(self, key: str) -> Union[str, None]: ...
 
-    def columns(self) -> Sequence[str]: ...
+    def column_infos(self) -> Sequence[ColInfo]: ...
 
 
 class DataSourceReader(ABC):

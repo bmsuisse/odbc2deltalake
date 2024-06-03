@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from odbc2deltalake.destination.destination import Destination
-from odbc2deltalake.reader.reader import DeltaOps
+from odbc2deltalake.reader.reader import ColInfo, DeltaOps
 from .reader import DataSourceReader
 from typing import TYPE_CHECKING, Literal, Optional, Sequence, Union
 from sqlglot.expressions import Query, DataType
@@ -85,8 +85,8 @@ class DeltaRSDeltaOps(DeltaOps):
     def get_property(self, key: str):
         return self.delta_table.metadata().configuration.get(key, None)
 
-    def columns(self):
-        return [f.name for f in self.delta_table.schema().fields]
+    def column_infos(self) -> Sequence[ColInfo]:
+        return self.delta_table.schema().fields
 
 
 class ODBCReader(DataSourceReader):

@@ -1,3 +1,4 @@
+from odbc2deltalake.reader.reader import ColInfo
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
@@ -53,6 +54,9 @@ class SparkDeltaOps(DeltaOps):
 
     def columns(self):
         return self.spark.read.format("delta").load(str(self.dest)).columns
+
+    def column_infos(self) -> Sequence[ColInfo]:
+        return self.spark.catalog.listColumns(str(self.dest))
 
 
 class SparkReader(DataSourceReader):
