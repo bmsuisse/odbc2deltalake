@@ -6,6 +6,7 @@ import sqlglot as sg
 from odbc2deltalake.destination.destination import (
     Destination,
 )
+from odbc2deltalake.logging import StorageBackend
 from odbc2deltalake.reader import DataSourceReader
 from .metadata import (
     get_primary_keys,
@@ -159,7 +160,9 @@ def make_writer(
     destination: Union[Destination, Path],
     write_config: Union[WriteConfig, None] = None,
     logger_name: Optional[str] = None,
+    *,
     log_file_path: Optional[Destination] = None,
+    log_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
 ):
     if write_config is None:
         write_config = WriteConfig()
@@ -231,6 +234,7 @@ def make_writer(
             source,
             logging.getLogger(__name__),
             log_name=logger_name,
+            storage_backend=log_backend,
         ),
         table_or_query=table_or_query,
     )
