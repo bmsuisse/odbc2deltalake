@@ -1,10 +1,9 @@
 from datetime import datetime, timezone
 from odbc2deltalake.destination.destination import Destination
-from pydantic import BaseModel
 import pydantic
 import logging
 from uuid import uuid4
-from typing import Literal, Optional, Union, Protocol
+from typing import Literal, Optional, Union
 from .logging import LogMessage, StorageBackend
 from odbc2deltalake.reader.reader import DataSourceReader
 

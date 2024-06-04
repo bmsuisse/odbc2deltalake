@@ -1,10 +1,6 @@
-from datetime import datetime, timezone
-from odbc2deltalake.destination.destination import Destination
+from datetime import datetime
 from pydantic import BaseModel
-import pydantic
-import logging
-from uuid import uuid4
-from typing import Literal, Optional, Union, Protocol
+from typing import Optional, Union, Protocol
 
 
 class LogMessage(BaseModel):

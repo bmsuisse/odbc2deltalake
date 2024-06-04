@@ -3,9 +3,6 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
-import sqlglot as sg
-import sqlglot.expressions as ex
-from odbc2deltalake.query import sql_quote_value
 import dataclasses
 
 if TYPE_CHECKING:
@@ -17,7 +14,7 @@ if TYPE_CHECKING:
 def test_schema_drift(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
+    from odbc2deltalake import WriteConfig
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user7")[
         conf_name
