@@ -318,8 +318,8 @@ class ODBCReader(DataSourceReader):
         allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
         from arrow_odbc import read_arrow_batches_from_odbc
-        from deltalake import write_deltalake, DeltaTable
-        from deltalake.exceptions import DeltaError, TableNotFoundError
+        from deltalake import write_deltalake
+        from deltalake.exceptions import DeltaError
 
         reader = read_arrow_batches_from_odbc(
             query=sql,
@@ -385,7 +385,6 @@ class ODBCReader(DataSourceReader):
         merge_cols: Sequence[str],
     ):
         import duckdb
-        from deltalake import WriterProperties
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
 

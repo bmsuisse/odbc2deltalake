@@ -3,9 +3,6 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
-import sqlglot as sg
-import sqlglot.expressions as ex
-from odbc2deltalake.query import sql_quote_value
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection

@@ -256,7 +256,6 @@ class SparkReader(DataSourceReader):
 
     def _append_new_cols(self, delta_path: Destination, source_schema: "StructType"):
         from delta import DeltaTable
-        from pyspark.sql.functions import col
 
         if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
             empty_read_df = (

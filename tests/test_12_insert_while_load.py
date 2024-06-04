@@ -3,10 +3,6 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
-import sqlglot as sg
-import sqlglot.expressions as ex
-from odbc2deltalake.query import sql_quote_value
-import dataclasses
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -17,8 +13,7 @@ if TYPE_CHECKING:
 def test_insert_while_load(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import DBDeltaPathConfigs, WriteConfig, make_writer
-    from odbc2deltalake.delta_logger import DeltaLogger
+    from odbc2deltalake import WriteConfig, make_writer
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user8")[
         conf_name
@@ -65,7 +60,6 @@ def test_insert_while_load(
         duckdb_create_view_for_delta(
             con, (dest / "delta").as_delta_table(), "v_user_scd2"
         )
-        from datetime import date
 
         name_tuples = con.execute(
             'SELECT * from v_user_scd2 where "User_-_iD"=98'
@@ -74,7 +68,6 @@ def test_insert_while_load(
         duckdb_create_view_for_delta(
             con, (dest / "delta_load/latest_pk_version").as_delta_table(), "v_user_lpk"
         )
-        from datetime import date
 
         name_tuples = con.execute(
             'SELECT * from v_user_lpk where "User_-_iD"=98'

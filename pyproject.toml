@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "odbc2deltalake"
-version = "0.12.1"
+version = "0.12.2"
 description = ""
 authors = ["Adrian Ehrsam <adrian.ehrsam@bmsuisse.ch>"]
 license = "MIT"
@@ -34,7 +34,7 @@ azure-storage-blob = "^12.19.1"
 pandas = ">=1.4.2"
 pyspark = "^3.5.1"
 delta-spark = "^3.2.0"
-duckdb = { version = ">=0.10.2,!=0.10.3" }
+duckdb = { version = "^1.0" }
 pyarrow = ">=16.1"
 
 [tool.poetry.group.test]
