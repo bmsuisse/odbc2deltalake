@@ -126,3 +126,7 @@ class WriteConfig:
     Use if you want to apply some naming convention or avoid special characters in the target. """
 
 ```
+
+## Related Project
+
+We recommend using our [Fabricks Framework](https://github.com/fabricks-framework/fabricks) to do the ETL, but of course you can use it without it as well. 
