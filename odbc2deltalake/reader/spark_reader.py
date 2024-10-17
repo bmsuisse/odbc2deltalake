@@ -173,11 +173,6 @@ class SparkReader(DataSourceReader):
     def source_schema_limit_one(self, sql: Query) -> "list[InformationSchemaColInfo]":
         from ..metadata import InformationSchemaColInfo
 
-        def _sql_t(t: str):
-            if t == "timestamp":
-                return "datetime2"
-            return t
-
         limit_query = sql.limit(0)
         reader = self._reader(limit_query)
         df = self.transformation_hook(reader.load(), "metadata")
