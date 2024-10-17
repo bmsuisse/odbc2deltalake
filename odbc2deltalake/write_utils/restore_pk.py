@@ -123,7 +123,7 @@ def create_last_pk_version_view(
         .with_(
             "base",
             as_=ex.union(
-                left=sg.from_(
+                sg.from_(
                     ex.table_(view_prefix + "delta_after_full_load", alias="df")
                 ).select(
                     *(
@@ -143,7 +143,7 @@ def create_last_pk_version_view(
                         ]
                     )
                 ),
-                right=sg.from_(ex.table_(view_prefix + "last_full_load", alias="f"))
+                sg.from_(ex.table_(view_prefix + "last_full_load", alias="f"))
                 .select(
                     *(
                         [
