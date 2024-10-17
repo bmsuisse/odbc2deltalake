@@ -716,7 +716,7 @@ def do_deletes(
         version=old_pk_version,
     )
     delete_query = ex.except_(
-        left=ex.select(
+        ex.select(
             *_get_cols_select(
                 pk_cols,
                 table_alias="lpk",
@@ -724,7 +724,7 @@ def do_deletes(
                 get_target_name=write_config.get_target_name,
             )
         ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
-        right=ex.select(
+        ex.select(
             *_get_cols_select(
                 pk_cols,
                 table_alias="cpk",
@@ -951,7 +951,7 @@ def _handle_additional_updates(
     def _local_view_for_updates():
         reader.local_register_view(
             ex.except_(
-                left=ex.select(
+                ex.select(
                     *_get_cols_select(
                         cols=pk_ds_cols,
                         table_alias="pk",
@@ -959,7 +959,7 @@ def _handle_additional_updates(
                         get_target_name=write_config.get_target_name,
                     )
                 ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
-                right=ex.select(
+                ex.select(
                     *_get_cols_select(
                         cols=pk_ds_cols,
                         table_alias="lpk",
@@ -994,7 +994,7 @@ def _handle_additional_updates(
         else:
             _local_view_for_updates()
     sql_query = ex.except_(
-        left=ex.select(
+        ex.select(
             *_get_cols_select(
                 cols=pk_cols,
                 table_alias="au",
@@ -1002,7 +1002,7 @@ def _handle_additional_updates(
                 get_target_name=write_config.get_target_name,
             )
         ).from_(ex.table_("additional_updates", alias="au")),
-        right=ex.select(
+        ex.select(
             *_get_cols_select(
                 cols=pk_cols,
                 table_alias="d1",
