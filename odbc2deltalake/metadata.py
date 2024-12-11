@@ -117,7 +117,7 @@ SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.gener
             dt_str += f"({max_len})" if max_len != -1 else "(MAX)"
         elif numeric_precision is not None:
             dt_str += f"({numeric_precision},{numeric_scale})"
-        elif datetime_precision:
+        elif datetime_precision and dt.lower() not in ["datetime", "date"]:
             dt_str += f"({datetime_precision})"
 
         d["data_type"] = ex.DataType.build(dt_str, dialect=dialect)
