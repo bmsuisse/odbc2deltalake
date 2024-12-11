@@ -33,7 +33,7 @@ def test_delta_sys(
 insert into dbo.[company3](id, name)
 select 'c400',
     'The 400 company';
-    UPDATE dbo.[company3] SET name='Die zwooti firma 2.0' where id='c2';
+    UPDATE dbo.[company3] SET name='Die zwooti firma 2.0', date_timer=getdate() where id='c2';
     
 insert into dbo.[company3](id, name)
 select 'c500',

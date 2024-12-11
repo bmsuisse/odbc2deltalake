@@ -34,6 +34,7 @@ create table dbo.[company2](
 create table dbo.[company3](
         id varchar(10) collate Icelandic_100_CI_AI_SC primary key,
         name varchar(100),
+        date_timer datetime,
         [Start] datetime2 GENERATED ALWAYS AS ROW START,
         [End] datetime2 GENERATED ALWAYS AS ROW
     END,
@@ -45,8 +46,8 @@ select 'c1',
 insert into dbo.[company](id, name)
 select 'c2',
     'The Second company        ';
-insert into dbo.[company3](id, name)
-select id, name from dbo.[company];
+insert into dbo.[company3](id, name, date_timer)
+select id, name, getdate() from dbo.[company];
 create table dbo.[user](
     [User - iD] bigint primary key identity(1, 1),
     FirstName varchar(100),
