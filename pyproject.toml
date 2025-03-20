@@ -1,10 +1,8 @@
 [project]
 name = "odbc2deltalake"
-version = "0.12.4"
+version = "0.12.5"
 description = ""
-authors = [
-    { name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" },
-]
+authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
 dependencies = [
     "pydantic >=1.10.0",
     "pyodbc >=5.1.0,<6",
@@ -22,23 +20,11 @@ requires-python = "~=3.9"
 [project.scripts]
 
 [project.optional-dependencies]
-local = [
-    "pyodbc",
-    "deltalake2db",
-    "arrow-odbc",
-    "deltalake",
-    "duckdb",
-]
-local_azure = [
-    "azure-identity",
-    "adlfs",
-    "azure-storage-file-datalake",
-]
+local = ["pyodbc", "deltalake2db", "arrow-odbc", "deltalake", "duckdb"]
+local_azure = ["azure-identity", "adlfs", "azure-storage-file-datalake"]
 
 [build-system]
-requires = [
-    "hatchling",
-]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.pyright]
@@ -68,10 +54,7 @@ explicit = true
 publish-url = "https://pkgs.dev.azure.com/bmeurope/_packaging/BMS/pypi/upload/"
 
 [dependency-groups]
-dev = [
-    "pyright >=1.1.352,<2",
-    "ruff >=0.4.3",
-]
+dev = ["pyright >=1.1.352,<2", "ruff >=0.4.3"]
 test = [
     "pytest >=8.0.2,<9",
     "pytest-asyncio >=0.23.5",
@@ -86,7 +69,4 @@ test = [
     "pyarrow >=16.1",
     "polars >=1.17.1,<2",
 ]
-spark = [
-    "delta-spark >=3.2.0,<4",
-    "pyspark >=3.5.1,<4",
-]
+spark = ["delta-spark >=3.2.0,<4", "pyspark >=3.5.1,<4"]
