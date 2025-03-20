@@ -201,9 +201,9 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
             if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
                 delta_col = pk_cols[0]  # identity columns are usually increasing
                 infos = dataclasses.replace(infos, delta_col=delta_col)
-            assert (
-                delta_col is not None
-            ), "Must provide delta column for append_inserts load"
+            assert delta_col is not None, (
+                "Must provide delta column for append_inserts load"
+            )
             load_result = do_append_inserts_load(infos)
         else:
             if (
@@ -466,7 +466,7 @@ def do_delta_load(
         else None
     )
     logger.info(
-        f"Start { 'SIMPLE ' if simple else '' }Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in infos.pk_cols))}"
+        f"Start {'SIMPLE ' if simple else ''}Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in infos.pk_cols))}"
     )
 
     if last_pk_path and not reader.local_delta_table_exists(
@@ -502,7 +502,11 @@ def do_delta_load(
         else None
     )
     delta_path = destination / "delta"
-    delta_load_value, current_count = get_local_delta_value_and_count(infos)
+    try:
+        delta_load_value, current_count = get_local_delta_value_and_count(infos)
+    except Exception as e:
+        logger.warning(f"Could not get delta value: {e}")
+        return do_full_load(infos=infos, mode="append")
     delta_result.starting_local_state = delta_load_value, current_count
     source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
     delta_result.starting_source_state = source_delta, source_count
@@ -590,7 +594,7 @@ def do_delta_load(
         delta_result.dirty = source_count != target_count
         if source_count != target_count:
             logger.warning(
-                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. { 'Do a normal delta' if simple_check else ''}"
+                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. {'Do a normal delta' if simple_check else ''}"
             )
             source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
             delta_result.end_source_state = source_delta, source_count
@@ -621,7 +625,7 @@ def do_delta_load(
         delta_result.dirty = source_count != target_count
         if source_count != target_count:
             logger.warning(
-                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. { 'Do a normal delta' if simple_check else ''}"
+                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. {'Do a normal delta' if simple_check else ''}"
             )
             if simple_check:
                 return do_delta_load(infos, simple=False)
@@ -711,7 +715,7 @@ def do_deletes(
     )
     LAST_PK_VERSION = "LAST_PK_VERSION"
     reader.local_register_update_view(
-        destination / f"delta_load/{ DBDeltaPathConfigs.LATEST_PK_VERSION}",
+        destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
         LAST_PK_VERSION,
         version=old_pk_version,
     )
@@ -885,7 +889,7 @@ def _write_delta2(
         )
         return f"""{sql}
         inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
-             on {' AND '.join([f't.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}' for c in infos.pk_cols])}
+             on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
         """
 
     if mode == "overwrite":
@@ -938,12 +942,12 @@ def _handle_additional_updates(
     assert delta_col is not None, "Need a delta column"
     pk_ds_cols = concat_seq(pk_cols, [delta_col])
     reader.local_register_update_view(
-        folder / f"delta_load/{ DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
+        folder / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
         DBDeltaPathConfigs.PRIMARY_KEYS_TS,
     )
     LAST_PK_VERSION = "LAST_PK_VERSION"
     reader.local_register_update_view(
-        folder / f"delta_load/{ DBDeltaPathConfigs.LATEST_PK_VERSION}",
+        folder / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
         LAST_PK_VERSION,
         version=old_pk_version,
     )

@@ -23,40 +23,23 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install ODBC driver
-        run: |
-          if ! [[ "16.04 18.04 20.04 22.04" == *"$(lsb_release -rs)"* ]];
-          then
-              echo "Ubuntu $(lsb_release -rs) is not currently supported.";
-              exit;
-          fi
-
-          curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-
-          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-
-          sudo apt-get update
-          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql17
-          # optional: for bcp and sqlcmd
-          sudo ACCEPT_EULA=Y apt-get install -y mssql-tools
-          echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
-          source ~/.bashrc
-          # optional: for unixODBC development headers
-          sudo apt-get install -y unixodbc-dev
+      - uses: Yarden-zamir/install-mssql-odbc@main
+        with:
+          ODBC_VERSION: 18
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install poetry
+          curl -LsSf https://astral.sh/uv/install.sh | sh
       - name: Install project dependencies incl Spark
         if: matrix.test_config == 'spark'
-        run: poetry install --all-extras --with test,dev,spark
+        run: uv sync --all-extras --group test --group dev --group spark
       - name: Install project dependencies
         if: matrix.test_config != 'spark'
-        run: poetry install --all-extras --with test,dev
+        run: uv sync --all-extras --group test --group dev
       - name: Pyright
         run: |
-          poetry run pyright odbc2deltalake
+          uv run pyright odbc2deltalake
       - name: Test with pytest
-        run: poetry run pytest -x --cov=odbc2deltalake tests
+        run: uv run -m pytest -x --cov=odbc2deltalake tests
         env:
           ODBCLAKE_TEST_CONFIGURATION: ${{ matrix.test_config }}
