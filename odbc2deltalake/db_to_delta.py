@@ -548,6 +548,7 @@ def do_delta_load(
     criterion = _source_convert(
         delta_col.column_name,
         delta_col.data_type,
+        delta_col.data_type_str,
         table_alias="t",
         type_map=write_config.data_type_map,
     ) > ex.convert(delta_load_value)
@@ -680,6 +681,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
         _source_convert(
             infos.delta_col.column_name,
             infos.delta_col.data_type,
+            infos.delta_col.data_type_str,
             table_alias="t",
             type_map=write_config.data_type_map,
         )
@@ -1062,6 +1064,7 @@ def _handle_additional_updates(
         criterion = _source_convert(
             delta_col.column_name,
             delta_col.data_type,
+            delta_col.data_type_str,
             table_alias="t",
             type_map=write_config.data_type_map,
         ) > ex.convert(delta_load_value)
