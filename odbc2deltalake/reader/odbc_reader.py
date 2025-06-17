@@ -291,6 +291,7 @@ class ODBCReader(DataSourceReader):
         return [
             InformationSchemaColInfo(
                 column_name=n,
+                data_type_str=str(sc.field(n).type),
                 data_type=_build_type(_get_type(sc.field(n).type)),
                 is_nullable=sc.field(n).nullable,
             )

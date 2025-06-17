@@ -57,6 +57,7 @@ class InformationSchemaColInfo(BaseModel):
     column_name: str
 
     data_type: ex.DataType
+    data_type_str: str
     column_default: Union[str, None] = None
     is_nullable: bool = True
     generated_always_type_desc: Union[
@@ -121,6 +122,7 @@ SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.gener
             dt_str += f"({datetime_precision})"
 
         d["data_type"] = ex.DataType.build(dt_str, dialect=dialect)
+        d["data_type_str"] = dt_str
     return [InformationSchemaColInfo(**d) for d in dicts]
 
 
@@ -140,6 +142,7 @@ def _get_query_cols_first_result_set(
 
         yield InformationSchemaColInfo(
             column_name=d["name"],
+            data_type_str=sys_type_name,
             data_type=ex.DataType.build(sys_type_name, dialect=dialect),
             column_default=None,
             is_identity=d["is_identity_column"],

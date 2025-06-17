@@ -180,6 +180,7 @@ class SparkReader(DataSourceReader):
             InformationSchemaColInfo(
                 column_name=col.name,
                 data_type=DataType.build(col.dataType.simpleString(), dialect="spark"),
+                data_type_str=col.dataType.simpleString(),
                 is_nullable=col.nullable,
             )
             for col in df.schema.fields
