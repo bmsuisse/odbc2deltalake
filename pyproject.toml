@@ -1,6 +1,6 @@
 [project]
 name = "odbc2deltalake"
-version = "0.12.6"
+version = "0.12.7"
 description = ""
 authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
 dependencies = [

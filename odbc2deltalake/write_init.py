@@ -100,6 +100,9 @@ class WriteConfig:
 
     allow_schema_drift: Union[bool, Literal["new_only"]] = "new_only"
 
+    no_trim: bool = False
+    """If true, will not trim the strings in the source. This is useful if you want to keep the original data as is. """
+
 
 @dataclass(frozen=True)
 class WriteConfigAndInfos:
