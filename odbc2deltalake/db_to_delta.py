@@ -54,6 +54,7 @@ T = TypeVar("T")
 def _source_convert(
     name: str,
     data_type: ex.DataType,
+    orig_data_type_str: Union[str, None],
     *,
     table_alias: Union[str, None] = None,
     type_map: Optional[Mapping[str, ex.DataType]] = None,
@@ -68,7 +69,16 @@ def _source_convert(
     mapped_type = type_map.get(data_type_str) if type_map else None
     if mapped_type:
         expr = ex.cast(expr, mapped_type)
-    if is_string_type(mapped_type or data_type):
+    if (
+        orig_data_type_str
+        and orig_data_type_str.lower()
+        not in (
+            "uuid",
+            "uniqueidentifier",
+            "guid",
+        )
+        and is_string_type(mapped_type or data_type)
+    ):
         expr = ex.func("TRIM", expr)
     return expr
 
@@ -98,6 +108,7 @@ def _get_cols_select(
                 _source_convert(
                     c.column_name,
                     c.data_type,
+                    c.data_type_str,
                     table_alias=table_alias,
                     type_map=data_type_map,
                 ).as_(get_target_name(c), quoted=True)
@@ -201,9 +212,9 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
             if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
                 delta_col = pk_cols[0]  # identity columns are usually increasing
                 infos = dataclasses.replace(infos, delta_col=delta_col)
-            assert delta_col is not None, (
-                "Must provide delta column for append_inserts load"
-            )
+            assert (
+                delta_col is not None
+            ), "Must provide delta column for append_inserts load"
             load_result = do_append_inserts_load(infos)
         else:
             if (
@@ -1034,8 +1045,8 @@ def _handle_additional_updates(
     if update_count == 0:
         _write_delta2(infos, [], mode="overwrite")
     elif (
-        (update_count > 1000) or write_config.no_complex_entries_load
-    ):  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
+        update_count > 1000
+    ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
         _write_delta2(infos, [], mode="overwrite")  # still need to create delta_2_path
         logger.warning(
             f"Start delta step 3, load {update_count} strange updates via normal delta load"
