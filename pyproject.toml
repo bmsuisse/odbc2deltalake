@@ -14,7 +14,6 @@ requires-python = "~=3.9"
 
 [project.optional-dependencies]
 local = [
-    "pyodbc",
     "deltalake2db >=0.9.3",
     "arrow-odbc",
     "deltalake",
@@ -80,5 +79,6 @@ test = [
     "delta-spark >=3.2.0,<4",
     "pyarrow >=16.1",
     "polars >=1.17.1,<2",
+    "pyodbc >=5.1.0,<6",
 ]
 spark = ["delta-spark >=3.2.0,<4", "pyspark >=3.5.1,<4"]
