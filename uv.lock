@@ -575,16 +575,16 @@ wheels = [
 
 [[package]]
 name = "deltalake2db"
-version = "0.9.0"
+version = "0.9.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "azure-identity" },
     { name = "deltalake" },
     { name = "sqlglot" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/e0/eb870594cb1db6cd991357ff23966464de73ab5ea944c7e2f9f245ec077e/deltalake2db-0.9.0.tar.gz", hash = "sha256:3a963f758342a4b8bf5ddfba10d52a53d8f3ed924269d213a14202fb5fed266c", size = 122332, upload-time = "2025-02-24T09:07:43.373Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/d5/8667976f96b89d5bea153aefeb22c0a12eeae9fa5a79ebcf02b5bb5284fe/deltalake2db-0.9.3.tar.gz", hash = "sha256:406a4da8a2607c28b9a0ea41de9f0692a3766782d23e03278f718661be651069", size = 154823, upload-time = "2025-06-20T13:55:28.424Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/93/43ccc30a0474722559829cce48f6b91258c08082990b2c29b7d2d087c668/deltalake2db-0.9.0-py3-none-any.whl", hash = "sha256:077a2c2f23ee494da3e15fc00a124036597e1452ce85f7e48bedc0dac057cd48", size = 14436, upload-time = "2025-02-24T09:07:39.987Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/6f/4d31c12709c2f6caf16378c4472547c0c42c7177582e614f6996cf694d22/deltalake2db-0.9.3-py3-none-any.whl", hash = "sha256:532c14721e0942bbfe6f323a890cfc3295314aab7f2cec3f607375324aa70d59", size = 14938, upload-time = "2025-06-20T13:55:27.28Z" },
 ]
 
 [[package]]
@@ -1051,18 +1051,11 @@ wheels = [
 
 [[package]]
 name = "odbc2deltalake"
-version = "0.12.6"
+version = "0.12.8"
 source = { editable = "." }
 dependencies = [
-    { name = "adlfs" },
-    { name = "arrow-odbc" },
     { name = "azure-identity" },
-    { name = "deltalake" },
-    { name = "deltalake2db" },
-    { name = "duckdb" },
-    { name = "pyarrow" },
     { name = "pydantic" },
-    { name = "pyodbc" },
     { name = "sqlglot" },
 ]
 
@@ -1072,12 +1065,18 @@ local = [
     { name = "deltalake" },
     { name = "deltalake2db" },
     { name = "duckdb" },
+    { name = "pyarrow" },
     { name = "pyodbc" },
 ]
 local-azure = [
     { name = "adlfs" },
+    { name = "arrow-odbc" },
     { name = "azure-identity" },
     { name = "azure-storage-file-datalake" },
+    { name = "deltalake" },
+    { name = "deltalake2db" },
+    { name = "pyarrow" },
+    { name = "pyodbc" },
 ]
 
 [package.dev-dependencies]
@@ -1106,23 +1105,26 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "adlfs", specifier = ">=2024.2.0,<2025" },
     { name = "adlfs", marker = "extra == 'local-azure'" },
-    { name = "arrow-odbc", specifier = ">=5.0.0" },
+    { name = "adlfs", marker = "extra == 'local-azure'", specifier = ">=2024.2.0,<2025" },
     { name = "arrow-odbc", marker = "extra == 'local'" },
+    { name = "arrow-odbc", marker = "extra == 'local'", specifier = ">=5.0.0" },
+    { name = "arrow-odbc", marker = "extra == 'local-azure'", specifier = ">=5.0.0" },
     { name = "azure-identity", specifier = ">=1.15.0,<2" },
     { name = "azure-identity", marker = "extra == 'local-azure'" },
     { name = "azure-storage-file-datalake", marker = "extra == 'local-azure'" },
-    { name = "deltalake", specifier = ">=0.17.1" },
     { name = "deltalake", marker = "extra == 'local'" },
-    { name = "deltalake2db", specifier = ">=0.3.3" },
-    { name = "deltalake2db", marker = "extra == 'local'" },
-    { name = "duckdb", specifier = ">=0.10.2" },
+    { name = "deltalake", marker = "extra == 'local'", specifier = ">=0.17.1" },
+    { name = "deltalake", marker = "extra == 'local-azure'", specifier = ">=0.17.1" },
+    { name = "deltalake2db", marker = "extra == 'local'", specifier = ">=0.9.3" },
+    { name = "deltalake2db", marker = "extra == 'local-azure'", specifier = ">=0.9.3" },
     { name = "duckdb", marker = "extra == 'local'" },
-    { name = "pyarrow", specifier = ">=16.1" },
+    { name = "pyarrow", marker = "extra == 'local'", specifier = ">=16.1" },
+    { name = "pyarrow", marker = "extra == 'local-azure'", specifier = ">=16.1" },
     { name = "pydantic", specifier = ">=1.10.0" },
-    { name = "pyodbc", specifier = ">=5.1.0,<6" },
     { name = "pyodbc", marker = "extra == 'local'" },
+    { name = "pyodbc", marker = "extra == 'local'", specifier = ">=5.1.0,<6" },
+    { name = "pyodbc", marker = "extra == 'local-azure'", specifier = ">=5.1.0,<6" },
     { name = "sqlglot", specifier = ">=23.17.0" },
 ]
 provides-extras = ["local", "local-azure"]
