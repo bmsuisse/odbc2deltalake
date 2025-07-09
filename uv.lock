@@ -1054,7 +1054,7 @@ wheels = [
 
 [[package]]
 name = "odbc2deltalake"
-version = "0.12.8"
+version = "0.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "azure-identity" },
@@ -1094,6 +1094,7 @@ spark = [
 test = [
     { name = "azure-storage-blob" },
     { name = "delta-spark" },
+    { name = "deltalake2db" },
     { name = "docker" },
     { name = "duckdb" },
     { name = "pandas" },
@@ -1144,6 +1145,7 @@ spark = [
 test = [
     { name = "azure-storage-blob", specifier = ">=12.19.1,<13" },
     { name = "delta-spark", specifier = ">=3.2.0,<4" },
+    { name = "deltalake2db", specifier = ">=0.10.0" },
     { name = "docker", specifier = ">=7.0.0,<8" },
     { name = "duckdb" },
     { name = "pandas", specifier = ">=1.4.2" },
