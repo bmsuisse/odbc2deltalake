@@ -575,14 +575,14 @@ wheels = [
 
 [[package]]
 name = "deltalake2db"
-version = "0.10.0"
+version = "0.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "sqlglot" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a0/26/611059daa4046acf6658dc89b0841a196e7a54a67e1928376337c7dd340a/deltalake2db-0.10.0.tar.gz", hash = "sha256:aac6946f6b771bdae89ced372f781a68fd7c298fbb786ee409aafb277fc8d930", size = 155410, upload-time = "2025-07-09T18:45:39.467Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/2b/35cb2be9dc98e1ac9d23d619e801e3088dc0ca937f9e98dc34c992d76f4b/deltalake2db-0.10.1.tar.gz", hash = "sha256:d412224096cbcd3b85b26ca60ae800fd30178fd4a498a265e709382410938724", size = 155423, upload-time = "2025-07-09T19:14:44.354Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/9a/ffe88240a571ec51ec3187c597f98397f4bd6b4adc6de6ba8603bcd9c571/deltalake2db-0.10.0-py3-none-any.whl", hash = "sha256:3eefa201698f6d0d250f8c7771d1fb24cb44d95137d0bed1ed0a8408eae6f059", size = 15059, upload-time = "2025-07-09T18:45:38.365Z" },
+    { url = "https://files.pythonhosted.org/packages/af/47/05d3fac99af64b6c2bf1af229bba26e83218cca58a9e02946a8c5692b3ec/deltalake2db-0.10.1-py3-none-any.whl", hash = "sha256:00393979fecf6fe6273c37f68ec0136a980b654cbccdf73f4e46792d015cbfd6", size = 15077, upload-time = "2025-07-09T19:14:42.37Z" },
 ]
 
 [package.optional-dependencies]
@@ -1145,7 +1145,7 @@ spark = [
 test = [
     { name = "azure-storage-blob", specifier = ">=12.19.1,<13" },
     { name = "delta-spark", specifier = ">=3.2.0,<4" },
-    { name = "deltalake2db", specifier = ">=0.10.0" },
+    { name = "deltalake2db", specifier = ">=0.10.1" },
     { name = "docker", specifier = ">=7.0.0,<8" },
     { name = "duckdb" },
     { name = "fsspec" },
