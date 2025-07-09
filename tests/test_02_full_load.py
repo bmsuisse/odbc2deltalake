@@ -34,7 +34,10 @@ def test_first_load_always_full(
     time.sleep(2)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_long_table_name_temp"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_long_table_name_temp",
+            use_delta_ext=conf_name == "spark",
         )
         res = con.execute(
             "select max(__timestamp) from v_long_table_name_temp s"
@@ -60,7 +63,10 @@ def test_first_load_always_full(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_long_table_name"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_long_table_name",
+            use_delta_ext=conf_name == "spark",
         )
 
         name_tuples = con.execute(

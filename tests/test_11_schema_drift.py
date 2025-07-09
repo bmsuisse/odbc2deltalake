@@ -43,7 +43,10 @@ def test_schema_drift(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_scd2",
+            use_delta_ext=conf_name == "spark",
         )
         from datetime import date
 

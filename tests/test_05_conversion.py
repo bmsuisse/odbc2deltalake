@@ -64,6 +64,7 @@ def test_first_load_timestamp(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk",
+            use_delta_ext=conf_name == "spark",
         )
 
         id_tuples = con.execute(

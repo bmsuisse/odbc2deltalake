@@ -80,7 +80,10 @@ delete from dbo.[company3] where id='c400'
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_company_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_company_scd2",
+            use_delta_ext=conf_name == "spark",
         )
         name_tuples = con.execute(
             """SELECT lf.name, lf.__is_deleted from v_company_scd2 lf 

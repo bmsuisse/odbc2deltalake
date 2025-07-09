@@ -14,7 +14,7 @@ requires-python = "~=3.9"
 
 [project.optional-dependencies]
 local = [
-    "deltalake2db >=0.9.3",
+    "deltalake2db[deltalake] >=0.9.3",
     "arrow-odbc",
     "deltalake",
     "duckdb",
@@ -26,7 +26,7 @@ local = [
 local_azure = [
     "azure-identity",
     "adlfs",
-    "deltalake2db >=0.9.3",
+    "deltalake2db[deltalake] >=0.9.3",
     "arrow-odbc >=5.0.0",
     "azure-storage-file-datalake",
     "pyarrow >=16.1",

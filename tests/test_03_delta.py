@@ -49,7 +49,10 @@ def test_delta(
     time.sleep(2)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_2_temp"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_2_temp",
+            use_delta_ext=conf_name == "spark",
         )
         res = con.execute(
             'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
@@ -71,7 +74,10 @@ def test_delta(
     assert not l2.dirty
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_scd2",
+            use_delta_ext=conf_name == "spark",
         )
 
         name_tuples = con.execute(
@@ -103,6 +109,7 @@ def test_delta(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk",
+            use_delta_ext=conf_name == "spark",
         )
 
         id_tuples = con.execute(
@@ -151,7 +158,10 @@ set id='c2 '
         print(alls)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_company_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_company_scd2",
+            use_delta_ext=conf_name == "spark",
         )
 
         duckdb_create_view_for_delta(
@@ -160,6 +170,7 @@ set id='c2 '
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk",
+            use_delta_ext=conf_name == "spark",
         )
         name_tuples = con.execute(
             """SELECT lf.id, lf.name from v_company_scd2 lf 

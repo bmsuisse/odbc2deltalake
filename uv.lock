@@ -575,16 +575,19 @@ wheels = [
 
 [[package]]
 name = "deltalake2db"
-version = "0.9.3"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "azure-identity" },
-    { name = "deltalake" },
     { name = "sqlglot" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a9/d5/8667976f96b89d5bea153aefeb22c0a12eeae9fa5a79ebcf02b5bb5284fe/deltalake2db-0.9.3.tar.gz", hash = "sha256:406a4da8a2607c28b9a0ea41de9f0692a3766782d23e03278f718661be651069", size = 154823, upload-time = "2025-06-20T13:55:28.424Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a0/26/611059daa4046acf6658dc89b0841a196e7a54a67e1928376337c7dd340a/deltalake2db-0.10.0.tar.gz", hash = "sha256:aac6946f6b771bdae89ced372f781a68fd7c298fbb786ee409aafb277fc8d930", size = 155410, upload-time = "2025-07-09T18:45:39.467Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4e/6f/4d31c12709c2f6caf16378c4472547c0c42c7177582e614f6996cf694d22/deltalake2db-0.9.3-py3-none-any.whl", hash = "sha256:532c14721e0942bbfe6f323a890cfc3295314aab7f2cec3f607375324aa70d59", size = 14938, upload-time = "2025-06-20T13:55:27.28Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/9a/ffe88240a571ec51ec3187c597f98397f4bd6b4adc6de6ba8603bcd9c571/deltalake2db-0.10.0-py3-none-any.whl", hash = "sha256:3eefa201698f6d0d250f8c7771d1fb24cb44d95137d0bed1ed0a8408eae6f059", size = 15059, upload-time = "2025-07-09T18:45:38.365Z" },
+]
+
+[package.optional-dependencies]
+deltalake = [
+    { name = "deltalake" },
 ]
 
 [[package]]
@@ -1063,7 +1066,7 @@ dependencies = [
 local = [
     { name = "arrow-odbc" },
     { name = "deltalake" },
-    { name = "deltalake2db" },
+    { name = "deltalake2db", extra = ["deltalake"] },
     { name = "duckdb" },
     { name = "pyarrow" },
     { name = "pyodbc" },
@@ -1074,7 +1077,7 @@ local-azure = [
     { name = "azure-identity" },
     { name = "azure-storage-file-datalake" },
     { name = "deltalake" },
-    { name = "deltalake2db" },
+    { name = "deltalake2db", extra = ["deltalake"] },
     { name = "pyarrow" },
     { name = "pyodbc" },
 ]
@@ -1117,8 +1120,8 @@ requires-dist = [
     { name = "deltalake", marker = "extra == 'local'" },
     { name = "deltalake", marker = "extra == 'local'", specifier = ">=0.17.1" },
     { name = "deltalake", marker = "extra == 'local-azure'", specifier = ">=0.17.1" },
-    { name = "deltalake2db", marker = "extra == 'local'", specifier = ">=0.9.3" },
-    { name = "deltalake2db", marker = "extra == 'local-azure'", specifier = ">=0.9.3" },
+    { name = "deltalake2db", extras = ["deltalake"], marker = "extra == 'local'", specifier = ">=0.9.3" },
+    { name = "deltalake2db", extras = ["deltalake"], marker = "extra == 'local-azure'", specifier = ">=0.9.3" },
     { name = "duckdb", marker = "extra == 'local'" },
     { name = "pyarrow", marker = "extra == 'local'", specifier = ">=16.1" },
     { name = "pyarrow", marker = "extra == 'local-azure'", specifier = ">=16.1" },

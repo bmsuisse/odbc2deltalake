@@ -58,7 +58,10 @@ def test_strange_delta(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user3_scd2_temp"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user3_scd2_temp",
+            use_delta_ext=conf_name == "spark",
         )
         res = con.execute("select max(__timestamp) from v_user3_scd2_temp s").fetchone()
         assert res is not None
@@ -79,7 +82,10 @@ def test_strange_delta(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user3_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user3_scd2",
+            use_delta_ext=conf_name == "spark",
         )
         duckdb_create_view_for_delta(
             con,
@@ -87,6 +93,7 @@ def test_strange_delta(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk_user3",
+            use_delta_ext=conf_name == "spark",
         )
 
         id_tuples = con.execute(
@@ -132,7 +139,10 @@ def test_strange_delta_sys(
     time.sleep(2)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_company2_temp"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_company2_temp",
+            use_delta_ext=conf_name == "spark",
         )
         res = con.execute("select max(__timestamp) from v_company2_temp s").fetchone()
         assert res is not None
@@ -168,7 +178,10 @@ def test_strange_delta_sys(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_company2_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_company2_scd2",
+            use_delta_ext=conf_name == "spark",
         )
         duckdb_create_view_for_delta(
             con,
@@ -176,6 +189,7 @@ def test_strange_delta_sys(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk_company2",
+            use_delta_ext=conf_name == "spark",
         )
 
         id_tuples = con.execute(
