@@ -69,7 +69,13 @@ def write_db_to_delta_with_check(
     w.source.local_register_update_view(w.destination / "delta", "last_delta_view")
 
     check_latest_pk(w)
-    check_latest_pk_pandas(w)
+    try:
+        check_latest_pk_pandas(w)
+    except ImportError:
+        print(
+            "Pandas or deltalake is not installed, skipping check_latest_pk_pandas. "
+            "Install pandas to enable this check."
+        )
     return w, r
 
 
