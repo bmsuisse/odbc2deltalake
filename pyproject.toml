@@ -78,7 +78,6 @@ test = [
     "pandas >=1.4.2",
     "delta-spark >=3.2.0,<4",
     "pyarrow >=16.1",
-    "polars >=1.17.1,<2",
     "pyodbc >=5.1.0,<6",
     "duckdb",
     "deltalake2db >=0.10.0",
