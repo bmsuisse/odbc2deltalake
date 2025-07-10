@@ -70,6 +70,8 @@ def _build_type(t: Union[ex.DataType, ex.DataType.Type]):
 def _delta_to_sq_type(
     delta_type: "PrimitiveType | MapType | ArrayType | StructType",
 ) -> ex.DataType:
+    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
+
     if isinstance(delta_type, PrimitiveType):
         type_map = {
             "string": ex.DataType.Type.NVARCHAR,
