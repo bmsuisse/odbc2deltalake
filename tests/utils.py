@@ -29,6 +29,10 @@ def _ntz(df_in: pd.DataFrame):
 def check_latest_pk_pandas(infos: WriteConfigAndInfos):
     lpk_path = infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     lpk_df = lpk_path.as_delta_table()
+    if isinstance(lpk_df, Path):
+        from deltalake import DeltaTable
+
+        lpk_df = DeltaTable(lpk_df)
     sort_cols = [infos.write_config.get_target_name(pk) for pk in infos.pk_cols]
 
     def _sort_pd(df: pd.DataFrame):
