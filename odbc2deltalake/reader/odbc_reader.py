@@ -125,6 +125,10 @@ class ODBCReader(DataSourceReader):
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         dt = delta_path.as_delta_table()
         if version is not None:
+            if isinstance(dt, Path):
+                from deltalake import DeltaTable
+
+                dt = DeltaTable(dt)
             dt.load_as_version(version)
         duckdb_create_view_for_delta(self.duck_con, dt, view_name)
 
@@ -182,6 +186,10 @@ class ODBCReader(DataSourceReader):
 
             try:
                 dt = delta_path.as_delta_table()
+                if isinstance(dt, Path):
+                    from deltalake import DeltaTable
+
+                    dt = DeltaTable(dt)
                 DeltaTable.version(dt)
                 if extended_check:
                     return len(dt.schema().fields) > 0
@@ -203,7 +211,12 @@ class ODBCReader(DataSourceReader):
         schema_mode = None
         if allow_schema_drift == "new_only":
             try:
-                existing_schema = delta_path.as_delta_table().schema().fields
+                dt = delta_path.as_delta_table()
+                if isinstance(dt, Path):
+                    from deltalake import DeltaTable
+
+                    dt = DeltaTable(dt)
+                existing_schema = dt.schema().fields
                 existing_field_names = [f.name for f in existing_schema]
                 new_schema = _all_nullable(input_schema)
                 new_fields = [
@@ -216,8 +229,12 @@ class ODBCReader(DataSourceReader):
                     import pyarrow as pa
 
                     merge_schema_fields = list()
+                    dt = delta_path.as_delta_table()
+                    if isinstance(dt, Path):
+                        from deltalake import DeltaTable
 
-                    pas_schema = delta_path.as_delta_table().schema().to_pyarrow()
+                        dt = DeltaTable(dt)
+                    pas_schema = dt.schema().to_pyarrow()
                     for n in input_schema.names:
                         if n in existing_field_names:
                             merge_schema_fields.append(pas_schema.field(n))
@@ -377,6 +394,10 @@ class ODBCReader(DataSourceReader):
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         dt = delta_path.as_delta_table()
+        if isinstance(dt, Path):
+            from deltalake import DeltaTable
+
+            dt = DeltaTable(dt)
         return DeltaRSDeltaOps(dt)
 
     def local_upsert_into(
@@ -391,7 +412,12 @@ class ODBCReader(DataSourceReader):
 
         with self.duck_con.cursor() as cursor:
             cursor.execute(local_sql_source.sql(self.query_dialect))
+
             dt = target_delta.as_delta_table()
+            if isinstance(dt, Path):
+                from deltalake import DeltaTable
+
+                dt = DeltaTable(dt)
             res = (
                 dt.merge(
                     cursor.fetch_record_batch(),

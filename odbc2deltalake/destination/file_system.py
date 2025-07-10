@@ -49,9 +49,7 @@ class FileSystemDestination(Destination):
         return str(self.path), None
 
     def as_delta_table(self):
-        from deltalake import DeltaTable
-
-        return DeltaTable(self.path)
+        return self.path
 
     def __truediv__(self, other: str):
         return FileSystemDestination(self.path / other)
