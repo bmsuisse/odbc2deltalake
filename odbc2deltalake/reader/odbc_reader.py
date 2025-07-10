@@ -95,7 +95,9 @@ class DeltaRSDeltaOps(DeltaOps):
                     f"null_{k}", raise_if_not_exists=False
                 )
 
-    def column_infos(self) -> Sequence[InformationSchemaColInfo]:
+    def column_infos(self) -> "Sequence[InformationSchemaColInfo]":
+        from odbc2deltalake.metadata import InformationSchemaColInfo
+
         fields = self.delta_table.schema().fields
         return [
             InformationSchemaColInfo(

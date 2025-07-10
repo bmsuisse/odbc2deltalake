@@ -54,7 +54,9 @@ class SparkDeltaOps(DeltaOps):
     def columns(self):
         return self.spark.read.format("delta").load(str(self.dest)).columns
 
-    def column_infos(self) -> Sequence[InformationSchemaColInfo]:
+    def column_infos(self) -> "Sequence[InformationSchemaColInfo]":
+        from odbc2deltalake.metadata import InformationSchemaColInfo
+
         col_infos = self.spark.catalog.listColumns("delta.`" + str(self.dest) + "`")
         return [
             InformationSchemaColInfo(
