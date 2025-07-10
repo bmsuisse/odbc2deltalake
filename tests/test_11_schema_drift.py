@@ -76,7 +76,7 @@ def test_schema_drift(
     assert r.executed_type == "delta"
     fields = reader.get_local_delta_ops(dest / "delta").column_infos()
     age_field = next((f for f in fields if f.column_name.lower() == "age"))
-    assert age_field.data_type.type == ex.DataType.Type.DECIMAL
+    assert age_field.data_type.this == ex.DataType.Type.DECIMAL
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
