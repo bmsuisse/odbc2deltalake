@@ -1,4 +1,3 @@
-from odbc2deltalake.reader.reader import ColInfo
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
@@ -55,8 +54,18 @@ class SparkDeltaOps(DeltaOps):
     def columns(self):
         return self.spark.read.format("delta").load(str(self.dest)).columns
 
-    def column_infos(self) -> Sequence[ColInfo]:
-        return self.spark.catalog.listColumns("delta.`" + str(self.dest) + "`")
+    def column_infos(self) -> Sequence[InformationSchemaColInfo]:
+        col_infos = self.spark.catalog.listColumns("delta.`" + str(self.dest) + "`")
+        return [
+            InformationSchemaColInfo(
+                column_name=c.name,
+                data_type=DataType.build(c.dataType.simpleString(), dialect="spark"),
+                data_type_str=c.dataType.simpleString(),
+                is_nullable=c.nullable,
+            )
+            for c in col_infos
+            if c.name is not None
+        ]
 
     def set_nullable(self, cols: Mapping[str, bool]):
         for c, n in cols.items():
@@ -68,6 +77,11 @@ class SparkDeltaOps(DeltaOps):
                 self.spark.sql(
                     f"ALTER TABLE delta.`{str(self.dest)}` CHANGE COLUMN `{c}` SET NOT NULL"
                 )
+
+    def update_incremental(self):
+        """Update the incremental state of the Delta table."""
+        # This is a no-op for Spark, as it does not maintain an incremental state like some other systems.
+        pass
 
 
 class SparkReader(DataSourceReader):
@@ -167,7 +181,7 @@ class SparkReader(DataSourceReader):
             assert "/*" not in self.linked_server_proxy
             assert "*/" not in self.linked_server_proxy
             sql_escaped = sql.replace("'", "''")
-            return f"select * from openquery([{self.linked_server_proxy}], '{ sql_escaped}')"
+            return f"select * from openquery([{self.linked_server_proxy}], '{sql_escaped}')"
         return sql
 
     def source_schema_limit_one(self, sql: Query) -> "list[InformationSchemaColInfo]":

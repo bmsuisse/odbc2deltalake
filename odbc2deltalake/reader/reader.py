@@ -10,11 +10,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ColInfo(Protocol):
-    name: str
-    nullable: bool
-
-
 class DeltaOps(Protocol):
     def version(
         self,
@@ -28,9 +23,13 @@ class DeltaOps(Protocol):
 
     def get_property(self, key: str) -> Union[str, None]: ...
 
-    def column_infos(self) -> Sequence[ColInfo]: ...
+    def column_infos(self) -> Sequence[InformationSchemaColInfo]: ...
 
     def set_nullable(self, cols: Mapping[str, bool]): ...
+
+    def update_incremental(self):
+        """Update the incremental state of the Delta table."""
+        pass
 
 
 class DataSourceReader(ABC):

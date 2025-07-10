@@ -23,8 +23,8 @@ def test_delta_sys(
 
     cfg = WriteConfig(load_mode="simple_delta")
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load
-    t = (dest / "delta").as_delta_table()
-    col_names = [f.name for f in t.schema().fields]
+    t = reader.get_local_delta_ops(dest / "delta")
+    col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
@@ -39,7 +39,7 @@ select 'c300',
 
     write_db_to_delta(reader, ("dbo", "company3"), dest, cfg)  # delta load
     t.update_incremental()
-    col_names = [f.name for f in t.schema().fields]
+    col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
     with nc.cursor() as cursor:
         cursor.execute("SELECT * FROM [dbo].[company3]")

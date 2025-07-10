@@ -17,15 +17,15 @@ def test_delta(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
     from odbc2deltalake import DBDeltaPathConfigs
+    import sqlglot.expressions as ex
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[
         conf_name
     ]
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
-    nbr_field = next(
-        f for f in (dest / "delta").as_delta_table().schema().fields if f.name == "nbr"
-    )
-    assert nbr_field.type.type == "short"
+    fields = reader.get_local_delta_ops(dest / "delta").column_infos()
+    nbr_field = next(f for f in fields if f.column_name == "nbr")
+    assert nbr_field.data_type == ex.DataType.Type.SMALLINT
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(

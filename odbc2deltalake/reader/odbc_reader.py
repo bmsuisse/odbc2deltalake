@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from odbc2deltalake.destination.destination import Destination
-from odbc2deltalake.reader.reader import ColInfo, DeltaOps
+from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
 from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence, Union
 from sqlglot.expressions import Query, DataType
@@ -85,9 +85,6 @@ class DeltaRSDeltaOps(DeltaOps):
     def get_property(self, key: str):
         return self.delta_table.metadata().configuration.get(key, None)
 
-    def column_infos(self) -> Sequence[ColInfo]:
-        return self.delta_table.schema().fields
-
     def set_nullable(self, cols: Mapping[str, bool]):
         # not implemented properly for delta-rs
         for k, v in cols.items():
@@ -97,6 +94,21 @@ class DeltaRSDeltaOps(DeltaOps):
                 self.delta_table.alter.drop_constraint(
                     f"null_{k}", raise_if_not_exists=False
                 )
+
+    def column_infos(self) -> Sequence[InformationSchemaColInfo]:
+        fields = self.delta_table.schema().fields
+        return [
+            InformationSchemaColInfo(
+                column_name=f.name,
+                data_type_str=str(f.type),
+                data_type=_build_type(_get_type(f.type)),
+                is_nullable=f.nullable,
+            )
+            for f in fields
+        ]
+
+    def update_incremental(self):
+        self.delta_table.update_incremental()
 
 
 class ODBCReader(DataSourceReader):
