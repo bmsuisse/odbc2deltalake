@@ -34,7 +34,7 @@ def test_delta_query(
 
     # we're evil and manipulate the latest pk!
     if isinstance(reader, SparkReader) and isinstance(dt_or_path, Path):
-        reader.spark.sql(f"delete from delta.`{dt_or_path}` where `User - iD` = 2")
+        reader.spark.sql(f"delete from delta.`{dt_or_path}` where `User_-_iD` = 2")
     else:
         if isinstance(dt_or_path, Path):
             from deltalake import DeltaTable
