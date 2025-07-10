@@ -25,7 +25,7 @@ def test_delta(
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
     fields = reader.get_local_delta_ops(dest / "delta").column_infos()
     nbr_field = next(f for f in fields if f.column_name == "nbr")
-    assert nbr_field.data_type == ex.DataType.Type.SMALLINT
+    assert nbr_field.data_type.this == ex.DataType.Type.SMALLINT
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
