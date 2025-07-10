@@ -61,8 +61,8 @@ class SparkDeltaOps(DeltaOps):
         return [
             InformationSchemaColInfo(
                 column_name=c.name,
-                data_type=DataType.build(c.dataType.simpleString(), dialect="spark"),
-                data_type_str=c.dataType.simpleString(),
+                data_type=DataType.build(c.dataType, dialect="spark"),
+                data_type_str=c.dataType,
                 is_nullable=c.nullable,
             )
             for c in col_infos
