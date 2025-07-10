@@ -172,13 +172,19 @@ class DeltaRSDeltaOps(DeltaOps):
 
 
 class ODBCReader(DataSourceReader):
-    def __init__(self, connection_string: str, local_db: str = ":memory:") -> None:
+    def __init__(
+        self,
+        connection_string: str,
+        local_db: str = ":memory:",
+        source_dialect: str = "tsql",
+    ) -> None:
         from deltalake import WriterProperties
 
         self.connection_string = connection_string
         self.writer_properties = WriterProperties(compression="ZSTD")
         self.duck_con = None
         self.local_db = local_db
+        self.source_dialect = source_dialect
 
     @property
     def supports_proc_exec(self):
@@ -373,7 +379,7 @@ class ODBCReader(DataSourceReader):
     ) -> "list[InformationSchemaColInfo]":
         from ..metadata import InformationSchemaColInfo
 
-        limit_sql = sql.limit(0).sql("tsql")
+        limit_sql = sql.limit(0).sql(self.source_dialect)
         from arrow_odbc import read_arrow_batches_from_odbc
 
         sc = read_arrow_batches_from_odbc(
@@ -391,7 +397,7 @@ class ODBCReader(DataSourceReader):
 
     def source_sql_to_py(self, sql: Union[str, ex.Query]) -> list[dict]:
         if isinstance(sql, ex.Query):
-            sql = sql.sql("tsql")
+            sql = sql.sql(self.source_dialect)
         from arrow_odbc import read_arrow_batches_from_odbc
 
         result = list()

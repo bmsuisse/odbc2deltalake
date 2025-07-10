@@ -154,6 +154,12 @@ def get_delta_col(
             row_start_col = c
         if c.column_name == "__timestamp":
             return c
+    if dialect == "postgres":
+        return InformationSchemaColInfo(
+            column_name="xmin",
+            data_type=ex.DataType.build("bigint"),
+            data_type_str="bigint",
+        )
     return row_start_col
 
 
@@ -176,7 +182,7 @@ def make_writer(
     if isinstance(source, str):
         from .reader.odbc_reader import ODBCReader
 
-        source = ODBCReader(source)
+        source = ODBCReader(source, source_dialect=write_config.dialect)
     cols = get_columns(source, table_or_query, dialect=write_config.dialect)
 
     if write_config.delta_col:
