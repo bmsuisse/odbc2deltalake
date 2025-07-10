@@ -48,7 +48,12 @@ def test_first_load_timestamp(
     )
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(con, (dest / "delta").as_delta_table(), "v_user")
+        duckdb_create_view_for_delta(
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user",
+            use_delta_ext=conf_name == "spark",
+        )
 
         name_tuples = con.execute(
             'SELECT FirstName from v_user order by "User_-_iD"'
