@@ -216,9 +216,9 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
             if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
                 delta_col = pk_cols[0]  # identity columns are usually increasing
                 infos = dataclasses.replace(infos, delta_col=delta_col)
-            assert (
-                delta_col is not None
-            ), "Must provide delta column for append_inserts load"
+            assert delta_col is not None, (
+                "Must provide delta column for append_inserts load"
+            )
             load_result = do_append_inserts_load(infos)
         else:
             if (
@@ -468,7 +468,7 @@ def do_delta_load(
         destination / "delta"
     ).column_infos()
 
-    existing_col_names = set((c.name.lower() for c in existing_col_infos))
+    existing_col_names = set((c.column_name.lower() for c in existing_col_infos))
     missing_cols = [
         write_config.get_target_name(c)
         for c in infos.col_infos
@@ -504,7 +504,7 @@ def do_delta_load(
 
     elif last_pk_path and not simple:
         cols = reader.get_local_delta_ops(last_pk_path).column_infos()
-        cols = set((c.name.lower() for c in cols))
+        cols = set((c.column_name.lower() for c in cols))
         pk_set = set((write_config.get_target_name(pk).lower() for pk in infos.pk_cols))
         if not cols.issuperset(pk_set):
             logger.warning(
@@ -1066,8 +1066,8 @@ def _handle_additional_updates(
     if update_count == 0:
         _write_delta2(infos, [], mode="overwrite")
     elif (
-        update_count > 1000
-    ) or write_config.no_complex_entries_load:  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
+        (update_count > 1000) or write_config.no_complex_entries_load
+    ):  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
         _write_delta2(infos, [], mode="overwrite")  # still need to create delta_2_path
         logger.warning(
             f"Start delta step 3, load {update_count} strange updates via normal delta load"

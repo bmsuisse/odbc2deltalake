@@ -17,15 +17,15 @@ def test_delta(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
     from odbc2deltalake import DBDeltaPathConfigs
+    import sqlglot.expressions as ex
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[
         conf_name
     ]
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
-    nbr_field = next(
-        f for f in (dest / "delta").as_delta_table().schema().fields if f.name == "nbr"
-    )
-    assert nbr_field.type.type == "short"
+    fields = reader.get_local_delta_ops(dest / "delta").column_infos()
+    nbr_field = next(f for f in fields if f.column_name == "nbr")
+    assert nbr_field.data_type.this == ex.DataType.Type.SMALLINT
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
@@ -49,7 +49,10 @@ def test_delta(
     time.sleep(2)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_2_temp"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_2_temp",
+            use_delta_ext=conf_name == "spark",
         )
         res = con.execute(
             'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
@@ -71,7 +74,10 @@ def test_delta(
     assert not l2.dirty
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_scd2",
+            use_delta_ext=conf_name == "spark",
         )
 
         name_tuples = con.execute(
@@ -103,6 +109,7 @@ def test_delta(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk",
+            use_delta_ext=conf_name == "spark",
         )
 
         id_tuples = con.execute(
@@ -151,7 +158,10 @@ set id='c2 '
         print(alls)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_company_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_company_scd2",
+            use_delta_ext=conf_name == "spark",
         )
 
         duckdb_create_view_for_delta(
@@ -160,6 +170,7 @@ set id='c2 '
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk",
+            use_delta_ext=conf_name == "spark",
         )
         name_tuples = con.execute(
             """SELECT lf.id, lf.name from v_company_scd2 lf 

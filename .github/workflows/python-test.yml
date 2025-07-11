@@ -9,6 +9,28 @@ on:
     paths-ignore: ["README.md", "docs", ".github"]
 
 jobs:
+  test_pyright:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install all dependencies
+        run: uv sync --all-extras --all-groups
+
+      - name: Pyright
+        run: |
+          uv run pyright odbc2deltalake
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -32,13 +54,13 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
       - name: Install project dependencies incl Spark
         if: matrix.test_config == 'spark'
-        run: uv sync --all-extras --group test --group dev --group spark
+        run: uv sync --group test --group dev --group spark
+      - name: Test beeing able to import
+        if: matrix.test_config == 'spark'
+        run: uv run ./test_spark_import.py
       - name: Install project dependencies
         if: matrix.test_config != 'spark'
-        run: uv sync --all-extras --group test --group dev
-      - name: Pyright
-        run: |
-          uv run pyright odbc2deltalake
+        run: uv sync --extra local --extra local_azure --group test --group dev
       - name: Test with pytest
         run: uv run -m pytest -x --cov=odbc2deltalake tests
         env:

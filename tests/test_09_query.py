@@ -50,7 +50,10 @@ def test_delta_query(
     time.sleep(2)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_5_temp"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_5_temp",
+            use_delta_ext=conf_name == "spark",
         )
         res = con.execute("select max(__timestamp) from v_user_5_temp s").fetchone()
         assert res is not None
@@ -60,7 +63,10 @@ def test_delta_query(
     write_db_to_delta_with_check(reader, query, dest, write_config=config)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_scd2",
+            use_delta_ext=conf_name == "spark",
         )
 
         name_tuples = con.execute(
@@ -91,6 +97,7 @@ def test_delta_query(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk",
+            use_delta_ext=conf_name == "spark",
         )
 
         id_tuples = con.execute(

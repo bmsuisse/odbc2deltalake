@@ -58,7 +58,10 @@ def test_insert_while_load(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_scd2",
+            use_delta_ext=conf_name == "spark",
         )
 
         name_tuples = con.execute(
@@ -66,7 +69,10 @@ def test_insert_while_load(
         ).fetchall()
         assert len(name_tuples) == 0
         duckdb_create_view_for_delta(
-            con, (dest / "delta_load/latest_pk_version").as_delta_table(), "v_user_lpk"
+            con,
+            (dest / "delta_load/latest_pk_version").as_delta_table(),
+            "v_user_lpk",
+            use_delta_ext=conf_name == "spark",
         )
 
         name_tuples = con.execute(

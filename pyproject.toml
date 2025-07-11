@@ -1,18 +1,11 @@
 [project]
 name = "odbc2deltalake"
-version = "0.12.7"
+version = "0.13.0"
 description = ""
 authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
 dependencies = [
     "pydantic >=1.10.0",
-    "pyodbc >=5.1.0,<6",
-    "deltalake2db >=0.3.3",
-    "arrow-odbc >=5.0.0",
-    "deltalake >=0.17.1",
-    "duckdb >=0.10.2",
-    "pyarrow >=16.1",
     "azure-identity >=1.15.0,<2",
-    "adlfs >=2024.2.0,<2025",
     "sqlglot >=23.17.0",
 ]
 requires-python = "~=3.9"
@@ -20,8 +13,27 @@ requires-python = "~=3.9"
 [project.scripts]
 
 [project.optional-dependencies]
-local = ["pyodbc", "deltalake2db", "arrow-odbc", "deltalake", "duckdb"]
-local_azure = ["azure-identity", "adlfs", "azure-storage-file-datalake"]
+local = [
+    "deltalake2db[deltalake] >=0.9.3",
+    "arrow-odbc",
+    "deltalake",
+    "duckdb",
+    "arrow-odbc >=5.0.0",
+    "pyarrow >=16.1",
+    "deltalake >=0.17.1",
+    "pyodbc >=5.1.0,<6",
+]
+local_azure = [
+    "azure-identity",
+    "adlfs",
+    "deltalake2db[deltalake] >=0.9.3",
+    "arrow-odbc >=5.0.0",
+    "azure-storage-file-datalake",
+    "pyarrow >=16.1",
+    "deltalake >=0.17.1",
+    "adlfs >=2024.2.0,<2025",
+    "pyodbc >=5.1.0,<6",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -65,8 +77,10 @@ test = [
     "azure-storage-blob >=12.19.1,<13",
     "pandas >=1.4.2",
     "delta-spark >=3.2.0,<4",
-    "duckdb ~=1.0",
     "pyarrow >=16.1",
-    "polars >=1.17.1,<2",
+    "pyodbc >=5.1.0,<6",
+    "duckdb",
+    "deltalake2db >=0.10.1",
+    "fsspec",
 ]
 spark = ["delta-spark >=3.2.0,<4", "pyspark >=3.5.1,<4"]

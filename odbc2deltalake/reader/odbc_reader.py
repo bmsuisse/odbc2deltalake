@@ -1,16 +1,17 @@
 from pathlib import Path
 
 from odbc2deltalake.destination.destination import Destination
-from odbc2deltalake.reader.reader import ColInfo, DeltaOps
+from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
 from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence, Union
-from sqlglot.expressions import Query, DataType
+import sqlglot.expressions as ex
 import sqlglot as sg
 
 if TYPE_CHECKING:
     import pyarrow as pa
     from odbc2deltalake.metadata import InformationSchemaColInfo
     from deltalake import DeltaTable
+    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
 
 
 def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
@@ -26,44 +27,101 @@ def _get_type(tp: "pa.DataType"):
     import pyarrow.types as pat
 
     if pat.is_string(tp):
-        return DataType.Type.NVARCHAR
+        return ex.DataType.Type.NVARCHAR
     if pat.is_boolean(tp):
-        return DataType.Type.BIT
+        return ex.DataType.Type.BIT
     if pat.is_int8(tp):
-        return DataType.Type.TINYINT
+        return ex.DataType.Type.TINYINT
     if pat.is_int16(tp):
-        return DataType.Type.SMALLINT
+        return ex.DataType.Type.SMALLINT
     if pat.is_int32(tp):
-        return DataType.Type.INT
+        return ex.DataType.Type.INT
     if pat.is_int64(tp):
-        return DataType.Type.BIGINT
+        return ex.DataType.Type.BIGINT
     if pat.is_float32(tp):
-        return DataType.Type.FLOAT
+        return ex.DataType.Type.FLOAT
     if pat.is_float64(tp):
-        return DataType.Type.DOUBLE
+        return ex.DataType.Type.DOUBLE
     if pat.is_date32(tp):
-        return DataType.Type.DATE
+        return ex.DataType.Type.DATE
     if pat.is_date64(tp):
-        return DataType.Type.DATETIME
+        return ex.DataType.Type.DATETIME
     if pat.is_timestamp(tp):
-        return DataType.Type.DATETIME
+        return ex.DataType.Type.DATETIME
     if pat.is_time32(tp):
-        return DataType.Type.TIME
+        return ex.DataType.Type.TIME
     if pat.is_time64(tp):
-        return DataType.Type.TIME
+        return ex.DataType.Type.TIME
     if pat.is_decimal(tp):
-        return DataType.Type.DECIMAL
+        return ex.DataType.Type.DECIMAL
     if pat.is_binary(tp):
-        return DataType.Type.VARBINARY
+        return ex.DataType.Type.VARBINARY
     if pat.is_fixed_size_binary(tp):
-        return DataType.build(f"binary({tp.byte_width})", dialect="tsql")
+        return ex.DataType.build(f"binary({tp.byte_width})", dialect="tsql")
     raise ValueError(f"Type {tp} not supported")
 
 
-def _build_type(t: Union[DataType, DataType.Type]):
-    if isinstance(t, DataType):
+def _build_type(t: Union[ex.DataType, ex.DataType.Type]):
+    if isinstance(t, ex.DataType):
         return t
-    return DataType(this=t)
+    return ex.DataType(this=t)
+
+
+def _delta_to_sq_type(
+    delta_type: "PrimitiveType | MapType | ArrayType | StructType",
+) -> ex.DataType:
+    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
+
+    if isinstance(delta_type, PrimitiveType):
+        type_map = {
+            "string": ex.DataType.Type.NVARCHAR,
+            "long": ex.DataType.Type.BIGINT,
+            "integer": ex.DataType.Type.INT,
+            "short": ex.DataType.Type.SMALLINT,
+            "byte": ex.DataType.Type.TINYINT,
+            "float": ex.DataType.Type.FLOAT,
+            "double": ex.DataType.Type.DOUBLE,
+            "boolean": ex.DataType.Type.BIT,
+            "binary": ex.DataType.Type.VARBINARY,
+            "date": ex.DataType.Type.DATE,
+            "timestamp": ex.DataType.Type.DATETIME,
+            "timestampNtz": ex.DataType.Type.DATETIME,
+        }
+        if delta_type.type in type_map:
+            return ex.DataType.build(type_map[delta_type.type], dialect="spark")
+        else:
+            return ex.DataType.build(delta_type.type, dialect="spark")
+    elif isinstance(delta_type, MapType):
+        key_type = _delta_to_sq_type(delta_type.key_type)
+        value_type = _delta_to_sq_type(delta_type.value_type)
+
+        return ex.DataType(
+            this=ex.DataType.Type.MAP, expressions=[key_type, value_type], nested=True
+        )
+    elif isinstance(delta_type, ArrayType):
+        item_type = _delta_to_sq_type(delta_type.element_type)
+        return ex.DataType(
+            this=ex.DataType.Type.ARRAY, expressions=[item_type], nested=True
+        )
+    elif isinstance(delta_type, StructType):
+        fields = [
+            ex.DataType(
+                this=ex.DataType.Type.STRUCT,
+                expressions=[
+                    ex.ColumnDef(
+                        this=ex.to_identifier(f.name),
+                        kind=_delta_to_sq_type(f.type),
+                    ),
+                ],
+                nested=True,
+            )
+            for f in delta_type.fields
+        ]
+        return ex.DataType(
+            this=ex.DataType.Type.STRUCT, expressions=fields, nested=True
+        )
+    else:
+        raise ValueError(f"Unsupported Delta type: {type(delta_type)}")
 
 
 class DeltaRSDeltaOps(DeltaOps):
@@ -85,9 +143,6 @@ class DeltaRSDeltaOps(DeltaOps):
     def get_property(self, key: str):
         return self.delta_table.metadata().configuration.get(key, None)
 
-    def column_infos(self) -> Sequence[ColInfo]:
-        return self.delta_table.schema().fields
-
     def set_nullable(self, cols: Mapping[str, bool]):
         # not implemented properly for delta-rs
         for k, v in cols.items():
@@ -97,6 +152,23 @@ class DeltaRSDeltaOps(DeltaOps):
                 self.delta_table.alter.drop_constraint(
                     f"null_{k}", raise_if_not_exists=False
                 )
+
+    def column_infos(self) -> "Sequence[InformationSchemaColInfo]":
+        from odbc2deltalake.metadata import InformationSchemaColInfo
+
+        fields = self.delta_table.schema().fields
+        return [
+            InformationSchemaColInfo(
+                column_name=f.name,
+                data_type_str=str(f.type),
+                data_type=_delta_to_sq_type(f.type),
+                is_nullable=f.nullable,
+            )
+            for f in fields
+        ]
+
+    def update_incremental(self):
+        self.delta_table.update_incremental()
 
 
 class ODBCReader(DataSourceReader):
@@ -125,10 +197,14 @@ class ODBCReader(DataSourceReader):
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         dt = delta_path.as_delta_table()
         if version is not None:
+            if isinstance(dt, Path):
+                from deltalake import DeltaTable
+
+                dt = DeltaTable(dt)
             dt.load_as_version(version)
         duckdb_create_view_for_delta(self.duck_con, dt, view_name)
 
-    def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
+    def local_execute_sql_to_py(self, sql: ex.Query) -> list[dict]:
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
@@ -138,7 +214,7 @@ class ODBCReader(DataSourceReader):
             col_names = [desc[0] for desc in cursor.description]
             return [dict(zip(col_names, row)) for row in cursor.fetchall()]
 
-    def local_register_view(self, sql: Query, view_name: str):
+    def local_register_view(self, sql: ex.Query, view_name: str):
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
@@ -182,6 +258,10 @@ class ODBCReader(DataSourceReader):
 
             try:
                 dt = delta_path.as_delta_table()
+                if isinstance(dt, Path):
+                    from deltalake import DeltaTable
+
+                    dt = DeltaTable(dt)
                 DeltaTable.version(dt)
                 if extended_check:
                     return len(dt.schema().fields) > 0
@@ -203,7 +283,12 @@ class ODBCReader(DataSourceReader):
         schema_mode = None
         if allow_schema_drift == "new_only":
             try:
-                existing_schema = delta_path.as_delta_table().schema().fields
+                dt = delta_path.as_delta_table()
+                if isinstance(dt, Path):
+                    from deltalake import DeltaTable
+
+                    dt = DeltaTable(dt)
+                existing_schema = dt.schema().fields
                 existing_field_names = [f.name for f in existing_schema]
                 new_schema = _all_nullable(input_schema)
                 new_fields = [
@@ -216,8 +301,12 @@ class ODBCReader(DataSourceReader):
                     import pyarrow as pa
 
                     merge_schema_fields = list()
+                    dt = delta_path.as_delta_table()
+                    if isinstance(dt, Path):
+                        from deltalake import DeltaTable
 
-                    pas_schema = delta_path.as_delta_table().schema().to_pyarrow()
+                        dt = DeltaTable(dt)
+                    pas_schema = dt.schema().to_pyarrow()
                     for n in input_schema.names:
                         if n in existing_field_names:
                             merge_schema_fields.append(pas_schema.field(n))
@@ -233,7 +322,7 @@ class ODBCReader(DataSourceReader):
 
     def local_execute_sql_to_delta(
         self,
-        sql: Query,
+        sql: ex.Query,
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         *,
@@ -279,7 +368,9 @@ class ODBCReader(DataSourceReader):
     def query_dialect(self) -> str:
         return "duckdb"
 
-    def source_schema_limit_one(self, sql: Query) -> "list[InformationSchemaColInfo]":
+    def source_schema_limit_one(
+        self, sql: ex.Query
+    ) -> "list[InformationSchemaColInfo]":
         from ..metadata import InformationSchemaColInfo
 
         limit_sql = sql.limit(0).sql("tsql")
@@ -298,8 +389,8 @@ class ODBCReader(DataSourceReader):
             for n in sc.names
         ]
 
-    def source_sql_to_py(self, sql: Union[str, Query]) -> list[dict]:
-        if isinstance(sql, Query):
+    def source_sql_to_py(self, sql: Union[str, ex.Query]) -> list[dict]:
+        if isinstance(sql, ex.Query):
             sql = sql.sql("tsql")
         from arrow_odbc import read_arrow_batches_from_odbc
 
@@ -377,11 +468,15 @@ class ODBCReader(DataSourceReader):
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
         dt = delta_path.as_delta_table()
+        if isinstance(dt, Path):
+            from deltalake import DeltaTable
+
+            dt = DeltaTable(dt)
         return DeltaRSDeltaOps(dt)
 
     def local_upsert_into(
         self,
-        local_sql_source: Query,
+        local_sql_source: ex.Query,
         target_delta: Destination,
         merge_cols: Sequence[str],
     ):
@@ -391,7 +486,12 @@ class ODBCReader(DataSourceReader):
 
         with self.duck_con.cursor() as cursor:
             cursor.execute(local_sql_source.sql(self.query_dialect))
+
             dt = target_delta.as_delta_table()
+            if isinstance(dt, Path):
+                from deltalake import DeltaTable
+
+                dt = DeltaTable(dt)
             res = (
                 dt.merge(
                     cursor.fetch_record_batch(),

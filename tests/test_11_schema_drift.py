@@ -15,6 +15,7 @@ def test_schema_drift(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
     from odbc2deltalake import WriteConfig
+    import sqlglot.expressions as ex
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user7")[
         conf_name
@@ -43,7 +44,10 @@ def test_schema_drift(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_user_scd2"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_scd2",
+            use_delta_ext=conf_name == "spark",
         )
         from datetime import date
 
@@ -70,15 +74,9 @@ def test_schema_drift(
         reader, ("dbo", "user7"), dest, write_config=config
     )
     assert r.executed_type == "delta"
-
-    age_field = next(
-        (
-            f
-            for f in (dest / "delta").as_delta_table().schema().fields
-            if f.name.lower() == "age"
-        )
-    )
-    assert age_field.type.type.startswith("decimal")
+    fields = reader.get_local_delta_ops(dest / "delta").column_infos()
+    age_field = next((f for f in fields if f.column_name.lower() == "age"))
+    assert age_field.data_type.this == ex.DataType.Type.DECIMAL
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from pathlib import Path
 from typing_extensions import Literal, Self
 from typing import TYPE_CHECKING, Optional
 
@@ -48,5 +49,5 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def as_delta_table(self) -> "DeltaTable":
+    def as_delta_table(self) -> "DeltaTable | Path":
         pass

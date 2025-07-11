@@ -31,7 +31,12 @@ def test_append_inserts(
     )
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(con, (dest / "delta").as_delta_table(), "v_log")
+        duckdb_create_view_for_delta(
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_log",
+            use_delta_ext=conf_name == "spark",
+        )
 
         id_tuples = con.execute(
             'SELECT id, message from v_log order by "__timestamp"'
@@ -53,7 +58,12 @@ def test_append_inserts(
     )
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(con, (dest / "delta").as_delta_table(), "v_log")
+        duckdb_create_view_for_delta(
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_log",
+            use_delta_ext=conf_name == "spark",
+        )
 
         id_tuples = con.execute(
             'SELECT id, message from v_log order by "__timestamp"'

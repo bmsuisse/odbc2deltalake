@@ -23,7 +23,12 @@ def test_first_load_timestamp(
 
     write_db_to_delta_with_check(reader, ("dbo", "user"), dest)
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(con, (dest / "delta").as_delta_table(), "v_user")
+        duckdb_create_view_for_delta(
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user",
+            use_delta_ext=conf_name == "spark",
+        )
         name_tuples = con.execute(
             'SELECT FirstName from v_user order by "User_-_iD"'
         ).fetchall()
@@ -35,6 +40,7 @@ def test_first_load_timestamp(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk",
+            use_delta_ext=conf_name == "spark",
         )
 
         id_tuples = con.execute(
@@ -58,7 +64,10 @@ def test_first_load_sys_start(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_company"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_company",
+            use_delta_ext=conf_name == "spark",
         )
         name_tuples = con.execute('SELECT name from v_company order by "id"').fetchall()
         assert name_tuples == [("The First company",), ("The Second company",)]
@@ -69,6 +78,7 @@ def test_first_load_sys_start(
                 dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
             ).as_delta_table(),
             "v_latest_pk_company",
+            use_delta_ext=conf_name == "spark",
         )
         id_tuples = con.execute(
             'SELECT "id" from v_latest_pk_company order by "id"'
@@ -95,7 +105,10 @@ def test_first_load_always_full(
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
-            con, (dest / "delta").as_delta_table(), "v_long_table_name"
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_long_table_name",
+            use_delta_ext=conf_name == "spark",
         )
 
         name_tuples = con.execute(

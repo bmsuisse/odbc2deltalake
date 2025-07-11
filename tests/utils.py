@@ -29,6 +29,10 @@ def _ntz(df_in: pd.DataFrame):
 def check_latest_pk_pandas(infos: WriteConfigAndInfos):
     lpk_path = infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     lpk_df = lpk_path.as_delta_table()
+    if isinstance(lpk_df, Path):
+        from deltalake import DeltaTable
+
+        lpk_df = DeltaTable(lpk_df)
     sort_cols = [infos.write_config.get_target_name(pk) for pk in infos.pk_cols]
 
     def _sort_pd(df: pd.DataFrame):
@@ -69,7 +73,13 @@ def write_db_to_delta_with_check(
     w.source.local_register_update_view(w.destination / "delta", "last_delta_view")
 
     check_latest_pk(w)
-    check_latest_pk_pandas(w)
+    try:
+        check_latest_pk_pandas(w)
+    except ImportError:
+        print(
+            "Pandas or deltalake is not installed, skipping check_latest_pk_pandas. "
+            "Install pandas to enable this check."
+        )
     return w, r
 
 
