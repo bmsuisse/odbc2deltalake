@@ -1,0 +1,173 @@
+drop table if exists dbo."user2$" cascade;
+drop table if exists dbo."user3" cascade;
+drop table if exists dbo."user3_" cascade;
+drop table if exists dbo."user4" cascade;
+drop table if exists dbo."user5" cascade;
+drop table if exists dbo."user6" cascade;
+drop table if exists dbo."user7" cascade;
+drop table if exists dbo."user8" cascade;
+drop table if exists dbo."user" cascade;
+drop table if exists dbo."company" cascade;
+drop table if exists dbo."company2" cascade;
+drop table if exists dbo."company3" cascade;
+drop table if exists "long schema"."long table name" cascade;
+drop table if exists dbo."log" cascade;
+drop view if exists "long schema"."long table name_as_view" cascade;
+GO
+
+create table dbo."log" (
+    id serial primary key,
+    message text,
+    inserted_at timestamp not null default now()
+);
+
+create table dbo."company" (
+    id varchar(10) primary key,
+    name varchar(100)
+);
+
+create table dbo."company2" (
+    id varchar(10) primary key,
+    name varchar(100)
+);
+
+create table dbo."company3" (
+    id varchar(10) primary key,
+    name varchar(100)
+);
+GO
+
+insert into dbo."company"(id, name) values 
+('c1', 'The First company'),
+('c2', 'The Second company        ');
+GO
+
+insert into dbo."company3"(id, name)
+select id, name from dbo."company";
+GO
+
+create table dbo."user" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id)
+);
+
+create table dbo."user2$" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id),
+    nbr smallint
+);
+
+create table dbo."user3" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id)
+);
+
+create table dbo."user4" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id)
+);
+
+create table dbo."user5" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id)
+);
+
+create table dbo."user6" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id)
+);
+
+create table dbo."user7" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id)
+);
+
+create table dbo."user8" (
+    "User - iD" bigserial primary key,
+    FirstName varchar(100),
+    LastName text,
+    Age numeric(15,3),
+    companyid varchar(10) not null references dbo."company"(id)
+);
+GO
+
+insert into dbo."user"(FirstName, LastName, Age, companyid)
+values
+('John', 'Anders', 14, 'c1'),
+('Peter', 'Johniingham', 23, 'c1'),
+('Petra', 'wayne', 24, 'c1');
+GO
+
+insert into dbo."user2$"(FirstName, LastName, Age, companyid, nbr)
+select 
+    FirstName,
+    LastName,
+    Age,
+    companyid,
+    150 + row_number() over (order by "User - iD")
+from dbo."user";
+GO
+
+insert into dbo."user3"(FirstName, LastName, Age, companyid)
+select FirstName, LastName, Age, companyid from dbo."user";
+insert into dbo."user4"(FirstName, LastName, Age, companyid)
+select FirstName, LastName, Age, companyid from dbo."user";
+insert into dbo."user5"(FirstName, LastName, Age, companyid)
+select FirstName, LastName, Age, companyid from dbo."user";
+insert into dbo."user6"(FirstName, LastName, Age, companyid)
+select FirstName, LastName, Age, companyid from dbo."user";
+insert into dbo."user7"(FirstName, LastName, Age, companyid)
+select FirstName, LastName, Age, companyid from dbo."user";
+insert into dbo."user8"(FirstName, LastName, Age, companyid)
+select FirstName, LastName, Age, companyid from dbo."user";
+GO
+
+create schema if not exists "long schema";
+GO
+
+create table "long schema"."long table name" (
+    "long column name" int,
+    dt xml,
+    uid uuid default gen_random_uuid(),
+    "date" date
+);
+GO
+
+insert into "long schema"."long table name" ("long column name", dt, "date")
+select 1,
+    '<root><child>text</child></root>'::xml,
+    '2023-01-01'
+union all
+select 2,
+    '<root><child>text 2345asdf</child></root>'::xml,
+    '2024-01-01';
+GO
+
+insert into dbo."log"(message)
+values ('The first log message');
+GO
+
+create or replace view "long schema"."long table name_as_view" as
+select * from "long schema"."long table name";
+GO

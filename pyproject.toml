@@ -34,6 +34,10 @@ local_azure = [
     "adlfs >=2024.2.0,<2025",
     "pyodbc >=5.1.0,<6",
 ]
+postgres = [
+    "psycopg>=3.2.9,<4"
+]
+mssql = ["pyodbc >=5.1.0,<6"]
 
 [build-system]
 requires = ["hatchling"]
@@ -78,7 +82,6 @@ test = [
     "pandas >=1.4.2",
     "delta-spark >=3.2.0,<4",
     "pyarrow >=16.1",
-    "pyodbc >=5.1.0,<6",
     "duckdb",
     "deltalake2db >=0.10.1",
     "fsspec",
