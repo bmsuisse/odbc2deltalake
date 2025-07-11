@@ -101,6 +101,13 @@ class SparkReader(DataSourceReader):
         self.linked_server_proxy = linked_server_proxy
         self.spark_format = spark_format
         self.jdbc = jdbc
+        if spark_format == "postgres":
+            self.source_dialect = "postgres"
+        elif spark_format == "sqlserver":
+            self.source_dialect = "tsql"
+        else:
+            self.source_dialect = spark_format
+
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
         )

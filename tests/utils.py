@@ -110,7 +110,9 @@ def get_test_run_configs(
 
         cfg["azure"] = (
             ODBCReader(
-                connection.conn_str["azure"], f"tests/_db/_azure/{tbl_dest_name}.duckdb"
+                connection.conn_str["azure"],
+                f"tests/_db/_azure/{tbl_dest_name}.duckdb",
+                source_dialect=connection.dialect,
             ),
             AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
         )
@@ -119,7 +121,9 @@ def get_test_run_configs(
 
         cfg["local"] = (
             ODBCReader(
-                connection.conn_str["local"], f"tests/_db/_local/{tbl_dest_name}.duckdb"
+                connection.conn_str["local"],
+                f"tests/_db/_local/{tbl_dest_name}.duckdb",
+                source_dialect=connection.dialect,
             ),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
         )
@@ -127,7 +131,14 @@ def get_test_run_configs(
         from odbc2deltalake.reader.spark_reader import SparkReader
 
         cfg["spark"] = (
-            SparkReader(spark_session, connection.get_jdbc_options("spark"), jdbc=True),
+            SparkReader(
+                spark_session,
+                connection.get_jdbc_options("spark"),
+                jdbc=True,
+                spark_format=(
+                    "sqlserver" if connection.source_server == "mssql" else "postgres"
+                ),
+            ),
             FileSystemDestination(
                 Path(f"tests/_data/spark/{tbl_dest_name}").absolute()
             ),

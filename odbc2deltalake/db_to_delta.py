@@ -59,13 +59,14 @@ def _source_convert(
     table_alias: Union[str, None] = None,
     type_map: Optional[Mapping[str, ex.DataType]] = None,
     no_trim: bool,
+    dialect: str = "tsql",
 ):
     expr = ex.column(name, table_alias, quoted=True)
 
     data_type_str = (
         data_type
         if isinstance(data_type, str)
-        else ex.DataType(this=data_type.this).sql("tsql").lower()
+        else ex.DataType(this=data_type.this).sql(dialect).lower()
     )
     mapped_type = type_map.get(data_type_str) if type_map else None
     if mapped_type:
@@ -101,6 +102,7 @@ def _get_cols_select(
     data_type_map: Optional[Mapping[str, ex.DataType]] = None,
     get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
     no_trim: bool,
+    source_dialect: str = "tsql",
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
@@ -115,6 +117,7 @@ def _get_cols_select(
                     table_alias=table_alias,
                     type_map=data_type_map,
                     no_trim=no_trim,
+                    dialect=source_dialect,
                 ).as_(get_target_name(c), quoted=True)
                 if system == "source"
                 else ex.column(get_target_name(c), table_alias, quoted=True)
@@ -845,6 +848,7 @@ def _retrieve_primary_key_data(
             system="source",
             get_target_name=infos.write_config.get_target_name,
             no_trim=infos.write_config.no_trim,
+            source_dialect=infos.write_config.dialect,
         )
     )
     pk_ts_reader_sql = pk_ts_col_select.sql(infos.write_config.dialect)
@@ -906,6 +910,7 @@ def _write_delta2(
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                source_dialect=infos.write_config.dialect,
             )
         )
         sql = infos.from_("t").select(*selects).sql(write_config.dialect)
@@ -1167,6 +1172,7 @@ def _get_update_sql(
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                source_dialect=infos.write_config.dialect,
             )
         )
         .where(
@@ -1234,6 +1240,7 @@ def do_full_load(
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                source_dialect=infos.write_config.dialect,
             )
         )
         .sql(write_config.dialect)
