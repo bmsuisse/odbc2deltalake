@@ -41,7 +41,7 @@ def test_delta_query(
 
             dt_or_path = DeltaTable(dt_or_path)
         stats = dt_or_path.delete(' "User_-_iD" = 2')
-    assert stats["num_deleted_rows"] == 1
+        assert stats["num_deleted_rows"] == 1
 
     _, fixed = w.check_delta_consistency(auto_fix=True)
     assert fixed
