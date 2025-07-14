@@ -131,6 +131,7 @@ class DB_Connection:
                 "host": host,
                 "port": port,
                 "driver": "org.postgresql.Driver",
+                "database": parts[3],
             }
         parts = self.conn_str[cfg_name].split(";")
         part_map = {p.split("=")[0]: p.split("=")[1] for p in parts}
