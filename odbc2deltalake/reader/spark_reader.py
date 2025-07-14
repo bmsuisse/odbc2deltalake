@@ -90,7 +90,7 @@ class SparkReader(DataSourceReader):
     def __init__(
         self,
         spark: "SparkSession",
-        sql_config: Optional[dict[str, str]] = None,
+        sql_config: Optional[Union[dict[str, str], str]] = None,
         linked_server_proxy: Union[str, None] = None,
         spark_format: str = "sqlserver",
         jdbc=False,
@@ -237,35 +237,42 @@ class SparkReader(DataSourceReader):
         if self.jdbc:
             options = {}
             jdbcUrl = f"jdbc:{self.spark_format}://"
-            if "host" in self.sql_config:
-                jdbcUrl += self.sql_config["host"].replace(",", ":")
-            if "server" in self.sql_config:
-                jdbcUrl += self.sql_config["server"].replace(",", ":")
-            if "port" in self.sql_config:
-                jdbcUrl += ":" + str(self.sql_config["port"])
-
-            for key, value in self.sql_config.items():
-                if key.lower() in ["host", "port", "server"]:
-                    continue
-                if key.lower() in [
-                    "encrypt",
-                    "TrustServerCertificate".lower(),
-                    "integratedSecurity".lower(),
-                ]:
-                    enc_vl = value
-                    if enc_vl.lower() == "yes":
-                        enc_vl = "true"
-                    elif enc_vl.lower() == "no":
-                        enc_vl = "false"
-                    assert enc_vl in ["true", "false"]
-                    jdbcUrl += f";{key}=" + enc_vl
-                elif key.lower() == "database":
-                    jdbcUrl += ";databaseName=" + value
+            if isinstance(self.sql_config, str):
+                if self.sql_config.startswith("jdbc:"):
+                    jdbcUrl = self.sql_config
                 else:
-                    options[key] = value
+                    jdbcUrl = "jdbc:" + self.sql_config
+            else:
+                if "host" in self.sql_config:
+                    jdbcUrl += self.sql_config["host"].replace(",", ":")
+                if "server" in self.sql_config:
+                    jdbcUrl += self.sql_config["server"].replace(",", ":")
+                if "port" in self.sql_config:
+                    jdbcUrl += ":" + str(self.sql_config["port"])
+
+                for key, value in self.sql_config.items():
+                    if key.lower() in ["host", "port", "server"]:
+                        continue
+                    if key.lower() in [
+                        "encrypt",
+                        "TrustServerCertificate".lower(),
+                        "integratedSecurity".lower(),
+                    ]:
+                        enc_vl = value
+                        if enc_vl.lower() == "yes":
+                            enc_vl = "true"
+                        elif enc_vl.lower() == "no":
+                            enc_vl = "false"
+                        assert enc_vl in ["true", "false"]
+                        jdbcUrl += f";{key}=" + enc_vl
+                    elif key.lower() == "database":
+                        jdbcUrl += ";databaseName=" + value
+                    else:
+                        options[key] = value
             print(jdbcUrl)
             reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
         else:
+            assert isinstance(self.sql_config, dict), "SQL config must be a dict"
             options = self.sql_config
             reader = self.spark.read.format(self.spark_format)
         reader = reader.option("query", self._query(sql))
