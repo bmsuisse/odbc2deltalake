@@ -24,20 +24,25 @@ def get_primary_keys(
     quoted_db = sql_quote_name(real_db) + "." if real_db else ""
     no_lock = "WITH(NOLOCK)" if dialect == "mssql" else ""
     query = sqlglot.parse_one(
-        f"""SELECT ccu.COLUMN_NAME
+        f"""SELECT ccu.COLUMN_NAME as col_name
     FROM {quoted_db}INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc {no_lock}
         JOIN {quoted_db}INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu {no_lock} ON tc.CONSTRAINT_NAME = ccu.Constraint_name
-    WHERE tc.CONSTRAINT_TYPE = 'Primary Key'""",
+    WHERE lower(tc.CONSTRAINT_TYPE) = 'primary key'""",
         dialect=dialect,
     )
     assert isinstance(query, ex.Select)
     query = query.where(
-        ex.column("TABLE_NAME", "ccu")
-        .eq(ex.convert(real_table_name))
-        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(ex.convert(real_schema)))
+        ex.func("lower", ex.column("TABLE_NAME", "ccu"))
+        .eq(ex.convert(real_table_name.lower()))
+        .and_(
+            ex.func("lower", ex.column("TABLE_SCHEMA", "ccu")).eq(
+                ex.convert(real_schema.lower())
+            )
+        )
     )
     full_query = query.sql(dialect)
-    return [d["COLUMN_NAME"] for d in reader.source_sql_to_py(full_query)]
+    res = reader.source_sql_to_py(full_query)
+    return [d["col_name"] for d in res]
 
 
 class FieldWithType(BaseModel):
