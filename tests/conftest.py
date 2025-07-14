@@ -1,3 +1,4 @@
+from time import sleep
 import pytest
 import os
 import logging
@@ -19,15 +20,25 @@ source_server: Final[Literal["mssql", "postgres"]] = (
 logger = logging.getLogger(__name__)
 
 
-def get_conn(conn_str: str, *, autocommit: bool):
-    if source_server == "mssql":
-        import pyodbc
+def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
+    try:
+        if source_server == "mssql":
+            import pyodbc
 
-        return pyodbc.connect(conn_str, autocommit=autocommit)
-    else:
-        import adbc_driver_postgresql.dbapi
+            return pyodbc.connect(conn_str, autocommit=autocommit)
+        else:
+            import adbc_driver_postgresql.dbapi
 
-        return adbc_driver_postgresql.dbapi.connect(conn_str, autocommit=autocommit)
+            return adbc_driver_postgresql.dbapi.connect(conn_str, autocommit=autocommit)
+    except Exception as e:
+        if attempt < 3:
+            sleep(3)  # wait a bit before retrying
+            logger.warning(
+                "Connection failed, retrying... Attempt %d: %s", attempt + 1, e
+            )
+            return get_conn(conn_str, autocommit=autocommit, attempt=attempt + 1)
+        else:
+            raise RuntimeError(f"Failed to connect after 3 attempts: {e}") from e
 
 
 class DB_Connection:
