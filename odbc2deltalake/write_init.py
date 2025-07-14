@@ -159,8 +159,10 @@ def get_delta_col(
     if dialect == "postgres" and is_physical_table:
         return InformationSchemaColInfo(
             column_name="xmin",
-            data_type=ex.DataType.build("bigint"),
-            data_type_str="bigint",
+            data_type=ex.DataType.build(
+                "oid", dialect="postgres"
+            ),  # should actually be xid
+            data_type_str="xid",
         )
     return row_start_col
 

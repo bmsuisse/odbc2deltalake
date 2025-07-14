@@ -69,6 +69,12 @@ def _source_convert(
         else ex.DataType(this=data_type.this).sql(dialect).lower()
     )
     mapped_type = type_map.get(data_type_str) if type_map else None
+
+    if mapped_type is None and (orig_data_type_str == "xid" or data_type_str == "xid"):
+        return ex.cast(
+            ex.cast(expr, ex.DataType.build("text", dialect="postgres")),
+            ex.DataType.build("bigint", dialect="postgres"),
+        )
     if mapped_type:
         expr = ex.cast(expr, mapped_type)
     if (
@@ -936,10 +942,16 @@ def _write_delta2(
                 for i, c in enumerate(infos.pk_cols)
             ]
         )
-        return f"""{sql}
-        inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
-             on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
-        """
+        if write_config.dialect == "tsql":
+            return f"""{sql}
+            inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
+                on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
+            """
+        else:
+            return f"""{sql}
+            inner join (SELECT {pk_map} FROM JSON_TABLE({sql_quote_value(js)}, '$[*]' COLUMNS ({col_defs}))) ttt
+                on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
+            """
 
     if mode == "overwrite":
         infos.logger.info(

@@ -3,7 +3,7 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
-
+import sqlglot as sg
 from odbc2deltalake.query import sql_quote_value
 
 if TYPE_CHECKING:
@@ -29,16 +29,23 @@ def test_delta(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO [dbo].[user2$] ([FirstName], [LastName], [Age], companyid)
+                sg.parse_one(
+                    """INSERT INTO [dbo].[user2$] (FirstName, LastName, Age, companyid)
                    SELECT 'Markus', 'Müller', 27, 'c2'
                    union all 
                    select 'Heiri', 'Meier', 27.98, 'c2';
                    DELETE FROM dbo.[user2$] where LastName='Anders';
                      UPDATE [dbo].[user2$] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
-                   """
+                   """,
+                    dialect="tsql",
+                ).sql(reader.source_dialect)
             )
         with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[user2$]")
+            cursor.execute(
+                sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(
+                    reader.source_dialect
+                )
+            )
             alls = cursor.fetchall()
             assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
@@ -48,6 +55,7 @@ def test_delta(
     import time
 
     time.sleep(2)
+    ts_col = "xmin" if reader.source_dialect == "postgres" else "time_stamp"
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con,
@@ -55,11 +63,12 @@ def test_delta(
             "v_user_2_temp",
             use_delta_ext=conf_name == "spark",
         )
-        res = con.execute(
-            'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
-        ).fetchone()
-        assert res is not None
-        assert isinstance(res[0], int), "time_stamp is not an integer"
+        if reader.source_dialect == "mssql":
+            res = con.execute(
+                'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
+            ).fetchone()
+            assert res is not None
+            assert isinstance(res[0], int), "time_stamp is not an integer"
 
         res = con.execute("select max(__timestamp) from v_user_2_temp s").fetchone()
         assert res is not None
@@ -112,11 +121,10 @@ def test_delta(
             "v_latest_pk",
             use_delta_ext=conf_name == "spark",
         )
-
         id_tuples = con.execute(
-            """SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
-                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stamp"=lf."time_stamp"
-                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stamp" desc)=1
+            f"""SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
+                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."{ts_col}"=lf."{ts_col}"
+                qualify row_number() over (partition by s2."User_-_iD" order by lf."{ts_col}" desc)=1
                 order by s2."User_-_iD" 
                 """
         ).fetchall()
