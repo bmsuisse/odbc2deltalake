@@ -150,6 +150,8 @@ def _get_cols_select(
                 ex.cast(ex.convert(int(is_full)), "bit").as_(
                     IS_FULL_LOAD_COL_NAME, quoted=True
                 )
+                if source_dialect == "tsql"
+                else ex.convert(is_full).as_(IS_FULL_LOAD_COL_NAME, quoted=True)
             ]
             if is_full is not None
             else []

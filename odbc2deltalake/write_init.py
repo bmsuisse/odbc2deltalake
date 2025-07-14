@@ -209,7 +209,12 @@ def make_writer(
             )
     else:
         delta_col = get_delta_col(cols, write_config.dialect)
-
+    if delta_col and delta_col.column_name.lower() not in (
+        c.column_name.lower() for c in cols
+    ):
+        cols.append(
+            delta_col
+        )  # we assume it's a hidden column, so we add it to the cols (eg, xmin in postgres)
     _pks = write_config.primary_keys
     if _pks is None and (
         isinstance(table_or_query, str) or isinstance(table_or_query, tuple)
