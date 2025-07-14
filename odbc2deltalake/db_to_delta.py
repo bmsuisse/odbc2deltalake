@@ -1172,7 +1172,7 @@ def _get_update_sql(
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
-                source_dialect=infos.write_config.dialect,
+                source_dialect=write_config.dialect,
             )
         )
         .where(

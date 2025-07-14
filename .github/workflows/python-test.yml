@@ -56,13 +56,13 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
       - name: Install project dependencies incl Spark
         if: matrix.test_config == 'spark'
-        run: uv sync --group test --group dev --group spark --extra {{matrix.database}}
+        run: uv sync --group test --group dev --group spark --extra ${{matrix.database}}
       - name: Test beeing able to import
         if: matrix.test_config == 'spark'
         run: uv run ./test_spark_import.py
       - name: Install project dependencies
         if: matrix.test_config != 'spark'
-        run: uv sync --extra local --extra local_azure --group test --group dev  --extra {{matrix.database}}
+        run: uv sync --extra local --extra local_azure --group test --group dev  --extra ${{matrix.database}}
       - name: Test with pytest
         run: uv run -m pytest -x --cov=odbc2deltalake tests
         env:
