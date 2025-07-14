@@ -45,7 +45,6 @@ class DB_Connection:
             configs = [tc]
         self.conn_str: dict[str, str] = dict()
         if source_server == "mssql":
-            import pyodbc
             from odbc2deltalake.odbc_utils import build_connection_string
 
             conn_str = build_connection_string(
@@ -67,8 +66,6 @@ class DB_Connection:
                     "database=master", "database=" + db_name
                 ).replace("Database=master", "database=" + db_name)
         else:
-            import psycopg
-
             connstr = (
                 "postgresql://testuser:MyPasswortli4tests@localhost:54320/postgres"
             )
