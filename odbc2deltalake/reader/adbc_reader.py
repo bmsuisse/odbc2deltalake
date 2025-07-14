@@ -22,9 +22,9 @@ if TYPE_CHECKING:
 class ADBCReader(DataSourceReader):
     def __init__(
         self,
-        connection: Connection,
+        connection: "Connection",
         local_db: str = ":memory:",
-        source_dialect: str = "tsql",
+        source_dialect: str = "postgres",
     ) -> None:
         from deltalake import WriterProperties
 

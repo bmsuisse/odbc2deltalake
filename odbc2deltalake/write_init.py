@@ -174,7 +174,11 @@ def make_writer(
     log_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
 ):
     if write_config is None:
-        write_config = WriteConfig()
+        write_config = WriteConfig(
+            dialect=source.source_dialect
+            if isinstance(source, DataSourceReader)
+            else "tsql"
+        )
     if isinstance(destination, Path):
         from .destination.file_system import FileSystemDestination
 
@@ -183,6 +187,7 @@ def make_writer(
         from .reader.odbc_reader import ODBCReader
 
         source = ODBCReader(source, source_dialect=write_config.dialect)
+
     cols = get_columns(source, table_or_query, dialect=write_config.dialect)
 
     if write_config.delta_col:

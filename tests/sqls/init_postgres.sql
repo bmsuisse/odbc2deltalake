@@ -1,3 +1,5 @@
+create schema if not exists dbo;
+GO
 drop table if exists dbo."user2$" cascade;
 drop table if exists dbo."user3" cascade;
 drop table if exists dbo."user3_" cascade;
@@ -157,11 +159,11 @@ GO
 insert into "long schema"."long table name" ("long column name", dt, "date")
 select 1,
     '<root><child>text</child></root>'::xml,
-    '2023-01-01'
+    '2023-01-01'::date
 union all
 select 2,
     '<root><child>text 2345asdf</child></root>'::xml,
-    '2024-01-01';
+    '2024-01-01'::date;
 GO
 
 insert into dbo."log"(message)
@@ -170,4 +172,3 @@ GO
 
 create or replace view "long schema"."long table name_as_view" as
 select * from "long schema"."long table name";
-GO

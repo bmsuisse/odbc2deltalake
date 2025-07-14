@@ -138,8 +138,8 @@ def get_test_run_configs(
             )
             if connection.source_server == "mssql"
             else ADBCReader(
-                adbc_pg.connect(connection.conn_str["azure"]),
-                f"tests/_db/_azure/{tbl_dest_name}.duckdb",
+                adbc_pg.connect(connection.conn_str["local"]),
+                f"tests/_db/_local/{tbl_dest_name}.duckdb",
                 source_dialect=connection.dialect,
             ),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),

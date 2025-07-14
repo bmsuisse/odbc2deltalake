@@ -19,15 +19,15 @@ source_server: Final[Literal["mssql", "postgres"]] = (
 logger = logging.getLogger(__name__)
 
 
-def get_conn(conn_str: str):
+def get_conn(conn_str: str, *, autocommit: bool):
     if source_server == "mssql":
         import pyodbc
 
-        return pyodbc.connect(conn_str, autocommit=True)
+        return pyodbc.connect(conn_str, autocommit=autocommit)
     else:
         import adbc_driver_postgresql.dbapi
 
-        return adbc_driver_postgresql.dbapi.connect(conn_str)
+        return adbc_driver_postgresql.dbapi.connect(conn_str, autocommit=autocommit)
 
 
 class DB_Connection:
@@ -77,12 +77,10 @@ class DB_Connection:
                     + db_name
                 )
 
-        master_conn = get_conn(self.conn_str_master)
+        master_conn = get_conn(self.conn_str_master, autocommit=True)
         for cfg in configs:
             with master_conn.cursor() as cursor:
                 try:
-                    if source_server == "postgres":
-                        cursor.execute("SET AUTOCOMMIT = ON")
                     cursor.execute(
                         cast(LiteralString, " drop DATABASE if exists " + db_name)
                     )
@@ -90,16 +88,18 @@ class DB_Connection:
                 except Exception as e:
                     logger.error("Error drop creating db", exc_info=e)
 
-            with get_conn(self.conn_str[cfg]) as con:
+            with get_conn(self.conn_str[cfg], autocommit=True) as con:
                 with open(
                     f"tests/sqls/init_{source_server}.sql", encoding="utf-8-sig"
                 ) as f:
                     sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
                     for sql in sqls:
                         with con.cursor() as cursor:
-                            if source_server == "postgres":
-                                cursor.execute("SET AUTOCOMMIT = ON")
-                            cursor.execute(cast(LiteralString, sql))
+                            if hasattr(cursor, "executescript"):  # type: ignore
+                                # for postgres
+                                cursor.executescript(sql)
+                            else:
+                                cursor.execute(cast(LiteralString, sql))
 
             if db_name not in self.conn_str[cfg]:
                 raise ValueError("Database not created correctly")
@@ -116,7 +116,7 @@ class DB_Connection:
         return d
 
     def new_connection(self, cfg_name: str):
-        return get_conn(self.conn_str[cfg_name])
+        return get_conn(self.conn_str[cfg_name], autocommit=False)
 
     def close(self):
         pass

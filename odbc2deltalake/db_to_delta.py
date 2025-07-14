@@ -86,9 +86,14 @@ def _source_convert(
     return expr
 
 
-valid_from_expr = ex.cast(
-    ex.func("GETUTCDATE", dialect="tsql"), ex.DataType(this="datetime2(6)")
-).as_(VALID_FROM_COL_NAME, quoted=True)
+valid_from_exprs = {
+    "tsql": ex.cast(
+        ex.func("GETUTCDATE", dialect="tsql"), ex.DataType(this="datetime2(6)")
+    ).as_(VALID_FROM_COL_NAME, quoted=True),
+    "default": ex.func("CURRENT_TIMESTAMP", dialect="postgres").as_(
+        VALID_FROM_COL_NAME, quoted=True
+    ),
+}
 
 
 def _get_cols_select(
@@ -124,12 +129,18 @@ def _get_cols_select(
             )
             for c in cols
         ]
-        + ([valid_from_expr] if with_valid_from else [])
+        + (
+            [valid_from_exprs.get(source_dialect, valid_from_exprs["default"])]
+            if with_valid_from
+            else []
+        )
         + (
             [
                 ex.cast(ex.convert(int(is_deleted)), "bit").as_(
                     IS_DELETED_COL_NAME, quoted=True
                 )
+                if source_dialect == "tsql"
+                else ex.convert(is_deleted).as_(IS_DELETED_COL_NAME, quoted=True)
             ]
             if is_deleted is not None
             else []
