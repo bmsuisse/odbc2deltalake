@@ -108,6 +108,19 @@ class DB_Connection:
         return self
 
     def get_jdbc_options(self, cfg_name: str):
+        if self.conn_str[cfg_name].startswith("postgresql://"):
+            # Postgres connection string
+            parts = self.conn_str[cfg_name].split("/")
+            user_pass, host_port = parts[2].split("@")
+            user, password = user_pass.split(":")
+            host, port = host_port.split(":")
+            return {
+                "user": user,
+                "password": password,
+                "host": host,
+                "port": port,
+                "driver": "org.postgresql.Driver",
+            }
         parts = self.conn_str[cfg_name].split(";")
         part_map = {p.split("=")[0]: p.split("=")[1] for p in parts}
         map_keys = {"UID": "user", "PWD": "password", "server": "host"}
