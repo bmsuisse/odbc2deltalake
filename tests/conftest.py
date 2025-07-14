@@ -218,7 +218,7 @@ def spark_session():
         )
     else:
         builder = builder.config(
-            "spark.jars.packages", "org.postgresql:postgresql:42.7.7"
+            "spark.jars", str(Path("tests/jar/postgresql-42.7.7.jar").absolute())
         )
 
     spark = configure_spark_with_delta_pip(builder).getOrCreate()

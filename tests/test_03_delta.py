@@ -34,7 +34,7 @@ def test_delta(
                    union all 
                    select 'Heiri', 'Meier', 27.98, 'c2';
                    DELETE FROM dbo.[user2$] where LastName='Anders';
-                     UPDATE [dbo].[user2$] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
+                     UPDATE [dbo].[user2$] SET LastName='wayne-hösch' where LastName='wayne' -- Petra
                    """,
                 dialect="tsql",
             )
@@ -151,7 +151,7 @@ def test_delta_sys(
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # full load
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
+            stmts = sg.parse(
                 """
 insert into dbo.[company](id, name)
 select 'c300',
@@ -159,12 +159,16 @@ select 'c300',
 update dbo.[company]
 set id='c2 '
     where id='c2'
-                   """
+                   """,
+                dialect="tsql",
             )
+            for stmt in stmts:
+                assert stmt is not None
+                cursor.execute(stmt.sql(reader.source_dialect))
 
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
     with nc.cursor() as cursor:
-        cursor.execute("SELECT * FROM [dbo].[company]")
+        cursor.execute("SELECT * FROM dbo.company")
         alls = cursor.fetchall()
         print(alls)
     with duckdb.connect() as con:
