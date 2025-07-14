@@ -80,7 +80,7 @@ class DB_Connection:
                     + db_name
                 )
 
-        master_conn = get_conn(conn_str)
+        master_conn = get_conn(self.conn_str_master)
         for cfg in configs:
             with master_conn.cursor() as cursor:
                 try:
@@ -92,7 +92,6 @@ class DB_Connection:
                     logger.error("Error drop creating db", exc_info=e)
 
             with get_conn(self.conn_str[cfg]) as con:
-
                 with open(
                     f"tests/sqls/init_{source_server}.sql", encoding="utf-8-sig"
                 ) as f:
