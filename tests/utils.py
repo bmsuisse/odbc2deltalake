@@ -150,9 +150,7 @@ def get_test_run_configs(
         cfg["spark"] = (
             SparkReader(
                 spark_session,
-                connection.get_jdbc_options("spark")
-                if connection.source_server == "mssql"
-                else connection.conn_str["spark"],
+                connection.get_jdbc_options("spark"),
                 jdbc=True,
                 spark_format=(
                     "sqlserver" if connection.source_server == "mssql" else "postgres"
