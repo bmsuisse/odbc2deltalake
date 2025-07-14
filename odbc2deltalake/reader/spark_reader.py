@@ -243,6 +243,8 @@ class SparkReader(DataSourceReader):
                 jdbcUrl += self.sql_config["server"].replace(",", ":")
             if "port" in self.sql_config:
                 jdbcUrl += ":" + str(self.sql_config["port"])
+            if "database" in self.sql_config and self.spark_format == "postgres":
+                jdbcUrl += "/" + self.sql_config["database"]
 
             for key, value in self.sql_config.items():
                 if key.lower() in ["host", "port", "server"]:
@@ -260,7 +262,8 @@ class SparkReader(DataSourceReader):
                     assert enc_vl in ["true", "false"]
                     jdbcUrl += f";{key}=" + enc_vl
                 elif key.lower() == "database":
-                    jdbcUrl += ";databaseName=" + value
+                    if self.spark_format != "postgres":  # postgres has db in url
+                        jdbcUrl += ";databaseName=" + value
                 else:
                     options[key] = value
             print(jdbcUrl)
