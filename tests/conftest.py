@@ -211,10 +211,15 @@ def spark_session():
             "spark.sql.catalog.spark_catalog",
             "org.apache.spark.sql.delta.catalog.DeltaCatalog",
         )
-        .config(
+    )
+    if source_server == "mssql":
+        builder = builder.config(
             "spark.jars", str(Path("tests/jar/mssql-jdbc-12.6.1.jre11.jar").absolute())
         )
-    )
+    else:
+        builder = builder.config(
+            "spark.jars.packages", "org.postgresql:postgresql:42.7.7"
+        )
 
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
 
