@@ -116,7 +116,7 @@ class DB_Connection:
         return d
 
     def new_connection(self, cfg_name: str):
-        return get_conn(self.conn_str[cfg_name], autocommit=False)
+        return get_conn(self.conn_str[cfg_name], autocommit=True)
 
     def close(self):
         pass

@@ -142,7 +142,9 @@ class WriteConfigAndInfos:
 
 
 def get_delta_col(
-    cols: Sequence[InformationSchemaColInfo], dialect: str
+    cols: Sequence[InformationSchemaColInfo],
+    dialect: str,
+    is_physical_table: Union[bool, None] = None,
 ) -> Union[InformationSchemaColInfo, None]:
     row_start_col: Union[InformationSchemaColInfo, None] = None
     for c in cols:
@@ -154,7 +156,7 @@ def get_delta_col(
             row_start_col = c
         if c.column_name == "__timestamp":
             return c
-    if dialect == "postgres":
+    if dialect == "postgres" and is_physical_table:
         return InformationSchemaColInfo(
             column_name="xmin",
             data_type=ex.DataType.build("bigint"),
@@ -189,7 +191,7 @@ def make_writer(
         source = ODBCReader(source, source_dialect=write_config.dialect)
 
     cols = get_columns(source, table_or_query, dialect=write_config.dialect)
-
+    is_physical_table = None
     if write_config.delta_col:
         delta_col = next(
             (c for c in cols if c.column_name == write_config.delta_col), None
@@ -208,7 +210,25 @@ def make_writer(
                 f"Delta column {write_config.delta_col} not found in source"
             )
     else:
-        delta_col = get_delta_col(cols, write_config.dialect)
+        if (
+            not isinstance(table_or_query, ex.Query)
+            and write_config.dialect == "postgres"
+        ):
+            qb = cast(
+                ex.Query,
+                sg.parse_one("SELECT table_type FROM information_schema.tables"),
+            )
+            if isinstance(table_or_query, tuple):
+                qb.where(ex.column("table_schema").eq(table_or_query[0]), copy=False)
+                qb.where(ex.column("table_name").eq(table_or_query[1]), copy=False)
+            else:
+                qb.where(ex.column("table_name").eq(table_or_query), copy=False)
+            type_type = source.source_sql_to_py(qb)[0]["table_type"]
+            is_physical_table = type_type == "BASE TABLE"
+
+        delta_col = get_delta_col(
+            cols, write_config.dialect, is_physical_table=is_physical_table
+        )
     if delta_col and delta_col.column_name.lower() not in (
         c.column_name.lower() for c in cols
     ):

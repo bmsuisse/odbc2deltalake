@@ -90,6 +90,9 @@ valid_from_exprs = {
     "tsql": ex.cast(
         ex.func("GETUTCDATE", dialect="tsql"), ex.DataType(this="datetime2(6)")
     ).as_(VALID_FROM_COL_NAME, quoted=True),
+    "postgres": ex.func("STATEMENT_TIMESTAMP", dialect="postgres").as_(
+        VALID_FROM_COL_NAME, quoted=True
+    ),
     "default": ex.func("CURRENT_TIMESTAMP", dialect="postgres").as_(
         VALID_FROM_COL_NAME, quoted=True
     ),

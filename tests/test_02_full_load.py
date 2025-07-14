@@ -1,3 +1,4 @@
+from time import sleep
 from typing import TYPE_CHECKING
 import pytest
 from deltalake2db import duckdb_create_view_for_delta
@@ -42,20 +43,28 @@ def test_first_load_always_full(
         res = con.execute(
             "select max(__timestamp) from v_long_table_name_temp s"
         ).fetchone()
+
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
-                """INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
-    SELECT 5,
-        '<root><child>text</child></root>',
-        '2025-01-01'"""
-            )
-
-    write_db_to_delta(
+            if reader.source_dialect == "mssql":
+                cursor.execute(
+                    """INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
+        SELECT 5,
+            '<root><child>text</child></root>',
+            '2025-01-01'"""
+                )
+            else:
+                cursor.execute(
+                    """INSERT INTO "long schema"."long table name" ("long column name", dt, "date")
+                    select 5,
+                        '<root><child>text</child></root>'::xml,
+                        '2025-01-01'::date"""
+                )
+    sleep(2)  # wait for the database to update
+    dbi = write_db_to_delta(
         reader,
         ("long schema", "long table name_as_view"),
         dest,
