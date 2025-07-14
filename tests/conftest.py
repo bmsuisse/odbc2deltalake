@@ -25,9 +25,9 @@ def get_conn(conn_str: str):
 
         return pyodbc.connect(conn_str, autocommit=True)
     else:
-        import psycopg
+        import adbc_driver_postgresql.dbapi
 
-        return psycopg.connect(conn_str)
+        return adbc_driver_postgresql.dbapi.connect(conn_str)
 
 
 class DB_Connection:
@@ -84,6 +84,8 @@ class DB_Connection:
         for cfg in configs:
             with master_conn.cursor() as cursor:
                 try:
+                    if source_server == "postgres":
+                        cursor.execute("SET AUTOCOMMIT = ON")
                     cursor.execute(
                         cast(LiteralString, " drop DATABASE if exists " + db_name)
                     )
@@ -98,6 +100,8 @@ class DB_Connection:
                     sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
                     for sql in sqls:
                         with con.cursor() as cursor:
+                            if source_server == "postgres":
+                                cursor.execute("SET AUTOCOMMIT = ON")
                             cursor.execute(cast(LiteralString, sql))
 
             if db_name not in self.conn_str[cfg]:

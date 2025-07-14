@@ -1158,7 +1158,6 @@ mssql = [
 ]
 postgres = [
     { name = "adbc-driver-postgresql" },
-    { name = "psycopg" },
 ]
 
 [package.dev-dependencies]
@@ -1204,7 +1203,6 @@ requires-dist = [
     { name = "deltalake2db", extras = ["deltalake"], marker = "extra == 'local'", specifier = ">=0.9.3" },
     { name = "deltalake2db", extras = ["deltalake"], marker = "extra == 'local-azure'", specifier = ">=0.9.3" },
     { name = "duckdb", marker = "extra == 'local'" },
-    { name = "psycopg", marker = "extra == 'postgres'", specifier = ">=3.2.9,<4" },
     { name = "pyarrow", marker = "extra == 'local'", specifier = ">=16.1" },
     { name = "pyarrow", marker = "extra == 'local-azure'", specifier = ">=16.1" },
     { name = "pydantic", specifier = ">=1.10.0" },
@@ -1417,19 +1415,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d7/92/e07bd88ece413fd069d66533d95cbc83649b57b60990f26a35a7f84e25ed/propcache-0.3.0-cp39-cp39-win32.whl", hash = "sha256:7cedd25e5f678f7738da38037435b340694ab34d424938041aa630d8bac42663", size = 41152, upload-time = "2025-02-20T19:03:23.636Z" },
     { url = "https://files.pythonhosted.org/packages/26/8f/676ea691f5788bd9376ba77475204093a559c883ee1b6def0291e41020dc/propcache-0.3.0-cp39-cp39-win_amd64.whl", hash = "sha256:bf4298f366ca7e1ad1d21bbb58300a6985015909964077afd37559084590c929", size = 45263, upload-time = "2025-02-20T19:03:25.032Z" },
     { url = "https://files.pythonhosted.org/packages/b5/35/6c4c6fc8774a9e3629cd750dc24a7a4fb090a25ccd5c3246d127b70f9e22/propcache-0.3.0-py3-none-any.whl", hash = "sha256:67dda3c7325691c2081510e92c561f465ba61b975f481735aefdfc845d2cd043", size = 12101, upload-time = "2025-02-20T19:03:27.202Z" },
-]
-
-[[package]]
-name = "psycopg"
-version = "3.2.9"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
-    { name = "tzdata", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/27/4a/93a6ab570a8d1a4ad171a1f4256e205ce48d828781312c0bbaff36380ecb/psycopg-3.2.9.tar.gz", hash = "sha256:2fbb46fcd17bc81f993f28c47f1ebea38d66ae97cc2dbc3cad73b37cefbff700", size = 158122, upload-time = "2025-05-13T16:11:15.533Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/b0/a73c195a56eb6b92e937a5ca58521a5c3346fb233345adc80fd3e2f542e2/psycopg-3.2.9-py3-none-any.whl", hash = "sha256:01a8dadccdaac2123c916208c96e06631641c0566b22005493f09663c7a8d3b6", size = 202705, upload-time = "2025-05-13T16:06:26.584Z" },
 ]
 
 [[package]]

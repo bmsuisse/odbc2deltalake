@@ -34,14 +34,9 @@ local_azure = [
     "adlfs >=2024.2.0,<2025",
     "pyodbc >=5.1.0,<6",
 ]
-postgres = [
-    "adbc-driver-postgresql>=1.7.0",
-    "psycopg>=3.2.9,<4",
-]
+postgres = ["adbc-driver-postgresql>=1.7.0"]
 mssql = ["pyodbc >=5.1.0,<6"]
-adbc = [
-    "adbc-driver-manager>=1.7.0",
-]
+adbc = ["adbc-driver-manager>=1.7.0"]
 
 [build-system]
 requires = ["hatchling"]
