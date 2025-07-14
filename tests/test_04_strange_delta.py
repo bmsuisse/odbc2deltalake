@@ -71,6 +71,7 @@ def test_strange_delta(
         with nc.cursor() as cursor:
             cursor.execute("""select * from user3""")
             alls = cursor.fetchall()
+            assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
             dicts = [dict(zip(cols, row)) for row in alls]
             print(dicts)
@@ -171,6 +172,7 @@ def test_strange_delta_sys(
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM [dbo].[company2]")
             alls = cursor.fetchall()
+            assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
             dicts = [dict(zip(cols, row)) for row in alls]
             print(dicts)

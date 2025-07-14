@@ -2,7 +2,7 @@ from pathlib import Path
 from odbc2deltalake import WriteConfigAndInfos
 from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
 from odbc2deltalake import DBDeltaPathConfigs
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Final, Literal, Union
 import pandas as pd
 from sqlglot import from_
 import sqlglot.expressions as ex
@@ -106,11 +106,20 @@ def get_test_run_configs(
 
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() == "azure":
         from odbc2deltalake.destination.azure import AzureDestination
+
         from odbc2deltalake.reader.odbc_reader import ODBCReader
+        from odbc2deltalake.reader.adbc_reader import ADBCReader
+        import adbc_driver_postgresql.dbapi as adbc_pg
 
         cfg["azure"] = (
             ODBCReader(
                 connection.conn_str["azure"],
+                f"tests/_db/_azure/{tbl_dest_name}.duckdb",
+                source_dialect=connection.dialect,
+            )
+            if connection.source_server == "mssql"
+            else ADBCReader(
+                adbc_pg.connect(connection.conn_str["azure"]),
                 f"tests/_db/_azure/{tbl_dest_name}.duckdb",
                 source_dialect=connection.dialect,
             ),
@@ -118,11 +127,19 @@ def get_test_run_configs(
         )
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "local").lower() == "local":
         from odbc2deltalake.reader.odbc_reader import ODBCReader
+        from odbc2deltalake.reader.adbc_reader import ADBCReader
+        import adbc_driver_postgresql.dbapi as adbc_pg
 
         cfg["local"] = (
             ODBCReader(
                 connection.conn_str["local"],
                 f"tests/_db/_local/{tbl_dest_name}.duckdb",
+                source_dialect=connection.dialect,
+            )
+            if connection.source_server == "mssql"
+            else ADBCReader(
+                adbc_pg.connect(connection.conn_str["azure"]),
+                f"tests/_db/_azure/{tbl_dest_name}.duckdb",
                 source_dialect=connection.dialect,
             ),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
