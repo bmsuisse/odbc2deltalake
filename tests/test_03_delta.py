@@ -156,15 +156,18 @@ def test_delta_sys(
 insert into dbo.[company](id, name)
 select 'c300',
     'The 300 company';
-update dbo.[company]
-set id='c2 '
-    where id='c2'
                    """,
                 dialect="tsql",
             )
             for stmt in stmts:
                 assert stmt is not None
+                print(stmt.sql(reader.source_dialect))
                 cursor.execute(stmt.sql(reader.source_dialect))
+            if reader.source_dialect == "mssql":
+                cursor.execute("""
+update dbo.[company]
+set id='c2 '
+    where id='c2'""")  # postgres fails here, which is actually correct, since c2 is referenced by FK
 
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
     with nc.cursor() as cursor:

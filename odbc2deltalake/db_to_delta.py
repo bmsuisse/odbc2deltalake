@@ -907,7 +907,7 @@ def _write_delta2(
     from .query import sql_quote_value
 
     def _collate(c: InformationSchemaColInfo):
-        if is_string_type(c.data_type):
+        if is_string_type(c.data_type) and infos.write_config.dialect == "tsql":
             return "COLLATE Latin1_General_100_BIN "
         return ""
 
