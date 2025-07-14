@@ -28,18 +28,20 @@ def test_delta(
     assert nbr_field.data_type.this == ex.DataType.Type.SMALLINT
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
-                sg.parse_one(
-                    """INSERT INTO [dbo].[user2$] (FirstName, LastName, Age, companyid)
+            parsed = sg.parse(
+                """INSERT INTO [dbo].[user2$] (FirstName, LastName, Age, companyid)
                    SELECT 'Markus', 'Müller', 27, 'c2'
                    union all 
                    select 'Heiri', 'Meier', 27.98, 'c2';
                    DELETE FROM dbo.[user2$] where LastName='Anders';
                      UPDATE [dbo].[user2$] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
                    """,
-                    dialect="tsql",
-                ).sql(reader.source_dialect)
+                dialect="tsql",
             )
+            for p in parsed:
+                assert p is not None
+                cursor.execute(p.sql(reader.source_dialect))
+            cursor.execute("COMMIT")
         with nc.cursor() as cursor:
             cursor.execute(
                 sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(
