@@ -80,11 +80,7 @@ def _source_convert(
     if (
         orig_data_type_str
         and orig_data_type_str.lower()
-        not in (
-            "uuid",
-            "uniqueidentifier",
-            "guid",
-        )
+        not in ("uuid", "uniqueidentifier", "guid", "oid", "xid")
         and is_string_type(mapped_type or data_type)
         and not no_trim
     ):

@@ -4,6 +4,7 @@ from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import dataclasses
+import sqlglot as sg
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -69,8 +70,11 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.user7 alter column Age float
-                """
+                sg.parse_one(
+                    """ALTER TABLE dbo.user7 alter column Age float
+                """,
+                    dialect="tsql",
+                ).sql(reader.source_dialect)
             )
 
     # we assume we can safely insert double into decimal
