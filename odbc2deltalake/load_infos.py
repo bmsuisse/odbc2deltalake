@@ -2,6 +2,8 @@ from typing import Any, TYPE_CHECKING
 import sqlglot as sg
 import sqlglot.expressions as ex
 
+from odbc2deltalake.metadata import InformationSchemaColInfo
+
 if TYPE_CHECKING:
     from .write_init import WriteConfigAndInfos
 
@@ -19,6 +21,7 @@ def get_local_delta_value_and_count(
         delta_path = infos.destination / "delta"
     tmp_view_name = "temp_" + str(abs(hash(str(delta_path))))
     infos.source.local_register_update_view(delta_path, tmp_view_name)
+
     row = infos.source.local_execute_sql_to_py(
         sg.from_(ex.to_identifier(tmp_view_name)).select(
             (
@@ -39,11 +42,19 @@ def get_local_delta_value_and_count(
 
 
 def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos"):
+    def _delta_col(col: InformationSchemaColInfo):
+        col_expr = ex.column(col.column_name, quoted=True)
+        if col.data_type_str == "xid":
+            return ex.cast(
+                ex.cast(col_expr, ex.DataType.Type.TEXT), ex.DataType.Type.BIGINT
+            )
+        return col_expr
+
     pk_ts_col_select = infos.from_("t").select(
         (
             ex.func(
                 "MAX",
-                ex.column(infos.delta_col.column_name, quoted=True),
+                _delta_col(infos.delta_col),
             ).as_("max_ts")
             if infos.delta_col
             else ex.convert(None).as_("max_ts")

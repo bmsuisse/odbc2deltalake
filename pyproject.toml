@@ -34,6 +34,9 @@ local_azure = [
     "adlfs >=2024.2.0,<2025",
     "pyodbc >=5.1.0,<6",
 ]
+postgres = ["adbc-driver-postgresql>=1.7.0"]
+mssql = ["pyodbc >=5.1.0,<6"]
+adbc = ["adbc-driver-manager>=1.7.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -78,9 +81,8 @@ test = [
     "pandas >=1.4.2",
     "delta-spark >=3.2.0,<4",
     "pyarrow >=16.1",
-    "pyodbc >=5.1.0,<6",
     "duckdb",
-    "deltalake2db >=0.10.1",
+    "deltalake2db >=0.10.2",
     "fsspec",
 ]
 spark = ["delta-spark >=3.2.0,<4", "pyspark >=3.5.1,<4"]

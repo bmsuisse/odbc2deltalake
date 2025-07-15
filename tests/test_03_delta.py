@@ -3,7 +3,7 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
-
+import sqlglot as sg
 from odbc2deltalake.query import sql_quote_value
 
 if TYPE_CHECKING:
@@ -28,18 +28,34 @@ def test_delta(
     assert nbr_field.data_type.this == ex.DataType.Type.SMALLINT
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
-                """INSERT INTO [dbo].[user2$] ([FirstName], [LastName], [Age], companyid)
+            parsed = sg.parse(
+                """INSERT INTO [dbo].[user2$] (FirstName, LastName, Age, companyid)
                    SELECT 'Markus', 'Müller', 27, 'c2'
                    union all 
                    select 'Heiri', 'Meier', 27.98, 'c2';
                    DELETE FROM dbo.[user2$] where LastName='Anders';
-                     UPDATE [dbo].[user2$] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
-                   """
+                     UPDATE [dbo].[user2$] SET LastName='wayne-hösch' where LastName='wayne' -- Petra
+                   """,
+                dialect="tsql",
             )
+            for p in parsed:
+                assert p is not None
+                cursor.execute(p.sql(reader.source_dialect))
+            if reader.source_dialect in ["tsql", "mssql"]:
+                cursor.execute("""IF @@TRANCOUNT > 0 
+                               BEGIN
+                                COMMIT TRANSACTION
+                               END""")
+            else:
+                cursor.execute("COMMIT")
         with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[user2$]")
+            cursor.execute(
+                sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(
+                    reader.source_dialect
+                )
+            )
             alls = cursor.fetchall()
+            assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
             dicts = [dict(zip(cols, row)) for row in alls]
             print(alls)
@@ -47,6 +63,7 @@ def test_delta(
     import time
 
     time.sleep(2)
+    ts_col = "xmin" if reader.source_dialect == "postgres" else "time_stamp"
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con,
@@ -54,11 +71,12 @@ def test_delta(
             "v_user_2_temp",
             use_delta_ext=conf_name == "spark",
         )
-        res = con.execute(
-            'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
-        ).fetchone()
-        assert res is not None
-        assert isinstance(res[0], int), "time_stamp is not an integer"
+        if reader.source_dialect in ["tsql", "mssql"]:
+            res = con.execute(
+                'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
+            ).fetchone()
+            assert res is not None
+            assert isinstance(res[0], int), "time_stamp is not an integer"
 
         res = con.execute("select max(__timestamp) from v_user_2_temp s").fetchone()
         assert res is not None
@@ -111,11 +129,10 @@ def test_delta(
             "v_latest_pk",
             use_delta_ext=conf_name == "spark",
         )
-
         id_tuples = con.execute(
-            """SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
-                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stamp"=lf."time_stamp"
-                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stamp" desc)=1
+            f"""SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
+                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."{ts_col}"=lf."{ts_col}"
+                qualify row_number() over (partition by s2."User_-_iD" order by lf."{ts_col}" desc)=1
                 order by s2."User_-_iD" 
                 """
         ).fetchall()
@@ -140,22 +157,29 @@ def test_delta_sys(
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # full load
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
+            stmts = sg.parse(
                 """
 insert into dbo.[company](id, name)
 select 'c300',
     'The 300 company';
+                   """,
+                dialect="tsql",
+            )
+            for stmt in stmts:
+                assert stmt is not None
+                print(stmt.sql(reader.source_dialect))
+                cursor.execute(stmt.sql(reader.source_dialect))
+            if reader.source_dialect in ["tsql", "mssql"]:
+                cursor.execute("""
 update dbo.[company]
 set id='c2 '
-    where id='c2'
-                   """
-            )
+    where id='c2'""")  # postgres fails here, which is actually correct, since c2 is referenced by FK
 
-    write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
-    with nc.cursor() as cursor:
-        cursor.execute("SELECT * FROM [dbo].[company]")
-        alls = cursor.fetchall()
-        print(alls)
+        write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
+        with nc.cursor() as cursor:
+            cursor.execute("SELECT * FROM dbo.company")
+            alls = cursor.fetchall()
+            print(alls)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con,
@@ -172,10 +196,11 @@ set id='c2 '
             "v_latest_pk",
             use_delta_ext=conf_name == "spark",
         )
+        delta_col = "xmin" if reader.source_dialect == "postgres" else "SysStartTime"
         name_tuples = con.execute(
-            """SELECT lf.id, lf.name from v_company_scd2 lf 
-                                inner join v_latest_pk s2 on s2."id"=lf."id" and s2."SysStartTime"=lf."SysStartTime"
-                qualify row_number() over (partition by s2."id" order by lf."SysStartTime" desc)=1
+            f"""SELECT lf.id, lf.name from v_company_scd2 lf 
+                                inner join v_latest_pk s2 on s2."id"=lf."id" and s2."{delta_col}"=lf."{delta_col}"
+                qualify row_number() over (partition by s2."id" order by lf."{delta_col}" desc)=1
                 order by s2."id" 
                 """
         ).fetchall()

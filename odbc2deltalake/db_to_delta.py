@@ -59,25 +59,28 @@ def _source_convert(
     table_alias: Union[str, None] = None,
     type_map: Optional[Mapping[str, ex.DataType]] = None,
     no_trim: bool,
+    dialect: str = "tsql",
 ):
     expr = ex.column(name, table_alias, quoted=True)
 
     data_type_str = (
         data_type
         if isinstance(data_type, str)
-        else ex.DataType(this=data_type.this).sql("tsql").lower()
+        else ex.DataType(this=data_type.this).sql(dialect).lower()
     )
     mapped_type = type_map.get(data_type_str) if type_map else None
+
+    if mapped_type is None and (orig_data_type_str == "xid" or data_type_str == "xid"):
+        return ex.cast(
+            ex.cast(expr, ex.DataType.build("text", dialect="postgres")),
+            ex.DataType.build("bigint", dialect="postgres"),
+        )
     if mapped_type:
         expr = ex.cast(expr, mapped_type)
     if (
         orig_data_type_str
         and orig_data_type_str.lower()
-        not in (
-            "uuid",
-            "uniqueidentifier",
-            "guid",
-        )
+        not in ("uuid", "uniqueidentifier", "guid", "oid", "xid")
         and is_string_type(mapped_type or data_type)
         and not no_trim
     ):
@@ -85,9 +88,17 @@ def _source_convert(
     return expr
 
 
-valid_from_expr = ex.cast(
-    ex.func("GETUTCDATE", dialect="tsql"), ex.DataType(this="datetime2(6)")
-).as_(VALID_FROM_COL_NAME, quoted=True)
+valid_from_exprs = {
+    "tsql": ex.cast(
+        ex.func("GETUTCDATE", dialect="tsql"), ex.DataType(this="datetime2(6)")
+    ).as_(VALID_FROM_COL_NAME, quoted=True),
+    "postgres": ex.func("STATEMENT_TIMESTAMP", dialect="postgres").as_(
+        VALID_FROM_COL_NAME, quoted=True
+    ),
+    "default": ex.func("CURRENT_TIMESTAMP", dialect="postgres").as_(
+        VALID_FROM_COL_NAME, quoted=True
+    ),
+}
 
 
 def _get_cols_select(
@@ -101,6 +112,7 @@ def _get_cols_select(
     data_type_map: Optional[Mapping[str, ex.DataType]] = None,
     get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
     no_trim: bool,
+    source_dialect: str = "tsql",
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
@@ -115,18 +127,25 @@ def _get_cols_select(
                     table_alias=table_alias,
                     type_map=data_type_map,
                     no_trim=no_trim,
+                    dialect=source_dialect,
                 ).as_(get_target_name(c), quoted=True)
                 if system == "source"
                 else ex.column(get_target_name(c), table_alias, quoted=True)
             )
             for c in cols
         ]
-        + ([valid_from_expr] if with_valid_from else [])
+        + (
+            [valid_from_exprs.get(source_dialect, valid_from_exprs["default"])]
+            if with_valid_from
+            else []
+        )
         + (
             [
                 ex.cast(ex.convert(int(is_deleted)), "bit").as_(
                     IS_DELETED_COL_NAME, quoted=True
                 )
+                if source_dialect == "tsql"
+                else ex.convert(is_deleted).as_(IS_DELETED_COL_NAME, quoted=True)
             ]
             if is_deleted is not None
             else []
@@ -136,6 +155,8 @@ def _get_cols_select(
                 ex.cast(ex.convert(int(is_full)), "bit").as_(
                     IS_FULL_LOAD_COL_NAME, quoted=True
                 )
+                if source_dialect == "tsql"
+                else ex.convert(is_full).as_(IS_FULL_LOAD_COL_NAME, quoted=True)
             ]
             if is_full is not None
             else []
@@ -451,6 +472,14 @@ def _temp_table(table: Union[table_name_type, ex.Query]):
     return "temp_" + "_".join((_clean(s) for s in table))
 
 
+def _get_type_map(write_config: WriteConfig) -> Mapping[str, ex.DataType]:
+    if write_config.data_type_map == "default":
+        from .write_init import DEFAULT_DATA_TYPE_MAP
+
+        return DEFAULT_DATA_TYPE_MAP.get(write_config.dialect, {})
+    return write_config.data_type_map
+
+
 def do_delta_load(
     infos: WriteConfigAndInfos,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
@@ -557,7 +586,7 @@ def do_delta_load(
         delta_col.data_type,
         delta_col.data_type_str,
         table_alias="t",
-        type_map=write_config.data_type_map,
+        type_map=_get_type_map(write_config),
         no_trim=write_config.no_trim,
     ) > ex.convert(delta_load_value)
     logger.info(
@@ -691,7 +720,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
             infos.delta_col.data_type,
             infos.delta_col.data_type_str,
             table_alias="t",
-            type_map=write_config.data_type_map,
+            type_map=_get_type_map(write_config),
             no_trim=write_config.no_trim,
         )
         > ex.convert(delta_load_value)
@@ -841,10 +870,11 @@ def _retrieve_primary_key_data(
                 infos.pk_cols, [infos.delta_col] if infos.delta_col else []
             ),
             with_valid_from=False,
-            data_type_map=infos.write_config.data_type_map,
+            data_type_map=_get_type_map(infos.write_config),
             system="source",
             get_target_name=infos.write_config.get_target_name,
             no_trim=infos.write_config.no_trim,
+            source_dialect=infos.write_config.dialect,
         )
     )
     pk_ts_reader_sql = pk_ts_col_select.sql(infos.write_config.dialect)
@@ -881,7 +911,7 @@ def _write_delta2(
     from .query import sql_quote_value
 
     def _collate(c: InformationSchemaColInfo):
-        if is_string_type(c.data_type):
+        if is_string_type(c.data_type) and infos.write_config.dialect == "tsql":
             return "COLLATE Latin1_General_100_BIN "
         return ""
 
@@ -902,10 +932,11 @@ def _write_delta2(
                 is_deleted=False,
                 with_valid_from=True,
                 table_alias="t",
-                data_type_map=write_config.data_type_map,
+                data_type_map=_get_type_map(write_config),
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                source_dialect=infos.write_config.dialect,
             )
         )
         sql = infos.from_("t").select(*selects).sql(write_config.dialect)
@@ -915,10 +946,16 @@ def _write_delta2(
                 for i, c in enumerate(infos.pk_cols)
             ]
         )
-        return f"""{sql}
-        inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
-             on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
-        """
+        if write_config.dialect == "tsql":
+            return f"""{sql}
+            inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
+                on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
+            """
+        else:
+            return f"""{sql}
+            inner join (SELECT {pk_map} FROM JSON_TABLE({sql_quote_value(js)}, '$[*]' COLUMNS ({col_defs}))) ttt
+                on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
+            """
 
     if mode == "overwrite":
         infos.logger.info(
@@ -1085,7 +1122,7 @@ def _handle_additional_updates(
             delta_col.data_type,
             delta_col.data_type_str,
             table_alias="t",
-            type_map=write_config.data_type_map,
+            type_map=_get_type_map(write_config),
             no_trim=write_config.no_trim,
         ) > ex.convert(delta_load_value)
         logger.info("Start delta step 2, load updates by timestamp")
@@ -1163,10 +1200,11 @@ def _get_update_sql(
                 is_deleted=False,
                 with_valid_from=True,
                 table_alias="t",
-                data_type_map=write_config.data_type_map,
+                data_type_map=_get_type_map(write_config),
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                source_dialect=write_config.dialect,
             )
         )
         .where(
@@ -1230,10 +1268,11 @@ def do_full_load(
                 is_full=True,
                 cols=infos.col_infos,
                 with_valid_from=True,
-                data_type_map=write_config.data_type_map,
+                data_type_map=_get_type_map(write_config),
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                source_dialect=infos.write_config.dialect,
             )
         )
         .sql(write_config.dialect)

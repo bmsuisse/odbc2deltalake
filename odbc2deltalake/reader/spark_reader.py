@@ -101,6 +101,13 @@ class SparkReader(DataSourceReader):
         self.linked_server_proxy = linked_server_proxy
         self.spark_format = spark_format
         self.jdbc = jdbc
+        if spark_format == "postgres":
+            self.source_dialect = "postgres"
+        elif spark_format == "sqlserver":
+            self.source_dialect = "tsql"
+        else:
+            self.source_dialect = spark_format
+
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
         )
@@ -150,6 +157,8 @@ class SparkReader(DataSourceReader):
             writer = writer.option(
                 "mergeSchema" if mode == "append" else "overwriteSchema", "true"
             )
+            if mode == "append":
+                writer = writer.option("delta.enableTypeWidening", "true")
         writer.mode(mode).save(str(delta_path))
 
     def local_pylist_to_delta(
@@ -177,7 +186,7 @@ class SparkReader(DataSourceReader):
 
     def _query(self, sql: Union[str, Query]):
         if isinstance(sql, Query):
-            sql = sql.sql("tsql")
+            sql = sql.sql(self.source_dialect)
         if self.linked_server_proxy:
             assert "--" not in self.linked_server_proxy
             assert "/*" not in self.linked_server_proxy
@@ -229,13 +238,18 @@ class SparkReader(DataSourceReader):
     def _reader(self, sql: Union[str, Query]):
         if self.jdbc:
             options = {}
-            jdbcUrl = f"jdbc:{self.spark_format}://"
+            if self.spark_format == "postgres":
+                jdbcUrl = "jdbc:postgresql://"
+            else:
+                jdbcUrl = f"jdbc:{self.spark_format}://"
             if "host" in self.sql_config:
                 jdbcUrl += self.sql_config["host"].replace(",", ":")
             if "server" in self.sql_config:
                 jdbcUrl += self.sql_config["server"].replace(",", ":")
             if "port" in self.sql_config:
                 jdbcUrl += ":" + str(self.sql_config["port"])
+            if "database" in self.sql_config and self.spark_format == "postgres":
+                jdbcUrl += "/" + self.sql_config["database"]
 
             for key, value in self.sql_config.items():
                 if key.lower() in ["host", "port", "server"]:
@@ -253,7 +267,8 @@ class SparkReader(DataSourceReader):
                     assert enc_vl in ["true", "false"]
                     jdbcUrl += f";{key}=" + enc_vl
                 elif key.lower() == "database":
-                    jdbcUrl += ";databaseName=" + value
+                    if self.spark_format != "postgres":  # postgres has db in url
+                        jdbcUrl += ";databaseName=" + value
                 else:
                     options[key] = value
             print(jdbcUrl)

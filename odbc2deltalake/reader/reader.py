@@ -33,6 +33,8 @@ class DeltaOps(Protocol):
 
 
 class DataSourceReader(ABC):
+    source_dialect: str
+
     @property
     @abstractmethod
     def supports_proc_exec(self) -> bool:
