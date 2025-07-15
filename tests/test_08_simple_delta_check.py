@@ -18,10 +18,10 @@ def test_delta_sys(
 ):
     from odbc2deltalake import write_db_to_delta, WriteConfig
 
-    cfg = WriteConfig(load_mode="simple_delta_check")
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_3_dc")[
         conf_name
     ]
+    cfg = WriteConfig(load_mode="simple_delta_check", dialect=reader.source_dialect)
 
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load
     t = reader.get_local_delta_ops((dest / "delta"))

@@ -19,7 +19,11 @@ def test_insert_while_load(
         conf_name
     ]
 
-    config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
+    config = WriteConfig(
+        primary_keys=["User_-_iD"],
+        delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
+        dialect=reader.source_dialect,
+    )
 
     w = write_db_to_delta_with_check(
         reader, ("dbo", "user8"), dest, write_config=config

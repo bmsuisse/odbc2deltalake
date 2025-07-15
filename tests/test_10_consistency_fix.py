@@ -23,7 +23,11 @@ def test_delta_query(
         conf_name
     ]
 
-    config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
+    config = WriteConfig(
+        primary_keys=["User_-_iD"],
+        delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
+        dialect=reader.source_dialect,
+    )
     w, r = write_db_to_delta_with_check(
         reader, ("dbo", "user6"), dest, write_config=config
     )

@@ -35,7 +35,8 @@ create table dbo."company2" (
 
 create table dbo."company3" (
     id varchar(10) primary key,
-    name varchar(100)
+    name varchar(100),
+    date_timer timestamp
 );
 GO
 
@@ -44,8 +45,8 @@ insert into dbo."company"(id, name) values
 ('c2', 'The Second company        ');
 GO
 
-insert into dbo."company3"(id, name)
-select id, name from dbo."company";
+insert into dbo."company3"(id, name, date_timer)
+select id, name, current_timestamp from dbo."company";
 GO
 
 create table dbo."user" (

@@ -208,9 +208,16 @@ def make_writer(
                 None,
             )
         if delta_col is None:
-            raise ValueError(
-                f"Delta column {write_config.delta_col} not found in source"
-            )
+            if write_config.dialect == "postgres" and write_config.delta_col == "xmin":
+                delta_col = InformationSchemaColInfo(
+                    column_name="xmin",
+                    data_type=ex.DataType.build("oid", dialect="postgres"),
+                    data_type_str="xid",
+                )
+            else:
+                raise ValueError(
+                    f"Delta column {write_config.delta_col} not found in source"
+                )
     else:
         if (
             not isinstance(table_or_query, ex.Query)
