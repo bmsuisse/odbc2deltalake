@@ -104,25 +104,30 @@ def get_test_run_configs(
     os.makedirs("tests/_db/_local/" + sub_path, exist_ok=True)
     cfg: dict[str, tuple[DataSourceReader, Destination]] = {}
 
+    def _local_reader(connection, config):
+        if connection.source_server == "mssql":
+            from odbc2deltalake.reader.odbc_reader import ODBCReader
+
+            return ODBCReader(
+                connection.conn_str[config],
+                f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
+                source_dialect=connection.dialect,
+            )
+        else:
+            from odbc2deltalake.reader.adbc_reader import ADBCReader
+            import adbc_driver_postgresql.dbapi as adbc_pg
+
+            return ADBCReader(
+                adbc_pg.connect(connection.conn_str[config]),
+                f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
+                source_dialect=connection.dialect,
+            )
+
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() == "azure":
         from odbc2deltalake.destination.azure import AzureDestination
 
-        from odbc2deltalake.reader.odbc_reader import ODBCReader
-        from odbc2deltalake.reader.adbc_reader import ADBCReader
-        import adbc_driver_postgresql.dbapi as adbc_pg
-
         cfg["azure"] = (
-            ODBCReader(
-                connection.conn_str["azure"],
-                f"tests/_db/_azure/{tbl_dest_name}.duckdb",
-                source_dialect=connection.dialect,
-            )
-            if connection.source_server == "mssql"
-            else ADBCReader(
-                adbc_pg.connect(connection.conn_str["azure"]),
-                f"tests/_db/_azure/{tbl_dest_name}.duckdb",
-                source_dialect=connection.dialect,
-            ),
+            _local_reader(connection, "azure"),
             AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
         )
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "local").lower() == "local":
@@ -131,17 +136,7 @@ def get_test_run_configs(
         import adbc_driver_postgresql.dbapi as adbc_pg
 
         cfg["local"] = (
-            ODBCReader(
-                connection.conn_str["local"],
-                f"tests/_db/_local/{tbl_dest_name}.duckdb",
-                source_dialect=connection.dialect,
-            )
-            if connection.source_server == "mssql"
-            else ADBCReader(
-                adbc_pg.connect(connection.conn_str["local"]),
-                f"tests/_db/_local/{tbl_dest_name}.duckdb",
-                source_dialect=connection.dialect,
-            ),
+            _local_reader(connection, "local"),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
         )
     if spark_session is not None:
