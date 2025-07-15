@@ -64,7 +64,7 @@ jobs:
         if: matrix.test_config != 'spark'
         run: uv sync --extra local --extra local_azure --group test --group dev  --extra ${{matrix.database}}
       - name: Test with pytest
-        run: uv run -m pytest -x --cov=odbc2deltalake tests
+        run: uv run -m pytest --maxfail=3 --cov=odbc2deltalake tests
         env:
           ODBCLAKE_TEST_CONFIGURATION: ${{ matrix.test_config }}
           ODBCLAKE_TEST_SOURCE_SERVER: ${{matrix.database}}
