@@ -131,10 +131,6 @@ def get_test_run_configs(
             AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
         )
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "local").lower() == "local":
-        from odbc2deltalake.reader.odbc_reader import ODBCReader
-        from odbc2deltalake.reader.adbc_reader import ADBCReader
-        import adbc_driver_postgresql.dbapi as adbc_pg
-
         cfg["local"] = (
             _local_reader(connection, "local"),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
