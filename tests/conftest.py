@@ -10,7 +10,7 @@ from typing_extensions import LiteralString
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-load_dotenv()
+load_dotenv(override=True)
 
 use_postgres = os.getenv("ODBCLAKE_TEST_SOURCE_SERVER") == "postgres"
 source_server: Final[Literal["mssql", "postgres"]] = (

@@ -50,6 +50,7 @@ select 'c300',
             cursor.execute("SELECT * FROM dbo.company3")
             alls = cursor.fetchall()
             print(alls)
+    ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con,
@@ -58,8 +59,8 @@ select 'c300',
             use_delta_ext=conf_name == "spark",
         )
         name_tuples = con.execute(
-            """SELECT lf.name from v_company_scd2 lf 
-                qualify row_number() over (partition by lf."id" order by lf."Start" desc)=1
+            f"""SELECT lf.name from v_company_scd2 lf 
+                qualify row_number() over (partition by lf."id" order by lf."{ts_col}" desc)=1
                 order by lf."id" 
                 """
         ).fetchall()

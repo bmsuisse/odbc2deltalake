@@ -23,7 +23,9 @@ def test_append_inserts(
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/log")[conf_name]
 
-    write_config = WriteConfig(load_mode="append_inserts")
+    write_config = WriteConfig(
+        load_mode="append_inserts", dialect=reader.source_dialect
+    )
     write_db_to_delta(
         reader,
         ("dbo", "log"),

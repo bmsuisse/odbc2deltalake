@@ -79,7 +79,7 @@ def test_strange_delta(
         assert max_valid_from is not None
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute("""select * from user3""")
+            cursor.execute("""select * from dbo.user3""")
             alls = cursor.fetchall()
             assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
