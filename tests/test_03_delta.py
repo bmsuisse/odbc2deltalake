@@ -169,11 +169,11 @@ update dbo.[company]
 set id='c2 '
     where id='c2'""")  # postgres fails here, which is actually correct, since c2 is referenced by FK
 
-    write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
-    with nc.cursor() as cursor:
-        cursor.execute("SELECT * FROM dbo.company")
-        alls = cursor.fetchall()
-        print(alls)
+        write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
+        with nc.cursor() as cursor:
+            cursor.execute("SELECT * FROM dbo.company")
+            alls = cursor.fetchall()
+            print(alls)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con,
@@ -190,10 +190,11 @@ set id='c2 '
             "v_latest_pk",
             use_delta_ext=conf_name == "spark",
         )
+        delta_col = "xmin" if reader.source_dialect == "postgres" else "SysStartTime"
         name_tuples = con.execute(
-            """SELECT lf.id, lf.name from v_company_scd2 lf 
-                                inner join v_latest_pk s2 on s2."id"=lf."id" and s2."SysStartTime"=lf."SysStartTime"
-                qualify row_number() over (partition by s2."id" order by lf."SysStartTime" desc)=1
+            f"""SELECT lf.id, lf.name from v_company_scd2 lf 
+                                inner join v_latest_pk s2 on s2."id"=lf."id" and s2."{delta_col}"=lf."{delta_col}"
+                qualify row_number() over (partition by s2."id" order by lf."{delta_col}" desc)=1
                 order by s2."id" 
                 """
         ).fetchall()

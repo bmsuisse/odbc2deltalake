@@ -38,7 +38,9 @@ def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
             )
             return get_conn(conn_str, autocommit=autocommit, attempt=attempt + 1)
         else:
-            raise RuntimeError(f"Failed to connect after 3 attempts: {e}") from e
+            raise RuntimeError(
+                f"Failed to connect after 3 attempts: {conn_str}\r\n {e}"
+            ) from e
 
 
 class DB_Connection:

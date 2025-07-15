@@ -117,9 +117,13 @@ def _get_table_cols(
         )
     assert isinstance(query, ex.Select)
     full_query = query.where(
-        ex.column("TABLE_NAME", "ccu")
-        .eq(ex.convert(real_table_name))
-        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(ex.convert(real_schema)))
+        ex.func("LOWER", ex.column("TABLE_NAME", "ccu"))
+        .eq(ex.func("LOWER", ex.convert(real_table_name)))
+        .and_(
+            ex.func("LOWER", ex.column("TABLE_SCHEMA", "ccu")).eq(
+                ex.func("LOWER", ex.convert(real_schema))
+            )
+        )
     ).sql(dialect)
     dicts = reader.source_sql_to_py(full_query)
     for d in dicts:

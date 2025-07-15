@@ -221,10 +221,25 @@ def make_writer(
                 sg.parse_one("SELECT table_type FROM information_schema.tables"),
             )
             if isinstance(table_or_query, tuple):
-                qb.where(ex.column("table_schema").eq(table_or_query[0]), copy=False)
-                qb.where(ex.column("table_name").eq(table_or_query[1]), copy=False)
+                qb.where(
+                    ex.func("LOWER", ex.column("table_schema")).eq(
+                        ex.func("LOWER", ex.convert(table_or_query[0]))
+                    ),
+                    copy=False,
+                )
+                qb.where(
+                    ex.func("LOWER", ex.column("table_name")).eq(
+                        ex.func("LOWER", ex.convert(table_or_query[1]))
+                    ),
+                    copy=False,
+                )
             else:
-                qb.where(ex.column("table_name").eq(table_or_query), copy=False)
+                qb.where(
+                    ex.func("LOWER", ex.column("table_name")).eq(
+                        ex.func("LOWER", ex.convert(table_or_query))
+                    ),
+                    copy=False,
+                )
             type_type = source.source_sql_to_py(qb)[0]["table_type"]
             is_physical_table = type_type == "BASE TABLE"
 

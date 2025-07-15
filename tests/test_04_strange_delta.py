@@ -1,9 +1,10 @@
+import os
 from typing import TYPE_CHECKING
 import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
-
+import sqlglot as sg
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -23,23 +24,28 @@ def test_strange_delta(
     write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
+            stmts = sg.parse(
                 """
-                    UPDATE dbo.[user4] SET FirstName='Vreni' where LastName='Anders';
+                    UPDATE dbo.user4 SET FirstName='Vreni' where LastName='Anders';
                     
                     -- this update is later a "strange" one
-                    UPDATE dbo.[user4] SET companyid='c2' where LastName='Johniingham';
+                    UPDATE dbo.user4 SET companyid='c2' where LastName='Johniingham';
 
-                    INSERT INTO [dbo].[user3] ([FirstName], [LastName], [Age], companyid)
+                    INSERT INTO dbo.user3 (FirstName, LastName, Age, companyid)
                    SELECT 'Markus', 'Müller', 27, 'c2'
                    union all 
                    select 'Heiri', 'Meier', 27.98, 'c2';
-                   DELETE FROM dbo.[user3] where LastName='Anders';
-                     UPDATE [dbo].[user3] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
-                   """
+                   DELETE FROM dbo.user3 where LastName='Anders';
+                   UPDATE dbo.user3 SET LastName='wayne-hösch' where LastName='wayne' -- Petra
+                   """,
+                dialect="tsql",
             )
+
+            for stmt in stmts:
+                assert stmt is not None
+                cursor.execute(stmt.sql(reader.source_dialect))
         with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[user3]")
+            cursor.execute("SELECT * FROM dbo.user3")
             alls = cursor.fetchall()
             print(alls)
     import time
@@ -50,11 +56,15 @@ def test_strange_delta(
     # we rename user4 to user3, which will through around timestamps especially for record Johniingham
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
-                """exec sp_rename 'dbo.user3', 'user3_';
-                   exec sp_rename 'dbo.user4', 'user3';
-                   """
-            )
+            if reader.source_dialect == "postgres":
+                cursor.execute("""ALTER TABLE dbo.user3 RENAME TO user3_;""")
+                cursor.execute("""ALTER TABLE dbo.user4 RENAME TO user3;""")
+            else:
+                cursor.execute(
+                    """exec sp_rename 'dbo.user3', 'user3_';
+                    exec sp_rename 'dbo.user4', 'user3';
+                    """
+                )
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
@@ -96,14 +106,14 @@ def test_strange_delta(
             "v_latest_pk_user3",
             use_delta_ext=conf_name == "spark",
         )
-
+        ts_col = "xmin" if reader.source_dialect == "postgres" else "time_stamp"
         id_tuples = con.execute(
-            """SELECT s2.FirstName, s2.LastName, companyid from v_latest_pk_user3 lf 
-                                inner join v_user3_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stamp"=lf."time_stamp"
+            f"""SELECT s2.FirstName, s2.LastName, companyid from v_latest_pk_user3 lf 
+                                inner join v_user3_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."{ts_col}"=lf."{ts_col}"
                 where not s2.__is_deleted
-                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stamp" desc)=1
-                    
-                order by s2."User_-_iD" 
+                qualify row_number() over (partition by s2."User_-_iD" order by lf."{ts_col}" desc)=1
+
+                order by s2."User_-_iD"
                 """
         ).fetchall()
         assert id_tuples == [
@@ -117,6 +127,10 @@ def test_strange_delta(
 
 @pytest.mark.order(7)
 @pytest.mark.parametrize("conf_name", config_names)
+@pytest.mark.skipif(
+    os.getenv("ODBCLAKE_TEST_SOURCE_SERVER") == "postgres",
+    reason="postgres does not support system time tables",
+)
 def test_strange_delta_sys(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
@@ -127,6 +141,8 @@ def test_strange_delta_sys(
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company2_1")[
         conf_name
     ]
+    if reader.source_dialect == "postgres":
+        return
     write_db_to_delta(reader, ("dbo", "company2"), dest)  # empty
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
