@@ -22,7 +22,7 @@ def test_delta_sys(
         conf_name
     ]
     cfg = WriteConfig(load_mode="simple_delta_check", dialect=reader.source_dialect)
-
+    ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load
     t = reader.get_local_delta_ops((dest / "delta"))
 
@@ -64,9 +64,9 @@ select 'c500',
             use_delta_ext=conf_name == "spark",
         )
         name_tuples = con.execute(
-            """SELECT lf.name, lf.__is_deleted from v_company_scd2 lf 
+            f"""SELECT lf.name, lf.__is_deleted from v_company_scd2 lf 
             where lf.id in ('c1', 'c2', 'c400', 'c500')
-                qualify row_number() over (partition by lf."id" order by lf."Start" desc)=1
+                qualify row_number() over (partition by lf."id" order by lf."{ts_col}" desc)=1
                 order by lf."id" 
                 """
         ).fetchall()

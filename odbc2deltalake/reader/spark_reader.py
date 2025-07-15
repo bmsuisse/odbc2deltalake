@@ -157,6 +157,8 @@ class SparkReader(DataSourceReader):
             writer = writer.option(
                 "mergeSchema" if mode == "append" else "overwriteSchema", "true"
             )
+            if mode == "append":
+                writer = writer.option("delta.enableTypeWidening", "true")
         writer.mode(mode).save(str(delta_path))
 
     def local_pylist_to_delta(
