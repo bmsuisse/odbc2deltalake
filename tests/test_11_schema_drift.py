@@ -26,7 +26,7 @@ def test_schema_drift(
         primary_keys=["User_-_iD"],
         delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
         dialect=reader.source_dialect,
-        allow_schema_drift=True
+        allow_schema_drift=True,
     )
     w = write_db_to_delta_with_check(
         reader, ("dbo", "user7"), dest, write_config=config
@@ -77,7 +77,7 @@ def test_schema_drift(
                     dialect="tsql",
                 ).sql(reader.source_dialect)
             )
-    
+
     # we assume we can safely insert double into decimal
     _, r = write_db_to_delta_with_check(
         reader, ("dbo", "user7"), dest, write_config=config

@@ -24,7 +24,7 @@ def test_delta_query(
     ]
     if reader.source_dialect == "postgres":
         query = sg.parse_one(
-            "select *, xmin from dbo.user5 where Age is null or age < 50",
+            "select *, xmin::text::bigint as xmin from dbo.user5 where Age is null or age < 50",
             dialect="postgres",
         )
         delta_col = "xmin"

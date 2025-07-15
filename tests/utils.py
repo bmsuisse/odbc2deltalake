@@ -144,7 +144,9 @@ def get_test_run_configs(
                 connection.get_jdbc_options("spark"),
                 jdbc=True,
                 spark_format=(
-                    "sqlserver" if connection.source_server in ["tsql", "mssql"] else "postgres"
+                    "sqlserver"
+                    if connection.source_server in ["tsql", "mssql"]
+                    else "postgres"
                 ),
             ),
             FileSystemDestination(
