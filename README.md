@@ -1,14 +1,17 @@
 # ODBC 2 Deltalake
 
-This is a package that supports reading from ODBC and writing to a scd2 DeltaTable. The delta table will always have the following "system" cols:
+This is a package that supports reading from ODBC or ADBC and writing to a scd2 DeltaTable. The delta table will always have the following "system" cols:
 
 - \_\_timestamp : The Date of the Load
 - \_\_is_deleted : True for a deletion of a record
 - \_\_is_full_load : True if it was a full load, meaning an implicit deletion of not delivered records
 
-Currently, this package is focused very much on Microsoft SQL Server. But it should not be too hard to add support for other DB Systems.
+Currently, this package is focused very much on Microsoft SQL Server and on Postgres. But it should not be too hard to add support for other DB Systems.
 
-This packages handles delta's based on MS-SQL's "timestamp"/"rowversion" DataType or based on Temporal Tables. Other methods will be added later on. It does detect updates to records
+For MS-SQL, this packages handles delta's based on MS-SQL's [timestamp/rowversion](https://learn.microsoft.com/en-us/sql/t-sql/data-types/rowversion-transact-sql?view=sql-server-ver16) DataType or based on [Temporal Tables](https://learn.microsoft.com/en-us/sql/relational-databases/tables/temporal-tables?view=sql-server-ver17) by default.
+For Postgres it uses `xmin` column. You can also configure a custom "Delta" column using WriteConfig
+
+Other methods will be added later on. It does detect updates to records
 that happened differently, eg if a restore happened in the source.
 
 ## Usage
@@ -111,9 +114,8 @@ class WriteConfig:
         simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower than delta
     """
 
-    data_type_map: Mapping[str, ex.DATA_TYPE] = dataclasses.field(
-        default_factory=lambda: _default_type_map.copy() # defaults to some simple sql server related maps
-    )
+    data_type_map: Mapping[str, ex.DATA_TYPE]  # defaults to some simple sql server related maps, none for postgres
+    
     """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
 
     no_complex_entries_load: bool = False
