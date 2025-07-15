@@ -22,26 +22,39 @@ def test_delta_query(
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user5")[
         conf_name
     ]
-
-    query = sg.parse_one(
-        "select * from dbo.[user5] where Age is null or age < 50", dialect="tsql"
+    if reader.source_dialect == "postgres":
+        query = sg.parse_one(
+            "select *, xmin from dbo.user5 where Age is null or age < 50",
+            dialect="postgres",
+        )
+        delta_col = "xmin"
+    else:
+        query = sg.parse_one(
+            "select * from dbo.user5 where Age is null or age < 50", dialect="tsql"
+        )
+        delta_col = "time stamp"
+    ts_col = delta_col.replace(" ", "_").lower()
+    config = WriteConfig(
+        primary_keys=["User_-_iD"],
+        delta_col=delta_col,
+        dialect=reader.source_dialect,
     )
-    config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
     assert isinstance(query, ex.Query)
     write_db_to_delta_with_check(reader, query, dest, write_config=config)
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO [dbo].[user5] ([FirstName], [LastName], [Age], companyid)
+                """INSERT INTO dbo.user5 (FirstName, LastName, Age, companyid)
                    SELECT 'Markus', 'Müller', 27, 'c2'
                    union all 
-                   select 'Heiri', 'Meier', 60.98, 'c2';
-                   DELETE FROM dbo.[user5] where LastName='Anders';
-                     UPDATE [dbo].[user5] SET LastName='wayne-hösch' where LastName='wayne'; -- Petra
-                   """
+                   select 'Heiri', 'Meier', 60.98, 'c2'"""
+            )
+            cursor.execute("DELETE FROM dbo.user5 where LastName='Anders'")
+            cursor.execute(
+                "UPDATE dbo.user5 SET LastName='wayne-hösch' where LastName='wayne' -- Petra"
             )
         with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[user5]")
+            cursor.execute("SELECT * FROM dbo.user5")
             alls = cursor.fetchall()
             print(alls)
 
@@ -101,9 +114,9 @@ def test_delta_query(
         )
 
         id_tuples = con.execute(
-            """SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
-                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."time_stamp"=lf."time_stamp"
-                qualify row_number() over (partition by s2."User_-_iD" order by lf."time_stamp" desc)=1
+            f"""SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
+                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."{ts_col}"=lf."{ts_col}"
+                qualify row_number() over (partition by s2."User_-_iD" order by lf."{ts_col}" desc)=1
                 order by s2."User_-_iD" 
                 """
         ).fetchall()

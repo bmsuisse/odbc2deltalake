@@ -49,11 +49,11 @@ def test_delta_query(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """DELETE FROM dbo.[user6] where "User - iD"=2;
+                """DELETE FROM dbo.user6 where "User - iD"=2;
                   """
             )
         with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[user6]")
+            cursor.execute("SELECT * FROM dbo.user6")
             alls = cursor.fetchall()
             print(alls)
 

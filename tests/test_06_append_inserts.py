@@ -4,6 +4,7 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import config_names, get_test_run_configs
+import sqlglot as sg
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -47,8 +48,11 @@ def test_append_inserts(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """INSERT INTO [dbo].[log] ([message])
-                   SELECT 'The second log message'"""
+                sg.parse_one(
+                    """INSERT INTO [dbo].[log] ([message])
+                   SELECT 'The second log message'""",
+                    dialect="tsql",
+                ).sql(reader.source_dialect)
             )
     write_db_to_delta(  # some delta load
         reader,

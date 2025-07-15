@@ -29,8 +29,8 @@ def test_insert_while_load(
         with nc.cursor() as cursor:
             cursor.execute(
                 """
-                     set identity_insert dbo.[user8] on;
-                INSErT into dbo.[user8](FirstName, LastName, [User - iD], companyid) 
+                     set identity_insert dbo.user8 on;
+                INSERT into dbo.user8(FirstName, LastName, [User - iD], companyid) 
                 SELECT 'Francis', 'Peterson', 98, 'c1'
                   """
             )
@@ -44,7 +44,7 @@ def test_insert_while_load(
             with connection.new_connection(conf_name) as nc:
                 with nc.cursor() as cursor:
                     cursor.execute(
-                        """delete from dbo.[user8] where [User - iD]=98
+                        """delete from dbo.user8 where "User - iD"=98
                         """
                     )
         orig_info(*args, **kwargs)

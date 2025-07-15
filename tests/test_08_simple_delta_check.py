@@ -4,6 +4,7 @@ from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import time
+import sqlglot as sg
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -29,7 +30,7 @@ def test_delta_sys(
     assert "__timestamp" in col_names
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
+            stmts = sg.parse(
                 """
 insert into dbo.[company3](id, name)
 select 'c400',
@@ -38,16 +39,20 @@ select 'c400',
     
 insert into dbo.[company3](id, name)
 select 'c500',
-    'The 500 company';
-                   """
+    'The 500 company'
+                   """,
+                dialect="tsql",
             )
+            for stmt in stmts:
+                assert stmt is not None
+                cursor.execute(stmt.sql(reader.source_dialect))
 
     write_db_to_delta(reader, ("dbo", "company3"), dest, cfg)  # delta load
     t.update_incremental()
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
     with nc.cursor() as cursor:
-        cursor.execute("SELECT * FROM [dbo].[company3]")
+        cursor.execute("SELECT * FROM dbo.company3")
         alls = cursor.fetchall()
         print(alls)
     with duckdb.connect() as con:
@@ -76,7 +81,7 @@ select 'c500',
         with nc.cursor() as cursor:
             cursor.execute(
                 """
-delete from dbo.[company3] where id='c400'
+delete from dbo.company3 where id='c400'
                    """
             )
     time.sleep(1)

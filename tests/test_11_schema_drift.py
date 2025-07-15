@@ -29,7 +29,7 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] add some_date date not null default('2000-01-01');
+                """ALTER TABLE dbo.user7 add some_date date not null default('2000-01-01');
                   """
             )
 
@@ -65,7 +65,7 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] alter column [Age] float
+                """ALTER TABLE dbo.user7 alter column Age float
                 """
             )
 
@@ -80,12 +80,12 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] drop column Age;
+                """ALTER TABLE dbo.user7 drop column Age;
                 """
             )
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] add Age xml not null default('<a></a>');
+                """ALTER TABLE dbo.user7 add Age xml not null default('<a></a>');
                 """
             )
     with pytest.raises(Exception):
