@@ -45,10 +45,11 @@ select 'c300',
     t.update_incremental()
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
-    with nc.cursor() as cursor:
-        cursor.execute("SELECT * FROM dbo.company3")
-        alls = cursor.fetchall()
-        print(alls)
+    with connection.new_connection(conf_name) as nc:
+        with nc.cursor() as cursor:
+            cursor.execute("SELECT * FROM dbo.company3")
+            alls = cursor.fetchall()
+            print(alls)
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con,

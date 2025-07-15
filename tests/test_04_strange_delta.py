@@ -186,7 +186,7 @@ def test_strange_delta_sys(
                 "ALTER TABLE dbo.company2 add PERIOD FOR SYSTEM_TIME (SysStartTime, SysEndTime)  "
             )
         with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM [dbo].[company2]")
+            cursor.execute("SELECT * FROM dbo.company2")
             alls = cursor.fetchall()
             assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
