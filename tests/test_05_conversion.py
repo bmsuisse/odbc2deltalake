@@ -37,7 +37,7 @@ def test_first_load_timestamp(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute("""DROP TABLE IF EXISTS dbo.user_double""")
-            cursor.execute("""SELECT * INTO dbo.user_double FROM dbo.User """)
+            cursor.execute("""SELECT * INTO dbo.user_double FROM dbo."user" """)
             if reader.source_dialect == "postgres":
                 cursor.execute(
                     'ALTER TABLE dbo.user_double ALTER COLUMN "User - iD" SET NOT NULL'

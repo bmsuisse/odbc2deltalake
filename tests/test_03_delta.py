@@ -41,7 +41,13 @@ def test_delta(
             for p in parsed:
                 assert p is not None
                 cursor.execute(p.sql(reader.source_dialect))
-            cursor.execute("COMMIT")
+            if reader.source_dialect in ["tsql", "mssql"]:
+                cursor.execute("""IF @@TRANCOUNT > 0 
+                               BEGIN
+                                COMMIT TRANSACTION
+                               END""")
+            else:
+                cursor.execute("COMMIT")
         with nc.cursor() as cursor:
             cursor.execute(
                 sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(
