@@ -143,6 +143,7 @@ class ADBCReader(DataSourceReader):
 
                     dt = DeltaTable(dt)
                 existing_schema = dt.schema().fields
+
                 existing_field_names = [f.name for f in existing_schema]
                 new_schema = _all_nullable(input_schema)
                 new_fields = [
@@ -183,6 +184,7 @@ class ADBCReader(DataSourceReader):
         allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
         import duckdb
+        import pyarrow as pa
         from deltalake import write_deltalake
         from deltalake.exceptions import DeltaError
 
@@ -193,6 +195,25 @@ class ADBCReader(DataSourceReader):
             dp, do = delta_path.as_path_options("object_store")
             batch_reader = cur.fetch_record_batch()
             schema = batch_reader.schema
+            fields = []
+            must_fix_tz = False
+            if self.source_dialect == "postgres":
+                for field in schema:
+                    t = field.type
+                    if pa.types.is_timestamp(t) and t.tz is None:
+                        must_fix_tz = True
+                        fields.append(
+                            pa.field(
+                                field.name,
+                                pa.timestamp(t.unit, tz="UTC"),
+                                field.nullable,
+                                field.metadata,
+                            )
+                        )
+                    else:
+                        fields.append(field)
+                schema = pa.schema(fields) if must_fix_tz else schema
+
             cast_schema, schema_mode = self._handle_schema_drift(
                 delta_path, allow_schema_drift, mode, schema
             )
@@ -200,6 +221,10 @@ class ADBCReader(DataSourceReader):
                 schema = cast_schema
                 batch_reader = pa.RecordBatchReader.from_batches(
                     cast_schema, (b.cast(cast_schema) for b in batch_reader)
+                )
+            elif must_fix_tz:
+                batch_reader = pa.RecordBatchReader.from_batches(
+                    schema, (b.cast(schema) for b in batch_reader)
                 )
             try:
                 write_deltalake(
