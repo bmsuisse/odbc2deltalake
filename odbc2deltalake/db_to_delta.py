@@ -476,6 +476,14 @@ def _temp_table(table: Union[table_name_type, ex.Query]):
     return "temp_" + "_".join((_clean(s) for s in table))
 
 
+def _get_type_map(write_config: WriteConfig) -> Mapping[str, ex.DataType]:
+    if write_config.data_type_map == "default":
+        from .write_init import DEFAULT_DATA_TYPE_MAP
+
+        return DEFAULT_DATA_TYPE_MAP.get(write_config.dialect, {})
+    return write_config.data_type_map
+
+
 def do_delta_load(
     infos: WriteConfigAndInfos,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
@@ -582,7 +590,7 @@ def do_delta_load(
         delta_col.data_type,
         delta_col.data_type_str,
         table_alias="t",
-        type_map=write_config.data_type_map,
+        type_map=_get_type_map(write_config),
         no_trim=write_config.no_trim,
     ) > ex.convert(delta_load_value)
     logger.info(
@@ -716,7 +724,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
             infos.delta_col.data_type,
             infos.delta_col.data_type_str,
             table_alias="t",
-            type_map=write_config.data_type_map,
+            type_map=_get_type_map(write_config),
             no_trim=write_config.no_trim,
         )
         > ex.convert(delta_load_value)
@@ -866,7 +874,7 @@ def _retrieve_primary_key_data(
                 infos.pk_cols, [infos.delta_col] if infos.delta_col else []
             ),
             with_valid_from=False,
-            data_type_map=infos.write_config.data_type_map,
+            data_type_map=_get_type_map(infos.write_config),
             system="source",
             get_target_name=infos.write_config.get_target_name,
             no_trim=infos.write_config.no_trim,
@@ -928,7 +936,7 @@ def _write_delta2(
                 is_deleted=False,
                 with_valid_from=True,
                 table_alias="t",
-                data_type_map=write_config.data_type_map,
+                data_type_map=_get_type_map(write_config),
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
@@ -1118,7 +1126,7 @@ def _handle_additional_updates(
             delta_col.data_type,
             delta_col.data_type_str,
             table_alias="t",
-            type_map=write_config.data_type_map,
+            type_map=_get_type_map(write_config),
             no_trim=write_config.no_trim,
         ) > ex.convert(delta_load_value)
         logger.info("Start delta step 2, load updates by timestamp")
@@ -1196,7 +1204,7 @@ def _get_update_sql(
                 is_deleted=False,
                 with_valid_from=True,
                 table_alias="t",
-                data_type_map=write_config.data_type_map,
+                data_type_map=_get_type_map(write_config),
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
@@ -1264,7 +1272,7 @@ def do_full_load(
                 is_full=True,
                 cols=infos.col_infos,
                 with_valid_from=True,
-                data_type_map=write_config.data_type_map,
+                data_type_map=_get_type_map(write_config),
                 system="source",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,

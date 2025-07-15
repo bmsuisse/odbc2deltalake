@@ -27,13 +27,15 @@ IS_FULL_LOAD_COL_NAME = "__is_full_load"
 T = TypeVar("T")
 
 _default_type_map = {
-    "datetime": ex.DataType(this="datetime2(6)"),
-    "datetime2": ex.DataType(this="datetime2(6)"),
-    "rowversion": ex.DataType.Type.BIGINT,
-    "timestamp": ex.DataType.Type.BIGINT,
-    "tinyint": ex.DataType.Type.SMALLINT,  # tinyint is unsigned in T-SQL, therefore we map it to smallint in spark
+    "tsql": {
+        "datetime": ex.DataType(this="datetime2(6)"),
+        "datetime2": ex.DataType(this="datetime2(6)"),
+        "rowversion": ex.DataType.Type.BIGINT,
+        "timestamp": ex.DataType.Type.BIGINT,
+        "tinyint": ex.DataType.Type.SMALLINT,  # tinyint is unsigned in T-SQL, therefore we map it to smallint in spark
+    }
 }
-DEFAULT_DATA_TYPE_MAP: Mapping[str, ex.DataType] = _default_type_map
+DEFAULT_DATA_TYPE_MAP: Mapping[str, Mapping[str, ex.DataType]] = _default_type_map
 
 
 def compat_name(inf: InformationSchemaColInfo) -> str:
@@ -84,9 +86,7 @@ class WriteConfig:
         simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower than delta
     """
 
-    data_type_map: Mapping[str, ex.DataType] = dataclasses.field(
-        default_factory=lambda: _default_type_map.copy()
-    )
+    data_type_map: Union[Mapping[str, ex.DataType], Literal["default"]] = "default"
     """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
 
     no_complex_entries_load: bool = False
