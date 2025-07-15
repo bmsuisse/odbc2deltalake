@@ -55,7 +55,7 @@ class DB_Connection:
         configs = ["azure", "spark", "local"]
         tc = os.getenv("ODBCLAKE_TEST_CONFIGURATION")
         if tc:
-            configs = [tc]
+            configs = tc.split(",")
         self.conn_str: dict[str, str] = dict()
         if source_server == "mssql":
             from odbc2deltalake.odbc_utils import build_connection_string
@@ -177,8 +177,9 @@ def connection(spawn_sql):
 def spawn_azurite():
     import test_server
     import os
+    from subprocess import Popen
 
-    if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() != "azure":
+    if "azure" not in os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").split(","):
         yield None
         return
     if os.getenv("NO_AZURITE_DOCKER", "0") == "1":
@@ -191,14 +192,17 @@ def spawn_azurite():
         if (
             os.getenv("KEEP_AZURITE_DOCKER", "0") == "0"
         ):  # can be handy during development
-            azurite.stop()
+            if isinstance(azurite, Popen):
+                azurite.terminate()
+            else:
+                azurite.stop()
 
 
 @pytest.fixture(scope="session")
 def spark_session():
     if os.getenv("NO_SPARK", "0") == "1":
         return None
-    if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "spark").lower() != "spark":
+    if "spark" not in os.getenv("ODBCLAKE_TEST_CONFIGURATION", "spark").split(","):
         return None
     from pyspark.sql import SparkSession
     from delta import configure_spark_with_delta_pip

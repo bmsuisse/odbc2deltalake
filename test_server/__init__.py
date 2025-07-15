@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 import docker
 from docker.models.containers import Container
@@ -12,7 +13,7 @@ server_configs = {
         "local_port": 1444,
         "image": "mcr.microsoft.com/mssql/server:2022-latest",
     },
-    "postgres": {"container_port": 5432, "local_port": 54320, "image": "postgres:17.5"},
+    "postgres": {"container_port": 5432, "local_port": 54320, "image": "postgres:17.5-alpine3.22"},
 }
 
 
@@ -83,7 +84,17 @@ def create_test_blobstorage():
     return cc
 
 
-def start_azurite() -> Container:
+def start_azurite() -> Union[Container,subprocess.Popen]:
+    if os.getenv("NPM_AZURITE", "0") == "1":
+        import subprocess
+        process = subprocess.Popen(
+            ["azurite", "--silent", "--skip-api-version-check"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        sleep(10) # wait for azurite to start
+        return process
+        
     client = docker.from_env()  # code taken from https://github.com/fsspec/adlfs/blob/main/adlfs/tests/conftest.py#L72
     azurite_server: Union[Container, None] = None
     try:

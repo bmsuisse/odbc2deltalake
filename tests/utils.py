@@ -83,8 +83,8 @@ def write_db_to_delta_with_check(
     return w, r
 
 
-if os.getenv("ODBCLAKE_TEST_CONFIGURATION"):
-    config_names = [os.getenv("ODBCLAKE_TEST_CONFIGURATION")]
+if _from_env := os.getenv("ODBCLAKE_TEST_CONFIGURATION"):
+    config_names = _from_env.split(",")
 else:
     config_names = (
         ["azure", "spark", "local"]
@@ -123,19 +123,20 @@ def get_test_run_configs(
                 source_dialect=connection.dialect,
             )
 
-    if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() == "azure":
+    if "azure" in config_names:
         from odbc2deltalake.destination.azure import AzureDestination
 
         cfg["azure"] = (
             _local_reader(connection, "azure"),
             AzureDestination("testlakeodbc", tbl_dest_name, {"use_emulator": "true"}),
         )
-    if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "local").lower() == "local":
+    if "local" in config_names:
         cfg["local"] = (
             _local_reader(connection, "local"),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
         )
-    if spark_session is not None:
+    if "spark" in config_names:
+        assert spark_session is not None
         from odbc2deltalake.reader.spark_reader import SparkReader
 
         cfg["spark"] = (
