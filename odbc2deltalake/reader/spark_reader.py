@@ -184,7 +184,7 @@ class SparkReader(DataSourceReader):
 
     def _query(self, sql: Union[str, Query]):
         if isinstance(sql, Query):
-            sql = sql.sql("tsql")
+            sql = sql.sql(self.source_dialect)
         if self.linked_server_proxy:
             assert "--" not in self.linked_server_proxy
             assert "/*" not in self.linked_server_proxy
