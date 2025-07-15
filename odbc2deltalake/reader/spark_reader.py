@@ -236,7 +236,10 @@ class SparkReader(DataSourceReader):
     def _reader(self, sql: Union[str, Query]):
         if self.jdbc:
             options = {}
-            jdbcUrl = f"jdbc:{self.spark_format}://"
+            if self.spark_format == "postgres":
+                jdbcUrl = "jdbc:postgresql://"
+            else:
+                jdbcUrl = f"jdbc:{self.spark_format}://"
             if "host" in self.sql_config:
                 jdbcUrl += self.sql_config["host"].replace(",", ":")
             if "server" in self.sql_config:
