@@ -22,7 +22,7 @@ def get_primary_keys(
     real_schema = table_name[0] if len(table_name) == 2 else table_name[1]
     real_db = table_name[0] if len(table_name) == 3 else None
     quoted_db = sql_quote_name(real_db) + "." if real_db else ""
-    no_lock = "WITH(NOLOCK)" if dialect == "mssql" else ""
+    no_lock = "WITH(NOLOCK)" if dialect in ["tsql", "mssql"] else ""
     query = sqlglot.parse_one(
         f"""SELECT ccu.COLUMN_NAME as col_name
     FROM {quoted_db}INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc {no_lock}

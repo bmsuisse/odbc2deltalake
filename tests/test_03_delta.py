@@ -65,7 +65,7 @@ def test_delta(
             "v_user_2_temp",
             use_delta_ext=conf_name == "spark",
         )
-        if reader.source_dialect == "mssql":
+        if reader.source_dialect in ["tsql", "mssql"]:
             res = con.execute(
                 'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
             ).fetchone()
@@ -163,7 +163,7 @@ select 'c300',
                 assert stmt is not None
                 print(stmt.sql(reader.source_dialect))
                 cursor.execute(stmt.sql(reader.source_dialect))
-            if reader.source_dialect == "mssql":
+            if reader.source_dialect in ["tsql", "mssql"]:
                 cursor.execute("""
 update dbo.[company]
 set id='c2 '

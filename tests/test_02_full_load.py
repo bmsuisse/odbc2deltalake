@@ -49,7 +49,7 @@ def test_first_load_always_full(
         assert max_valid_from is not None
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            if reader.source_dialect == "mssql":
+            if reader.source_dialect in ["tsql", "mssql"]:
                 cursor.execute(
                     """INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
         SELECT 5,

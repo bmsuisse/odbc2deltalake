@@ -105,7 +105,7 @@ def get_test_run_configs(
     cfg: dict[str, tuple[DataSourceReader, Destination]] = {}
 
     def _local_reader(connection, config):
-        if connection.source_server == "mssql":
+        if connection.source_server in ["tsql", "mssql"]:
             from odbc2deltalake.reader.odbc_reader import ODBCReader
 
             return ODBCReader(
@@ -144,7 +144,7 @@ def get_test_run_configs(
                 connection.get_jdbc_options("spark"),
                 jdbc=True,
                 spark_format=(
-                    "sqlserver" if connection.source_server == "mssql" else "postgres"
+                    "sqlserver" if connection.source_server in ["tsql", "mssql"] else "postgres"
                 ),
             ),
             FileSystemDestination(
