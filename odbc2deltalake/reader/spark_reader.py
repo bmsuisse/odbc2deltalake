@@ -101,7 +101,7 @@ class SparkReader(DataSourceReader):
         self.linked_server_proxy = linked_server_proxy
         self.spark_format = spark_format
         self.jdbc = jdbc
-        if spark_format == "postgres":
+        if spark_format in ["postgres", "postgresql"]:
             self.source_dialect = "postgres"
         elif spark_format == "sqlserver":
             self.source_dialect = "tsql"
@@ -238,7 +238,7 @@ class SparkReader(DataSourceReader):
     def _reader(self, sql: Union[str, Query]):
         if self.jdbc:
             options = {}
-            if self.spark_format == "postgres":
+            if self.spark_format in ["postgres", "postgresql"]:
                 jdbcUrl = "jdbc:postgresql://"
             else:
                 jdbcUrl = f"jdbc:{self.spark_format}://"
@@ -248,7 +248,10 @@ class SparkReader(DataSourceReader):
                 jdbcUrl += self.sql_config["server"].replace(",", ":")
             if "port" in self.sql_config:
                 jdbcUrl += ":" + str(self.sql_config["port"])
-            if "database" in self.sql_config and self.spark_format == "postgres":
+            if "database" in self.sql_config and self.spark_format in [
+                "postgres",
+                "postgresql",
+            ]:
                 jdbcUrl += "/" + self.sql_config["database"]
 
             for key, value in self.sql_config.items():
@@ -267,7 +270,10 @@ class SparkReader(DataSourceReader):
                     assert enc_vl in ["true", "false"]
                     jdbcUrl += f";{key}=" + enc_vl
                 elif key.lower() == "database":
-                    if self.spark_format != "postgres":  # postgres has db in url
+                    if self.spark_format not in [
+                        "postgres",
+                        "postgresql",
+                    ]:  # postgres has db in url
                         jdbcUrl += ";databaseName=" + value
                 else:
                     options[key] = value
