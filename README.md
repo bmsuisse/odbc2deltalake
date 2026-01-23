@@ -141,5 +141,5 @@ accomplish a delta load as follows:
 - If not, there were probably deletes -> Get all primary keys from sql server and delete records in delta table
 
 However, in pratice there can be situations where this all does not work. For example, if there was a restore in sql server,
-you might get older timestamps again. To handle this situation, the load does compare the MAX of the Timestamps and
-in case there was a shift, a row-by-row comparison of timestamps is done. In the code this is called a "strange update"
+you might get older rowversions again. To handle this situation, the load does compare the MAX of the rowversions and
+in case there was a shift, a row-by-row comparison of rowversion is done. In the code this is called a "strange update"
