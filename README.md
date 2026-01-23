@@ -126,3 +126,20 @@ class WriteConfig:
     Use if you want to apply some naming convention or avoid special characters in the target. """
 
 ```
+
+## Details
+
+### How Timestamp-tracking works for MS-SQL Server
+
+The mssql data type `rowversion` aka. `timestamp` is basically a bigint, that's always beeing incremented on every update. Therefore theoretically you can
+accomplish a delta load as follows:
+
+- Read latest `rowversion` from delta table
+- Compare to latest one on sql server
+- Read all records with newer rowversions from sql server
+- Record count match now between delta and sql server? All ok, done
+- If not, there were probably deletes -> Get all primary keys from sql server and delete records in delta table
+
+However, in pratice there can be situations where this all does not work. For example, if there was a restore in sql server,
+you might get older timestamps again. To handle this situation, the load does compare the MAX of the Timestamps and
+in case there was a shift, a row-by-row comparison of timestamps is done. In the code this is called a "strange update"
