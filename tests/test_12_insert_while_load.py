@@ -3,6 +3,7 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+import sqlglot as sg
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -19,7 +20,11 @@ def test_insert_while_load(
         conf_name
     ]
 
-    config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
+    config = WriteConfig(
+        primary_keys=["User_-_iD"],
+        delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
+        dialect=reader.source_dialect,
+    )
 
     w = write_db_to_delta_with_check(
         reader, ("dbo", "user8"), dest, write_config=config
@@ -27,13 +32,14 @@ def test_insert_while_load(
 
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
-                """
-                     set identity_insert dbo.[user8] on;
-                INSErT into dbo.[user8](FirstName, LastName, [User - iD], companyid) 
-                SELECT 'Francis', 'Peterson', 98, 'c1'
-                  """
-            )
+            sql = sg.parse_one(
+                """ INSERT into dbo.user8(FirstName, LastName, [User - iD], companyid) 
+                SELECT 'Francis', 'Peterson', 98, 'c1'""",
+                dialect="tsql",
+            ).sql(reader.source_dialect)
+            if reader.source_dialect in ["tsql", "mssql"]:
+                sql = " set identity_insert dbo.user8 on;" + sql
+            cursor.execute(sql)
     writer = make_writer(reader, ("dbo", "user8"), dest, write_config=config)
 
     orig_info = writer.logger.info
@@ -44,7 +50,7 @@ def test_insert_while_load(
             with connection.new_connection(conf_name) as nc:
                 with nc.cursor() as cursor:
                     cursor.execute(
-                        """delete from dbo.[user8] where [User - iD]=98
+                        """delete from dbo.user8 where "User - iD"=98
                         """
                     )
         orig_info(*args, **kwargs)

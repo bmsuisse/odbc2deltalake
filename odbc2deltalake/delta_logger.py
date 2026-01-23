@@ -77,7 +77,7 @@ class DeltaLogger:
                 msg_str += f" | Error: {msg.error_trackback}"
             if msg.load:
                 msg_str += (
-                    f" | Load: {msg.load}{', ' + msg.sub_load if msg.sub_load else '' }"
+                    f" | Load: {msg.load}{', ' + msg.sub_load if msg.sub_load else ''}"
                 )
 
             if self.base_logger and msg.type == "info":

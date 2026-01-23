@@ -17,7 +17,7 @@ def write_db_to_delta(
     destination: Union[Destination, Path],
     write_config: Union[WriteConfig, None] = None,
 ):
-    make_writer(
+    return make_writer(
         source=source,
         table_or_query=table_or_query,
         destination=destination,

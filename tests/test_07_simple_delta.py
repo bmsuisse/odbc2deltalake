@@ -3,7 +3,7 @@ import pytest
 from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
-
+import sqlglot as sg
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -21,30 +21,36 @@ def test_delta_sys(
         conf_name
     ]
 
-    cfg = WriteConfig(load_mode="simple_delta")
+    cfg = WriteConfig(load_mode="simple_delta", dialect=reader.source_dialect)
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load
     t = reader.get_local_delta_ops(dest / "delta")
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
-            cursor.execute(
+            stmts = sg.parse(
                 """
 insert into dbo.[company3](id, name)
 select 'c300',
     'The 300 company';
-    UPDATE dbo.[company3] SET name='Die zwooti firma' where id='c2';
-                   """
+    UPDATE dbo.[company3] SET name='Die zwooti firma' where id='c2'
+                   """,
+                dialect="tsql",
             )
+            for stmt in stmts:
+                assert stmt is not None
+                cursor.execute(stmt.sql(reader.source_dialect))
 
     write_db_to_delta(reader, ("dbo", "company3"), dest, cfg)  # delta load
     t.update_incremental()
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
-    with nc.cursor() as cursor:
-        cursor.execute("SELECT * FROM [dbo].[company3]")
-        alls = cursor.fetchall()
-        print(alls)
+    with connection.new_connection(conf_name) as nc:
+        with nc.cursor() as cursor:
+            cursor.execute("SELECT * FROM dbo.company3")
+            alls = cursor.fetchall()
+            print(alls)
+    ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
             con,
@@ -53,8 +59,8 @@ select 'c300',
             use_delta_ext=conf_name == "spark",
         )
         name_tuples = con.execute(
-            """SELECT lf.name from v_company_scd2 lf 
-                qualify row_number() over (partition by lf."id" order by lf."Start" desc)=1
+            f"""SELECT lf.name from v_company_scd2 lf 
+                qualify row_number() over (partition by lf."id" order by lf."{ts_col}" desc)=1
                 order by lf."id" 
                 """
         ).fetchall()

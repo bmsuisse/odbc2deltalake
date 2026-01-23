@@ -1,7 +1,17 @@
+from typing import Any
 from .write_init import WriteConfigAndInfos, DBDeltaPathConfigs
 from .write_utils.restore_pk import create_last_pk_version_view
 import sqlglot as sg
 import sqlglot.expressions as ex
+
+
+class InconsistentPrimaryKeyError(Exception):
+    """Exception raised when primary keys are inconsistent."""
+
+    def __init__(self, message, invalid_data: list[dict[str, Any]]):
+        self.message = message
+        self.invalid_data = invalid_data
+        super().__init__(self.message)
 
 
 def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
@@ -42,5 +52,5 @@ def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
     if result:
         print(result)
         if raise_if_not_consistent:
-            raise ValueError("Primary keys are not consistent")
+            raise InconsistentPrimaryKeyError("Primary keys are not consistent", result)
     return result

@@ -4,6 +4,7 @@ from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import dataclasses
+import sqlglot as sg
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -21,7 +22,12 @@ def test_schema_drift(
         conf_name
     ]
 
-    config = WriteConfig(primary_keys=["User_-_iD"], delta_col="time stamp")
+    config = WriteConfig(
+        primary_keys=["User_-_iD"],
+        delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
+        dialect=reader.source_dialect,
+        allow_schema_drift=True,
+    )
     w = write_db_to_delta_with_check(
         reader, ("dbo", "user7"), dest, write_config=config
     )
@@ -29,7 +35,7 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] add some_date date not null default('2000-01-01');
+                """ALTER TABLE dbo.user7 add some_date date not null default('2000-01-01');
                   """
             )
 
@@ -65,8 +71,11 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] alter column [Age] float
-                """
+                sg.parse_one(
+                    """ALTER TABLE dbo.user7 alter column Age decimal(20, 3)
+                """,
+                    dialect="tsql",
+                ).sql(reader.source_dialect)
             )
 
     # we assume we can safely insert double into decimal
@@ -80,12 +89,12 @@ def test_schema_drift(
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] drop column Age;
+                """ALTER TABLE dbo.user7 drop column Age;
                 """
             )
         with nc.cursor() as cursor:
             cursor.execute(
-                """ALTER TABLE dbo.[user7] add Age xml not null default('<a></a>');
+                """ALTER TABLE dbo.user7 add Age xml not null default('<a></a>');
                 """
             )
     with pytest.raises(Exception):

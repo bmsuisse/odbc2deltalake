@@ -22,22 +22,27 @@ def get_primary_keys(
     real_schema = table_name[0] if len(table_name) == 2 else table_name[1]
     real_db = table_name[0] if len(table_name) == 3 else None
     quoted_db = sql_quote_name(real_db) + "." if real_db else ""
-
+    no_lock = "WITH(NOLOCK)" if dialect in ["tsql", "mssql"] else ""
     query = sqlglot.parse_one(
-        f"""SELECT ccu.COLUMN_NAME
-    FROM {quoted_db}INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc WITH(NOLOCK)
-        JOIN {quoted_db}INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu WITH(NOLOCK) ON tc.CONSTRAINT_NAME = ccu.Constraint_name
-    WHERE tc.CONSTRAINT_TYPE = 'Primary Key'""",
+        f"""SELECT ccu.COLUMN_NAME as col_name
+    FROM {quoted_db}INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc {no_lock}
+        JOIN {quoted_db}INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu {no_lock} ON tc.CONSTRAINT_NAME = ccu.Constraint_name
+    WHERE lower(tc.CONSTRAINT_TYPE) = 'primary key'""",
         dialect=dialect,
     )
     assert isinstance(query, ex.Select)
     query = query.where(
-        ex.column("TABLE_NAME", "ccu")
-        .eq(ex.convert(real_table_name))
-        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(ex.convert(real_schema)))
+        ex.func("lower", ex.column("TABLE_NAME", "ccu"))
+        .eq(ex.convert(real_table_name.lower()))
+        .and_(
+            ex.func("lower", ex.column("TABLE_SCHEMA", "ccu")).eq(
+                ex.convert(real_schema.lower())
+            )
+        )
     )
     full_query = query.sql(dialect)
-    return [d["COLUMN_NAME"] for d in reader.source_sql_to_py(full_query)]
+    res = reader.source_sql_to_py(full_query)
+    return [d["col_name"] for d in res]
 
 
 class FieldWithType(BaseModel):
@@ -75,31 +80,50 @@ def _get_table_cols(
     real_schema = table_name[0] if len(table_name) == 2 else table_name[1]
     real_db = table_name[0] if len(table_name) == 3 else None
     quoted_db = sql_quote_name(real_db) + "." if real_db else ""
-
-    query = sqlglot.parse_one(
-        f""" SELECT  ccu.column_name, ccu.column_default,
-		cast(case when ccu.IS_NULLABLE='YES' THEN 1 ELSE 0 END as bit) as is_nullable,
-		data_type,
-		character_maximum_length,
-		numeric_precision,
-		numeric_scale,
-		datetime_precision,
-        ci.generated_always_type_desc,
-        coalesce(ci.is_identity, convert(bit, 0)) as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
-        left join (
-			
-SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.generated_always_type_desc, c.is_identity as is_identity FROM {quoted_db}sys.columns c 
-	inner join {quoted_db}sys.tables t on t.object_id=c.object_id
-	inner join {quoted_db}sys.schemas sc on sc.schema_id=t.schema_id
-		) ci on ci.schema_name=ccu.TABLE_SCHEMA and ci.table_name=ccu.TABLE_NAME and ci.col_name=ccu.COLUMN_NAME
-		 """,
-        dialect=dialect,
-    )
+    if dialect not in ["tsql", "mssql"]:
+        query = sqlglot.parse_one(
+            f""" 
+            SELECT  ccu.column_name, ccu.column_default,
+            ccu.IS_NULLABLE=='YES' as is_nullable,
+            data_type,
+            character_maximum_length,
+            numeric_precision,
+            numeric_scale,
+            datetime_precision,
+            null as generated_always_type_desc,
+            ccu.is_identity=='yes' as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
+            """,
+            dialect=dialect,
+        )
+    else:
+        query = sqlglot.parse_one(
+            f""" SELECT  ccu.column_name, ccu.column_default,
+            cast(case when ccu.IS_NULLABLE='YES' THEN 1 ELSE 0 END as bit) as is_nullable,
+            data_type,
+            character_maximum_length,
+            numeric_precision,
+            numeric_scale,
+            datetime_precision,
+            ci.generated_always_type_desc,
+            coalesce(ci.is_identity, convert(bit, 0)) as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
+            left join (
+                
+    SELECT sc.name as table_schema, t.name as table_name, c.name as col_name, c.generated_always_type_desc, c.is_identity as is_identity FROM {quoted_db}sys.columns c 
+        inner join {quoted_db}sys.tables t on t.object_id=c.object_id
+        inner join {quoted_db}sys.schemas sc on sc.schema_id=t.schema_id
+            ) ci on ci.table_schema=ccu.TABLE_SCHEMA and ci.table_name=ccu.TABLE_NAME and ci.col_name=ccu.COLUMN_NAME
+            """,
+            dialect=dialect,
+        )
     assert isinstance(query, ex.Select)
     full_query = query.where(
-        ex.column("TABLE_NAME", "ccu")
-        .eq(ex.convert(real_table_name))
-        .and_(ex.column("TABLE_SCHEMA", "ccu").eq(ex.convert(real_schema)))
+        ex.func("LOWER", ex.column("TABLE_NAME", "ccu"))
+        .eq(ex.func("LOWER", ex.convert(real_table_name)))
+        .and_(
+            ex.func("LOWER", ex.column("TABLE_SCHEMA", "ccu")).eq(
+                ex.func("LOWER", ex.convert(real_schema))
+            )
+        )
     ).sql(dialect)
     dicts = reader.source_sql_to_py(full_query)
     for d in dicts:
@@ -121,7 +145,9 @@ SELECT sc.name as schema_name, t.name as table_name, c.name as col_name, c.gener
         elif datetime_precision and dt.lower() not in ["datetime", "date"]:
             dt_str += f"({datetime_precision})"
 
-        d["data_type"] = ex.DataType.build(dt_str, dialect=dialect)
+        d["data_type"] = ex.DataType.build(
+            dt_str, dialect=dialect if dt_str != "xml" else "tsql"
+        )  # Hack to resolve https://github.com/tobymao/sqlglot/issues/5393
         d["data_type_str"] = dt_str
     return [InformationSchemaColInfo(**d) for d in dicts]
 

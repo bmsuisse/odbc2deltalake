@@ -27,13 +27,15 @@ IS_FULL_LOAD_COL_NAME = "__is_full_load"
 T = TypeVar("T")
 
 _default_type_map = {
-    "datetime": ex.DataType(this="datetime2(6)"),
-    "datetime2": ex.DataType(this="datetime2(6)"),
-    "rowversion": ex.DataType.Type.BIGINT,
-    "timestamp": ex.DataType.Type.BIGINT,
-    "tinyint": ex.DataType.Type.SMALLINT,  # tinyint is unsigned in T-SQL, therefore we map it to smallint in spark
+    "tsql": {
+        "datetime": ex.DataType(this="datetime2(6)"),
+        "datetime2": ex.DataType(this="datetime2(6)"),
+        "rowversion": ex.DataType.Type.BIGINT,
+        "timestamp": ex.DataType.Type.BIGINT,
+        "tinyint": ex.DataType.Type.SMALLINT,  # tinyint is unsigned in T-SQL, therefore we map it to smallint in spark
+    }
 }
-DEFAULT_DATA_TYPE_MAP: Mapping[str, ex.DataType] = _default_type_map
+DEFAULT_DATA_TYPE_MAP: Mapping[str, Mapping[str, ex.DataType]] = _default_type_map
 
 
 def compat_name(inf: InformationSchemaColInfo) -> str:
@@ -84,9 +86,7 @@ class WriteConfig:
         simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower than delta
     """
 
-    data_type_map: Mapping[str, ex.DataType] = dataclasses.field(
-        default_factory=lambda: _default_type_map.copy()
-    )
+    data_type_map: Union[Mapping[str, ex.DataType], Literal["default"]] = "default"
     """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
 
     no_complex_entries_load: bool = False
@@ -142,7 +142,9 @@ class WriteConfigAndInfos:
 
 
 def get_delta_col(
-    cols: Sequence[InformationSchemaColInfo], dialect: str
+    cols: Sequence[InformationSchemaColInfo],
+    dialect: str,
+    is_physical_table: Union[bool, None] = None,
 ) -> Union[InformationSchemaColInfo, None]:
     row_start_col: Union[InformationSchemaColInfo, None] = None
     for c in cols:
@@ -154,6 +156,14 @@ def get_delta_col(
             row_start_col = c
         if c.column_name == "__timestamp":
             return c
+    if dialect == "postgres" and is_physical_table:
+        return InformationSchemaColInfo(
+            column_name="xmin",
+            data_type=ex.DataType.build(
+                "oid", dialect="postgres"
+            ),  # should actually be xid
+            data_type_str="xid",
+        )
     return row_start_col
 
 
@@ -168,7 +178,11 @@ def make_writer(
     log_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
 ):
     if write_config is None:
-        write_config = WriteConfig()
+        write_config = WriteConfig(
+            dialect=source.source_dialect
+            if isinstance(source, DataSourceReader)
+            else "tsql"
+        )
     if isinstance(destination, Path):
         from .destination.file_system import FileSystemDestination
 
@@ -176,9 +190,10 @@ def make_writer(
     if isinstance(source, str):
         from .reader.odbc_reader import ODBCReader
 
-        source = ODBCReader(source)
-    cols = get_columns(source, table_or_query, dialect=write_config.dialect)
+        source = ODBCReader(source, source_dialect=write_config.dialect)
 
+    cols = get_columns(source, table_or_query, dialect=write_config.dialect)
+    is_physical_table = None
     if write_config.delta_col:
         delta_col = next(
             (c for c in cols if c.column_name == write_config.delta_col), None
@@ -193,12 +208,57 @@ def make_writer(
                 None,
             )
         if delta_col is None:
-            raise ValueError(
-                f"Delta column {write_config.delta_col} not found in source"
-            )
+            if write_config.dialect == "postgres" and write_config.delta_col == "xmin":
+                delta_col = InformationSchemaColInfo(
+                    column_name="xmin",
+                    data_type=ex.DataType.build("oid", dialect="postgres"),
+                    data_type_str="xid",
+                )
+            else:
+                raise ValueError(
+                    f"Delta column {write_config.delta_col} not found in source"
+                )
     else:
-        delta_col = get_delta_col(cols, write_config.dialect)
+        if (
+            not isinstance(table_or_query, ex.Query)
+            and write_config.dialect == "postgres"
+        ):
+            qb = cast(
+                ex.Query,
+                sg.parse_one("SELECT table_type FROM information_schema.tables"),
+            )
+            if isinstance(table_or_query, tuple):
+                qb.where(
+                    ex.func("LOWER", ex.column("table_schema")).eq(
+                        ex.func("LOWER", ex.convert(table_or_query[0]))
+                    ),
+                    copy=False,
+                )
+                qb.where(
+                    ex.func("LOWER", ex.column("table_name")).eq(
+                        ex.func("LOWER", ex.convert(table_or_query[1]))
+                    ),
+                    copy=False,
+                )
+            else:
+                qb.where(
+                    ex.func("LOWER", ex.column("table_name")).eq(
+                        ex.func("LOWER", ex.convert(table_or_query))
+                    ),
+                    copy=False,
+                )
+            type_type = source.source_sql_to_py(qb)[0]["table_type"]
+            is_physical_table = type_type == "BASE TABLE"
 
+        delta_col = get_delta_col(
+            cols, write_config.dialect, is_physical_table=is_physical_table
+        )
+    if delta_col and delta_col.column_name.lower() not in (
+        c.column_name.lower() for c in cols
+    ):
+        cols.append(
+            delta_col
+        )  # we assume it's a hidden column, so we add it to the cols (eg, xmin in postgres)
     _pks = write_config.primary_keys
     if _pks is None and (
         isinstance(table_or_query, str) or isinstance(table_or_query, tuple)
