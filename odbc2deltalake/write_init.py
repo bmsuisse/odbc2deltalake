@@ -22,6 +22,7 @@ from .delta_logger import DeltaLogger
 IS_DELETED_COL_NAME = "__is_deleted"
 VALID_FROM_COL_NAME = "__timestamp"
 IS_FULL_LOAD_COL_NAME = "__is_full_load"
+OPERATION_COL_NAME = "__operation"
 
 
 T = TypeVar("T")
@@ -103,6 +104,13 @@ class WriteConfig:
     no_trim: bool = False
     """If true, will not trim the strings in the source. This is useful if you want to keep the original data as is. """
 
+    operation_column_mode: Union[Literal["operation", "is_deleted_is_full_load"], None] = None
+    """Control which tracking columns to use:
+    - "operation": Write __operation column with values "reload", "upsert", "delete"
+    - "is_deleted_is_full_load": Write __is_deleted and __is_full_load columns (legacy)
+    - None (default): Auto-detect from existing table (__operation preferred, fallback to legacy)
+    """
+
 
 @dataclass(frozen=True)
 class WriteConfigAndInfos:
@@ -165,6 +173,56 @@ def get_delta_col(
             data_type_str="xid",
         )
     return row_start_col
+
+
+def detect_operation_mode(
+    source: DataSourceReader, delta_path: Destination
+) -> Literal["operation", "is_deleted_is_full_load"]:
+    """
+    Auto-detect which tracking column mode is used in an existing delta table.
+    
+    Returns:
+        - "operation": Table uses __operation column
+        - "is_deleted_is_full_load": Table uses __is_deleted and __is_full_load columns (legacy)
+    
+    Defaults to "operation" for new tables.
+    """
+    try:
+        # Check if delta table exists and has data
+        temp_table = "tmp_detect_" + str(abs(hash(str(delta_path))))
+        source.local_register_update_view(delta_path, temp_table)
+        
+        # Try to query for column existence
+        # First, check if __operation column exists
+        try:
+            result = source.local_execute_sql_to_py(
+                sg.from_(temp_table)
+                .select(ex.column(OPERATION_COL_NAME, quoted=True))
+                .limit(1)
+            )
+            # If query succeeds, __operation column exists
+            return "operation"
+        except Exception:
+            # __operation doesn't exist, check for __is_full_load
+            pass
+        
+        # Check if __is_full_load column exists
+        try:
+            result = source.local_execute_sql_to_py(
+                sg.from_(temp_table)
+                .select(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True))
+                .limit(1)
+            )
+            # If query succeeds, __is_full_load column exists
+            return "is_deleted_is_full_load"
+        except Exception:
+            pass
+    except Exception:
+        # Delta table doesn't exist or other error
+        pass
+    
+    # Default to new operation mode for new tables
+    return "operation"
 
 
 def make_writer(

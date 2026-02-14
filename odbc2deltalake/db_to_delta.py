@@ -44,7 +44,9 @@ from .write_init import (
     IS_DELETED_COL_NAME,
     IS_FULL_LOAD_COL_NAME,
     VALID_FROM_COL_NAME,
+    OPERATION_COL_NAME,
     DBDeltaPathConfigs,
+    detect_operation_mode,
 )
 from typing import Union
 
@@ -113,33 +115,54 @@ def _get_cols_select(
     get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
     no_trim: bool,
     source_dialect: str = "tsql",
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
 
-    return (
-        [
-            (
-                _source_convert(
-                    c.column_name,
-                    c.data_type,
-                    c.data_type_str,
-                    table_alias=table_alias,
-                    type_map=data_type_map,
-                    no_trim=no_trim,
-                    dialect=source_dialect,
-                ).as_(get_target_name(c), quoted=True)
-                if system == "source"
-                else ex.column(get_target_name(c), table_alias, quoted=True)
-            )
-            for c in cols
-        ]
-        + (
-            [valid_from_exprs.get(source_dialect, valid_from_exprs["default"])]
-            if with_valid_from
+    base_cols = [
+        (
+            _source_convert(
+                c.column_name,
+                c.data_type,
+                c.data_type_str,
+                table_alias=table_alias,
+                type_map=data_type_map,
+                no_trim=no_trim,
+                dialect=source_dialect,
+            ).as_(get_target_name(c), quoted=True)
+            if system == "source"
+            else ex.column(get_target_name(c), table_alias, quoted=True)
+        )
+        for c in cols
+    ]
+    
+    valid_from_cols = (
+        [valid_from_exprs.get(source_dialect, valid_from_exprs["default"])]
+        if with_valid_from
+        else []
+    )
+    
+    # Handle operation mode columns
+    if operation_mode == "operation":
+        # Map is_deleted and is_full to operation values
+        operation_value = None
+        if is_full is True:
+            operation_value = "reload"
+        elif is_deleted is True:
+            operation_value = "delete"
+        elif is_deleted is False:
+            operation_value = "upsert"
+        
+        operation_cols = (
+            [ex.convert(operation_value).as_(OPERATION_COL_NAME, quoted=True)]
+            if operation_value is not None
             else []
         )
-        + (
+        return base_cols + valid_from_cols + operation_cols
+    else:
+        # Legacy mode: use __is_deleted and __is_full_load
+        is_deleted_cols = (
             [
                 ex.cast(ex.convert(int(is_deleted)), "bit").as_(
                     IS_DELETED_COL_NAME, quoted=True
@@ -150,7 +173,8 @@ def _get_cols_select(
             if is_deleted is not None
             else []
         )
-        + (
+        
+        is_full_cols = (
             [
                 ex.cast(ex.convert(int(is_full)), "bit").as_(
                     IS_FULL_LOAD_COL_NAME, quoted=True
@@ -161,7 +185,35 @@ def _get_cols_select(
             if is_full is not None
             else []
         )
-    )
+        
+        return base_cols + valid_from_cols + is_deleted_cols + is_full_cols
+
+
+def _get_is_full_load_condition(
+    operation_mode: Literal["operation", "is_deleted_is_full_load"],
+    table_alias: Union[str, None] = None,
+) -> ex.Expression:
+    """Get the WHERE condition to filter for full load records."""
+    if operation_mode == "operation":
+        return ex.column(OPERATION_COL_NAME, table_alias, quoted=True).eq("reload")
+    else:
+        return ex.column(IS_FULL_LOAD_COL_NAME, table_alias, quoted=True)
+
+
+def _get_is_deleted_condition(
+    operation_mode: Literal["operation", "is_deleted_is_full_load"],
+    table_alias: Union[str, None] = None,
+    negate: bool = False,
+) -> ex.Expression:
+    """Get the WHERE condition to filter for deleted records."""
+    if operation_mode == "operation":
+        condition = ex.column(OPERATION_COL_NAME, table_alias, quoted=True).eq("delete")
+    else:
+        condition = ex.column(IS_DELETED_COL_NAME, table_alias, quoted=True)
+    
+    if negate:
+        return ~condition
+    return condition
 
 
 def _vacuum(source: DataSourceReader, dest: Destination):
@@ -184,6 +236,15 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
     delta_path = destination / "delta"
     dest_logger = infos.logger
     delta_col = infos.delta_col
+    
+    # Determine operation mode
+    if write_config.operation_column_mode is not None:
+        operation_mode = write_config.operation_column_mode
+    else:
+        # Auto-detect from existing table
+        operation_mode = detect_operation_mode(source, delta_path)
+        dest_logger.info(f"Auto-detected operation mode: {operation_mode}")
+    
     (destination / "meta").mkdir()
     (destination / "meta/schema.json").upload_str(
         json.dumps(
@@ -232,7 +293,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
             or write_config.load_mode == "overwrite"
         ):
             delta_path.mkdir()
-            load_result = do_full_load(infos=infos, mode="overwrite")
+            load_result = do_full_load(infos=infos, mode="overwrite", operation_mode=operation_mode)
         elif write_config.load_mode == "append_inserts":
             if delta_col is None and len(pk_cols) == 1 and pk_cols[0].is_identity:
                 delta_col = pk_cols[0]  # identity columns are usually increasing
@@ -240,7 +301,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
             assert delta_col is not None, (
                 "Must provide delta column for append_inserts load"
             )
-            load_result = do_append_inserts_load(infos)
+            load_result = do_append_inserts_load(infos, operation_mode=operation_mode)
         else:
             if (
                 delta_col is None
@@ -250,6 +311,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
                 load_result = do_full_load(
                     infos=infos,
                     mode="append",
+                    operation_mode=operation_mode,
                 )
             else:
                 load_result = do_delta_load(
@@ -257,6 +319,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
                     simple=write_config.load_mode
                     in ["simple_delta", "simple_delta_check"],
                     simple_check=write_config.load_mode == "simple_delta_check",
+                    operation_mode=operation_mode,
                 )
         lock_file_path.remove()
         _vacuum(
@@ -484,6 +547,7 @@ def do_delta_load(
     infos: WriteConfigAndInfos,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
     simple_check=False,  # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
 ) -> LoadResult:
     delta_result = DeltaLoadResult()
     destination = infos.destination
@@ -505,7 +569,7 @@ def do_delta_load(
     ]
     if any(missing_cols) and infos.write_config.allow_schema_drift:
         logger.warning(f"New columns from source: {missing_cols}. Do a full load")
-        return do_full_load(infos=infos, mode="append")
+        return do_full_load(infos=infos, mode="append", operation_mode=operation_mode)
 
     last_pk_path = (
         destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
@@ -529,7 +593,7 @@ def do_delta_load(
             restore_success = False
         if not restore_success:
             logger.warning("No primary keys found, do a full load")
-            return do_full_load(infos=infos, mode="append")
+            return do_full_load(infos=infos, mode="append", operation_mode=operation_mode)
 
     elif last_pk_path and not simple:
         cols = reader.get_local_delta_ops(last_pk_path).column_infos()
@@ -539,7 +603,7 @@ def do_delta_load(
             logger.warning(
                 f"Primary keys do not match. Expected: {', '.join(pk_set)}, Found: {', '.join(cols)}. Do a full load"
             )
-            return do_full_load(infos=infos, mode="append")
+            return do_full_load(infos=infos, mode="append", operation_mode=operation_mode)
 
     old_pk_version = (
         reader.get_local_delta_ops(
@@ -553,7 +617,7 @@ def do_delta_load(
         delta_load_value, current_count = get_local_delta_value_and_count(infos)
     except Exception as e:
         logger.warning(f"Could not get delta value: {e}")
-        return do_full_load(infos=infos, mode="append")
+        return do_full_load(infos=infos, mode="append", operation_mode=operation_mode)
     delta_result.starting_local_state = delta_load_value, current_count
     source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
     delta_result.starting_source_state = source_delta, source_count
@@ -570,6 +634,7 @@ def do_delta_load(
         return do_full_load(
             infos=infos,
             mode="append",
+            operation_mode=operation_mode,
         )
 
     if not simple:
@@ -599,6 +664,7 @@ def do_delta_load(
         criterion=criterion,
         query=infos.from_("t"),
         write_config=write_config,
+        operation_mode=operation_mode,
     )
     _load_updates_to_delta(
         logger,
@@ -613,6 +679,7 @@ def do_delta_load(
         new_delta_load_value = _handle_additional_updates(
             infos=infos,
             old_pk_version=old_pk_version,
+            operation_mode=operation_mode,
         )
         delta_load_value = new_delta_load_value or delta_load_value
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
@@ -626,6 +693,7 @@ def do_delta_load(
             old_pk_version=old_pk_version,
             write_config=infos.write_config,
             delta_col=delta_col,
+            operation_mode=operation_mode,
         )
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
         logger.info("Start delta step 4, write meta for next delta load")
@@ -705,7 +773,10 @@ def _get_local_pk_count(infos: WriteConfigAndInfos):
     )[0]["cnt"]
 
 
-def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
+def do_append_inserts_load(
+    infos: WriteConfigAndInfos,
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+) -> AppendOnlyLoadResult:
     logger = infos.logger
     write_config = infos.write_config
     assert infos.delta_col is not None, "must have a delta col"
@@ -736,6 +807,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
             criterion=criterion,
             query=infos.from_("t"),
             write_config=write_config,
+            operation_mode=operation_mode,
         ),
         delta_path=infos.destination / "delta",
         delta_name="delta_1",
@@ -755,6 +827,7 @@ def do_deletes(
     delta_col: InformationSchemaColInfo,
     old_pk_version: int,
     write_config: WriteConfig,
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
 ):
     latest_pk_query = _get_latest_pk_query(
         reader,
@@ -821,8 +894,14 @@ def do_deletes(
                     this=ex.CurrentTimestamp(),
                     zone=ex.Literal(this="UTC", is_string=True),
                 ).as_(VALID_FROM_COL_NAME, quoted=True),
-                ex.convert(True).as_(IS_DELETED_COL_NAME, quoted=True),
-                ex.convert(False).as_(IS_FULL_LOAD_COL_NAME, quoted=True),
+                *(
+                    [ex.convert("delete").as_(OPERATION_COL_NAME, quoted=True)]
+                    if operation_mode == "operation"
+                    else [
+                        ex.convert(True).as_(IS_DELETED_COL_NAME, quoted=True),
+                        ex.convert(False).as_(IS_FULL_LOAD_COL_NAME, quoted=True),
+                    ]
+                ),
             )
             .from_(table_from_tuple("delta_1", alias="d1"))
             .where("1=0"),  # only used to get correct datatypes
@@ -837,9 +916,16 @@ def do_deletes(
                 ).as_(VALID_FROM_COL_NAME, quoted=True),
                 append=True,
             )
-            .select(ex.convert(True).as_(IS_DELETED_COL_NAME, quoted=True), append=True)
             .select(
-                ex.convert(False).as_(IS_FULL_LOAD_COL_NAME, quoted=True), append=True
+                *(
+                    [ex.convert("delete").as_(OPERATION_COL_NAME, quoted=True)]
+                    if operation_mode == "operation"
+                    else [
+                        ex.convert(True).as_(IS_DELETED_COL_NAME, quoted=True),
+                        ex.convert(False).as_(IS_FULL_LOAD_COL_NAME, quoted=True),
+                    ]
+                ),
+                append=True,
             )
             .from_(table_from_tuple("deletes", alias="d")),
         ],
@@ -905,7 +991,10 @@ def _list_to_chunks(input: Iterable[T], chunk_size: int):
 
 
 def _write_delta2(
-    infos: WriteConfigAndInfos, data: list[dict], mode: Literal["overwrite", "append"]
+    infos: WriteConfigAndInfos, 
+    data: list[dict], 
+    mode: Literal["overwrite", "append"],
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
 ):
     write_config = infos.write_config
     from .query import sql_quote_value
@@ -937,6 +1026,7 @@ def _write_delta2(
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
                 source_dialect=infos.write_config.dialect,
+                operation_mode=operation_mode,
             )
         )
         sql = infos.from_("t").select(*selects).sql(write_config.dialect)
@@ -995,6 +1085,7 @@ def _write_delta2(
 def _handle_additional_updates(
     infos: WriteConfigAndInfos,
     old_pk_version: int,
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
 ):
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
     folder = infos.destination
@@ -1060,7 +1151,7 @@ def _handle_additional_updates(
             restore_success = False
         if not restore_success:
             logger.warning("No primary keys found, do a full load")
-            do_full_load(infos=infos, mode="append")
+            do_full_load(infos=infos, mode="append", operation_mode=operation_mode)
             return
         else:
             _local_view_for_updates()
@@ -1101,11 +1192,11 @@ def _handle_additional_updates(
     )
 
     if update_count == 0:
-        _write_delta2(infos, [], mode="overwrite")
+        _write_delta2(infos, [], mode="overwrite", operation_mode=operation_mode)
     elif (
         (update_count > 1000) or write_config.no_complex_entries_load
     ):  # many updates. get the smallest timestamp and do "normal" delta, even if there are too many records then
-        _write_delta2(infos, [], mode="overwrite")  # still need to create delta_2_path
+        _write_delta2(infos, [], mode="overwrite", operation_mode=operation_mode)  # still need to create delta_2_path
         logger.warning(
             f"Start delta step 3, load {update_count} strange updates via normal delta load"
         )
@@ -1131,6 +1222,7 @@ def _handle_additional_updates(
             criterion=criterion,
             query=infos.from_("t"),
             write_config=write_config,
+            operation_mode=operation_mode,
         )
         logger.info(
             "execute sql", load="delta", sub_load="delta_1_additional", sql=upds_sql
@@ -1169,7 +1261,7 @@ def _handle_additional_updates(
         )
         first = True
         for chunk in _list_to_chunks(jsd, batch_size):
-            _write_delta2(infos, chunk, mode="overwrite" if first else "append")
+            _write_delta2(infos, chunk, mode="overwrite" if first else "append", operation_mode=operation_mode)
             first = False
         reader.local_register_update_view(
             infos.destination / "delta_load" / DBDeltaPathConfigs.DELTA_2_NAME,
@@ -1189,6 +1281,7 @@ def _get_update_sql(
     criterion: Union[Sequence[ex.Expression], ex.Expression, None],
     query: ex.Select,
     write_config: WriteConfig,
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
 ):
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
@@ -1205,6 +1298,7 @@ def _get_update_sql(
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
                 source_dialect=write_config.dialect,
+                operation_mode=operation_mode,
             )
         )
         .where(
@@ -1252,7 +1346,9 @@ def _load_updates_to_delta(
 
 
 def do_full_load(
-    infos: WriteConfigAndInfos, mode: Literal["overwrite", "append"]
+    infos: WriteConfigAndInfos, 
+    mode: Literal["overwrite", "append"],
+    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
 ) -> FullLoadResult:
     logger = infos.logger
     write_config = infos.write_config
@@ -1273,6 +1369,7 @@ def do_full_load(
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
                 source_dialect=infos.write_config.dialect,
+                operation_mode=operation_mode,
             )
         )
         .sql(write_config.dialect)
@@ -1312,7 +1409,7 @@ def do_full_load(
             ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
                 sg.from_(ident)
                 .select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME, quoted=True)))
-                .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True))
+                .where(_get_is_full_load_condition(operation_mode))
                 .subquery()
             )
         )
