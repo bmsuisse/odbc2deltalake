@@ -78,11 +78,11 @@ def test_operation_column_delta_load(
     )
 
     # Update data in source database
-    if hasattr(connection, "connection"):
-        cursor = connection.connection.cursor()
+    with connection.new_connection(conf_name) as nc:
+        cursor = nc.cursor()
         cursor.execute("UPDATE dbo.[user] SET FirstName='Johnny' WHERE UserId=1")
         cursor.execute("DELETE FROM dbo.[user] WHERE UserId=3")
-        cursor.commit()
+        nc.commit()
 
     # Second load (delta)
     write_db_to_delta(
