@@ -92,16 +92,18 @@ def create_last_pk_version_view(
             copy=False,
         )
         .where(
-            _get_is_full_load_condition_restore_pk(operation_mode)
-            and ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
-                ex.Subquery(
-                    this=ex.select(
-                        ex.func(
-                            "MAX", ex.column(VALID_FROM_COL_NAME, "ts", quoted=True)
+            ex.and_(
+                _get_is_full_load_condition_restore_pk(operation_mode),
+                ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
+                    ex.Subquery(
+                        this=ex.select(
+                            ex.func(
+                                "MAX", ex.column(VALID_FROM_COL_NAME, "ts", quoted=True)
+                            )
                         )
+                        .from_(ex.table_(ex.to_identifier(temp_table), alias="ts"))
+                        .where(_get_is_full_load_condition_restore_pk(operation_mode))
                     )
-                    .from_(ex.table_(ex.to_identifier(temp_table), alias="ts"))
-                    .where(_get_is_full_load_condition_restore_pk(operation_mode))
                 )
             )
         ),

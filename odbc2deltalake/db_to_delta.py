@@ -116,7 +116,7 @@ def _get_cols_select(
     get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
     no_trim: bool,
     source_dialect: str = "tsql",
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
@@ -546,9 +546,10 @@ def _get_type_map(write_config: WriteConfig) -> Mapping[str, ex.DataType]:
 
 def do_delta_load(
     infos: WriteConfigAndInfos,
+    *,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
     simple_check=False,  # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ) -> LoadResult:
     delta_result = DeltaLoadResult()
     destination = infos.destination
@@ -726,7 +727,7 @@ def do_delta_load(
             logger.info(f"Source and target count match: {source_count}")
             return delta_result
     else:
-        _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
+        _write_delta2(infos, [], mode="overwrite", operation_mode=operation_mode)  # just to create the delta_2 table
         pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
         if pk_ts.exists():
             pk_ts.remove(True)
@@ -746,7 +747,7 @@ def do_delta_load(
                 f"Source and target count do not match. Source: {source_count}, Target: {target_count}. {'Do a normal delta' if simple_check else ''}"
             )
             if simple_check:
-                return do_delta_load(infos, simple=False)
+                return do_delta_load(infos, simple=False, operation_mode=operation_mode)
             else:
                 source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
                 delta_result.end_source_state = source_delta, source_count
@@ -776,7 +777,7 @@ def _get_local_pk_count(infos: WriteConfigAndInfos):
 
 def do_append_inserts_load(
     infos: WriteConfigAndInfos,
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ) -> AppendOnlyLoadResult:
     logger = infos.logger
     write_config = infos.write_config
@@ -828,7 +829,7 @@ def do_deletes(
     delta_col: InformationSchemaColInfo,
     old_pk_version: int,
     write_config: WriteConfig,
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ):
     latest_pk_query = _get_latest_pk_query(
         reader,
@@ -992,10 +993,10 @@ def _list_to_chunks(input: Iterable[T], chunk_size: int):
 
 
 def _write_delta2(
-    infos: WriteConfigAndInfos, 
-    data: list[dict], 
+    infos: WriteConfigAndInfos,
+    data: list[dict],
     mode: Literal["overwrite", "append"],
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ):
     write_config = infos.write_config
     from .query import sql_quote_value
@@ -1086,7 +1087,7 @@ def _write_delta2(
 def _handle_additional_updates(
     infos: WriteConfigAndInfos,
     old_pk_version: int,
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ):
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
     folder = infos.destination
@@ -1282,7 +1283,7 @@ def _get_update_sql(
     criterion: Union[Sequence[ex.Expression], ex.Expression, None],
     query: ex.Select,
     write_config: WriteConfig,
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ):
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
@@ -1347,9 +1348,9 @@ def _load_updates_to_delta(
 
 
 def do_full_load(
-    infos: WriteConfigAndInfos, 
+    infos: WriteConfigAndInfos,
     mode: Literal["overwrite", "append"],
-    operation_mode: OperationMode = "is_deleted_is_full_load",
+    operation_mode: OperationMode,
 ) -> FullLoadResult:
     logger = infos.logger
     write_config = infos.write_config
