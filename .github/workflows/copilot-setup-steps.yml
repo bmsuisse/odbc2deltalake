@@ -1,0 +1,90 @@
+name: Copilot Setup Steps
+
+on:
+    workflow_dispatch:
+    push:
+        paths:
+            - .github/workflows/copilot-setup-steps.yml
+            - pyproject.toml
+            - uv.lock
+    pull_request:
+        paths:
+            - .github/workflows/copilot-setup-steps.yml
+            - pyproject.toml
+            - uv.lock
+
+jobs:
+    copilot-setup-steps:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_USER: testuser
+                    POSTGRES_PASSWORD: MyPasswortli4tests
+                    POSTGRES_DB: postgres
+                ports:
+                    - 54320:5432
+                options: >-
+                    --health-cmd "pg_isready -U testuser -d postgres"
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 10
+            mssql:
+                image: mcr.microsoft.com/mssql/server:2022-latest
+                env:
+                    ACCEPT_EULA: Y
+                    SA_PASSWORD: MyPass@word4tests
+                    MSSQL_PID: Developer
+                ports:
+                    - 1444:1433
+            azurite:
+                image: mcr.microsoft.com/azure-storage/azurite
+                ports:
+                    - 10000:10000
+                    - 10001:10001
+                    - 10002:10002
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@v5
+              with:
+                  enable-cache: true
+
+            - name: Install system dependencies
+              shell: bash
+              run: |
+                  set -euxo pipefail
+                  sudo apt-get update
+                  sudo apt-get install -y --no-install-recommends \
+                    build-essential \
+                    ca-certificates \
+                    curl \
+                    gnupg \
+                    openjdk-17-jre-headless \
+                    unixodbc-dev
+
+                  source /etc/os-release
+                  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+                    | sudo gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
+                  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/${VERSION_ID}/prod ${VERSION_CODENAME} main" \
+                    | sudo tee /etc/apt/sources.list.d/microsoft-prod.list > /dev/null
+                  sudo apt-get update
+                  sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 mssql-tools18
+                  echo "/opt/mssql-tools18/bin" >> "$GITHUB_PATH"
+
+            - name: Install Python dependencies
+              run: uv sync --locked --all-extras --all-groups
+
+            - name: Verify the package imports
+              run: uv run python -c "import odbc2deltalake"
