@@ -182,7 +182,7 @@ def test_backward_compatibility_legacy_mode(
             "v_user_legacy",
             use_delta_ext=conf_name == "spark",
         )
-        
+
         # Check that legacy columns exist
         columns = con.execute(
             "SELECT column_name FROM information_schema.columns WHERE table_name = 'v_user_legacy'"
@@ -191,3 +191,53 @@ def test_backward_compatibility_legacy_mode(
         assert "__is_deleted" in column_names
         assert "__is_full_load" in column_names
         assert "__operation" not in column_names
+
+
+@pytest.mark.order(105)
+@pytest.mark.parametrize("conf_name", config_names)
+def test_auto_detection_legacy_mode(
+    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+):
+    """Test auto-detection stays in legacy mode for existing legacy tables."""
+    from odbc2deltalake import write_db_to_delta
+
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user_legacy_auto")[
+        conf_name
+    ]
+
+    # First load with legacy mode explicitly set
+    write_config = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    write_db_to_delta(
+        reader,
+        ("dbo", "user"),
+        dest,
+        write_config=write_config,
+    )
+
+    # Second load with auto mode (should detect and stay in legacy mode)
+    write_config_auto = WriteConfig(operation_column_mode=None)
+    write_db_to_delta(
+        reader,
+        ("dbo", "user"),
+        dest,
+        write_config=write_config_auto,
+    )
+
+    with duckdb.connect() as con:
+        duckdb_create_view_for_delta(
+            con,
+            (dest / "delta").as_delta_table(),
+            "v_user_legacy_auto",
+            use_delta_ext=conf_name == "spark",
+        )
+
+        # Verify legacy columns are still used
+        columns = con.execute(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'v_user_legacy_auto'"
+        ).fetchall()
+        column_names = [col[0] for col in columns]
+        assert "__is_deleted" in column_names
+        assert "__is_full_load" in column_names
+        # __operation should not be added by auto-detection
+        assert "__operation" not in column_names
+
