@@ -356,6 +356,7 @@ def _get_latest_pk_query(
     pks: Sequence[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
+    operation_mode: OperationMode,
     merge_delta=False,
     delta_load_value=None,
 ):
@@ -387,6 +388,7 @@ def _get_latest_pk_query(
                         system="target",
                         get_target_name=write_config.get_target_name,
                         no_trim=write_config.no_trim,
+                        operation_mode=operation_mode,
                     )
                 ).from_(table_from_tuple("delta_2", alias="au")),
                 (
@@ -397,6 +399,7 @@ def _get_latest_pk_query(
                             system="target",
                             get_target_name=write_config.get_target_name,
                             no_trim=write_config.no_trim,
+                            operation_mode=operation_mode,
                         )
                     )
                     .from_(ex.table_(DBDeltaPathConfigs.DELTA_1_NAME, alias="d1"))
@@ -428,6 +431,7 @@ def _get_latest_pk_query(
                                 system="target",
                                 get_target_name=write_config.get_target_name,
                                 no_trim=write_config.no_trim,
+                                operation_mode=operation_mode,
                             )
                         )
                         .from_(ex.table_("primary_keys_ts_for_write", alias="cpk"))
@@ -497,6 +501,7 @@ def write_latest_pk(
     pks: Sequence[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
+    operation_mode: OperationMode,
     merge_delta=False,
     delta_load_value=None,
 ):
@@ -506,6 +511,7 @@ def write_latest_pk(
         pks,
         delta_col,
         write_config,
+        operation_mode,
         merge_delta,
         delta_load_value=delta_load_value,
     )
@@ -643,7 +649,7 @@ def do_delta_load(
         logger.info(
             f"Start delta step 1, get primary keys and timestamps. MAX({delta_col.column_name}): {delta_load_value}"
         )
-        _retrieve_primary_key_data(infos=infos)
+        _retrieve_primary_key_data(infos=infos, operation_mode=operation_mode)
     else:
         logger.info(
             f"Start delta step 1, MAX({delta_col.column_name}): {delta_load_value}. Total RowCount: {source_count}"
@@ -705,6 +711,7 @@ def do_delta_load(
             infos.pk_cols,
             delta_col,
             write_config=write_config,
+            operation_mode=operation_mode,
             delta_load_value=delta_load_value,
         )
 
@@ -738,6 +745,7 @@ def do_delta_load(
             infos.pk_cols,
             delta_col,
             write_config=write_config,
+            operation_mode=operation_mode,
             merge_delta=True,
         )
         target_count = _get_local_pk_count(infos)
@@ -837,6 +845,7 @@ def do_deletes(
         pk_cols,
         delta_col=delta_col,
         write_config=write_config,
+        operation_mode=operation_mode,
         merge_delta=False,
     )
     LAST_PK_VERSION = "LAST_PK_VERSION"
@@ -853,6 +862,7 @@ def do_deletes(
                 system="target",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                operation_mode=operation_mode,
             )
         ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
         ex.select(
@@ -862,6 +872,7 @@ def do_deletes(
                 system="target",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                operation_mode=operation_mode,
             )
         ).from_(table_from_tuple("current_pk_version", alias="cpk")),
     ).with_("current_pk_version", as_=latest_pk_query)
@@ -879,6 +890,7 @@ def do_deletes(
                     system="target",
                     get_target_name=write_config.get_target_name,
                     no_trim=write_config.no_trim,
+                    operation_mode=operation_mode,
                 )
             )
             .select(
@@ -888,6 +900,7 @@ def do_deletes(
                     system="target",
                     get_target_name=write_config.get_target_name,
                     no_trim=write_config.no_trim,
+                    operation_mode=operation_mode,
                 ),
                 append=True,
             )
@@ -949,6 +962,7 @@ def do_deletes(
 
 def _retrieve_primary_key_data(
     infos: WriteConfigAndInfos,
+    operation_mode: OperationMode,
 ):
     pk_ts_col_select = infos.from_("t").select(
         *_get_cols_select(
@@ -963,6 +977,7 @@ def _retrieve_primary_key_data(
             get_target_name=infos.write_config.get_target_name,
             no_trim=infos.write_config.no_trim,
             source_dialect=infos.write_config.dialect,
+            operation_mode=operation_mode,
         )
     )
     pk_ts_reader_sql = pk_ts_col_select.sql(infos.write_config.dialect)
@@ -1120,6 +1135,7 @@ def _handle_additional_updates(
                         system="target",
                         get_target_name=write_config.get_target_name,
                         no_trim=write_config.no_trim,
+                        operation_mode=operation_mode,
                     )
                 ).from_(ex.table_(DBDeltaPathConfigs.PRIMARY_KEYS_TS, alias="pk")),
                 ex.select(
@@ -1129,6 +1145,7 @@ def _handle_additional_updates(
                         system="target",
                         get_target_name=write_config.get_target_name,
                         no_trim=write_config.no_trim,
+                        operation_mode=operation_mode,
                     )
                 ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
             ),
@@ -1165,6 +1182,7 @@ def _handle_additional_updates(
                 system="target",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                operation_mode=operation_mode,
             )
         ).from_(ex.table_("additional_updates", alias="au")),
         ex.select(
@@ -1174,6 +1192,7 @@ def _handle_additional_updates(
                 system="target",
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
+                operation_mode=operation_mode,
             )
         ).from_(table_from_tuple("delta_1", alias="d1")),
     )
