@@ -38,6 +38,7 @@ def test_delta_query(
         primary_keys=["User_-_iD"],
         delta_col=delta_col,
         dialect=reader.source_dialect,
+        operation_column_mode="is_deleted_is_full_load",
     )
     assert isinstance(query, ex.Query)
     write_db_to_delta_with_check(reader, query, dest, write_config=config)

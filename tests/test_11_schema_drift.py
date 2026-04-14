@@ -27,6 +27,7 @@ def test_schema_drift(
         delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
         dialect=reader.source_dialect,
         allow_schema_drift=True,
+        operation_column_mode="is_deleted_is_full_load",
     )
     w = write_db_to_delta_with_check(
         reader, ("dbo", "user7"), dest, write_config=config
