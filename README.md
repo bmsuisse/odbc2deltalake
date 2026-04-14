@@ -9,7 +9,7 @@ This is a package that supports reading from ODBC or ADBC and writing to a scd2 
 - \_\_is_deleted : True for a deletion of a record
 - \_\_is_full_load : True if it was a full load, meaning an implicit deletion of not delivered records
 
-> **Note**: The package automatically detects which tracking mode is used in existing tables. For new tables, it defaults to the `__operation` column. See [docs/OPERATION_COLUMN.md](docs/OPERATION_COLUMN.md) for details.
+> **Note**: The package automatically detects which tracking mode is used in existing tables. For new tables, it defaults to the `__operation` column.
 
 Currently, this package is focused very much on Microsoft SQL Server and on Postgres. But it should not be too hard to add support for other DB Systems.
 

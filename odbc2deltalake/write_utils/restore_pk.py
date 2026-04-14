@@ -5,6 +5,7 @@ from odbc2deltalake.write_init import (
     OPERATION_COL_NAME,
     DBDeltaPathConfigs,
     detect_operation_mode,
+    OperationMode,
 )
 from odbc2deltalake.write_init import WriteConfigAndInfos
 import sqlglot.expressions as ex
@@ -16,7 +17,7 @@ table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 
 
 def _get_is_full_load_condition_restore_pk(
-    operation_mode: str,
+    operation_mode: OperationMode,
     table_alias: Union[str, None] = None,
 ) -> ex.Expression:
     """Get the WHERE condition to filter for full load records."""
@@ -27,7 +28,7 @@ def _get_is_full_load_condition_restore_pk(
 
 
 def _get_is_deleted_condition_restore_pk(
-    operation_mode: str,
+    operation_mode: OperationMode,
     table_alias: Union[str, None] = None,
     negate: bool = False,
 ) -> ex.Expression:

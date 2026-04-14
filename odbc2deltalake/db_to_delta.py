@@ -47,6 +47,7 @@ from .write_init import (
     OPERATION_COL_NAME,
     DBDeltaPathConfigs,
     detect_operation_mode,
+    OperationMode,
 )
 from typing import Union
 
@@ -115,7 +116,7 @@ def _get_cols_select(
     get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
     no_trim: bool,
     source_dialect: str = "tsql",
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
@@ -190,7 +191,7 @@ def _get_cols_select(
 
 
 def _get_is_full_load_condition(
-    operation_mode: Literal["operation", "is_deleted_is_full_load"],
+    operation_mode: OperationMode,
     table_alias: Union[str, None] = None,
 ) -> ex.Expression:
     """Get the WHERE condition to filter for full load records."""
@@ -201,7 +202,7 @@ def _get_is_full_load_condition(
 
 
 def _get_is_deleted_condition(
-    operation_mode: Literal["operation", "is_deleted_is_full_load"],
+    operation_mode: OperationMode,
     table_alias: Union[str, None] = None,
     negate: bool = False,
 ) -> ex.Expression:
@@ -547,7 +548,7 @@ def do_delta_load(
     infos: WriteConfigAndInfos,
     simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
     simple_check=False,  # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ) -> LoadResult:
     delta_result = DeltaLoadResult()
     destination = infos.destination
@@ -775,7 +776,7 @@ def _get_local_pk_count(infos: WriteConfigAndInfos):
 
 def do_append_inserts_load(
     infos: WriteConfigAndInfos,
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ) -> AppendOnlyLoadResult:
     logger = infos.logger
     write_config = infos.write_config
@@ -827,7 +828,7 @@ def do_deletes(
     delta_col: InformationSchemaColInfo,
     old_pk_version: int,
     write_config: WriteConfig,
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ):
     latest_pk_query = _get_latest_pk_query(
         reader,
@@ -994,7 +995,7 @@ def _write_delta2(
     infos: WriteConfigAndInfos, 
     data: list[dict], 
     mode: Literal["overwrite", "append"],
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ):
     write_config = infos.write_config
     from .query import sql_quote_value
@@ -1085,7 +1086,7 @@ def _write_delta2(
 def _handle_additional_updates(
     infos: WriteConfigAndInfos,
     old_pk_version: int,
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ):
     """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
     folder = infos.destination
@@ -1281,7 +1282,7 @@ def _get_update_sql(
     criterion: Union[Sequence[ex.Expression], ex.Expression, None],
     query: ex.Select,
     write_config: WriteConfig,
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ):
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
@@ -1348,7 +1349,7 @@ def _load_updates_to_delta(
 def do_full_load(
     infos: WriteConfigAndInfos, 
     mode: Literal["overwrite", "append"],
-    operation_mode: Literal["operation", "is_deleted_is_full_load"] = "is_deleted_is_full_load",
+    operation_mode: OperationMode = "is_deleted_is_full_load",
 ) -> FullLoadResult:
     logger = infos.logger
     write_config = infos.write_config

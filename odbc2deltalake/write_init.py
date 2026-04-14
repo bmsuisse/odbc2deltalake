@@ -24,6 +24,8 @@ VALID_FROM_COL_NAME = "__timestamp"
 IS_FULL_LOAD_COL_NAME = "__is_full_load"
 OPERATION_COL_NAME = "__operation"
 
+# Type alias for operation mode
+OperationMode = Literal["operation", "is_deleted_is_full_load"]
 
 T = TypeVar("T")
 
@@ -104,7 +106,7 @@ class WriteConfig:
     no_trim: bool = False
     """If true, will not trim the strings in the source. This is useful if you want to keep the original data as is. """
 
-    operation_column_mode: Union[Literal["operation", "is_deleted_is_full_load"], None] = None
+    operation_column_mode: Union[OperationMode, None] = None
     """Control which tracking columns to use:
     - "operation": Write __operation column with values "reload", "upsert", "delete"
     - "is_deleted_is_full_load": Write __is_deleted and __is_full_load columns (legacy)
@@ -177,7 +179,7 @@ def get_delta_col(
 
 def detect_operation_mode(
     source: DataSourceReader, delta_path: Destination
-) -> Literal["operation", "is_deleted_is_full_load"]:
+) -> OperationMode:
     """
     Auto-detect which tracking column mode is used in an existing delta table.
     
