@@ -21,7 +21,11 @@ def test_delta_sys(
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_3_dc")[
         conf_name
     ]
-    cfg = WriteConfig(load_mode="simple_delta_check", dialect=reader.source_dialect)
+    cfg = WriteConfig(
+        load_mode="simple_delta_check", 
+        dialect=reader.source_dialect,
+        operation_column_mode="is_deleted_is_full_load"
+    )
     ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load
     t = reader.get_local_delta_ops((dest / "delta"))
@@ -109,4 +113,4 @@ delete from dbo.company3 where id='c400'
             ("The 500 company", False),
         ]
     time.sleep(1)
-    write_db_to_delta_with_check(reader, ("dbo", "company3"), dest)
+    write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)

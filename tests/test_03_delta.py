@@ -16,13 +16,15 @@ if TYPE_CHECKING:
 def test_delta(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import DBDeltaPathConfigs
+    from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
     import sqlglot.expressions as ex
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[
         conf_name
     ]
-    write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
+    # Use legacy mode for backward compatibility with existing test assertions
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest, cfg)
     fields = reader.get_local_delta_ops(dest / "delta").column_infos()
     nbr_field = next(f for f in fields if f.column_name == "nbr")
     assert nbr_field.data_type.this == ex.DataType.Type.SMALLINT
@@ -87,6 +89,7 @@ def test_delta(
         reader,
         ("dbo", "user2$"),
         dest,
+        cfg,
     )
     assert l2.executed_type == "delta"
     assert not l2.dirty
@@ -149,12 +152,14 @@ def test_delta(
 def test_delta_sys(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import DBDeltaPathConfigs
+    from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_2")[
         conf_name
     ]
-    write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # full load
+    # Use legacy mode for backward compatibility with existing test assertions
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    write_db_to_delta_with_check(reader, ("dbo", "company"), dest, cfg)  # full load
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             stmts = sg.parse(
@@ -175,7 +180,7 @@ update dbo.[company]
 set id='c2 '
     where id='c2'""")  # postgres fails here, which is actually correct, since c2 is referenced by FK
 
-        write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # delta load
+        write_db_to_delta_with_check(reader, ("dbo", "company"), dest, cfg)  # delta load
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM dbo.company")
             alls = cursor.fetchall()

@@ -16,12 +16,14 @@ if TYPE_CHECKING:
 def test_strange_delta(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import DBDeltaPathConfigs
+    from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user3")[
         conf_name
     ]
-    write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
+    # Use legacy mode for backward compatibility with existing test assertions
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    write_db_to_delta_with_check(reader, ("dbo", "user3"), dest, cfg)
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             stmts = sg.parse(
@@ -51,7 +53,7 @@ def test_strange_delta(
     import time
 
     time.sleep(2)
-    write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
+    write_db_to_delta_with_check(reader, ("dbo", "user3"), dest, cfg)
     # so far we have no strange data yet. But we make it happen ;)
     # we rename user4 to user3, which will through around timestamps especially for record Johniingham
     with connection.new_connection(conf_name) as nc:
@@ -89,6 +91,7 @@ def test_strange_delta(
         reader,
         ("dbo", "user3"),
         dest,
+        cfg,
     )
 
     with duckdb.connect() as con:
@@ -134,7 +137,7 @@ def test_strange_delta(
 def test_strange_delta_sys(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
+    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs, WriteConfig
 
     import time
 
@@ -143,14 +146,16 @@ def test_strange_delta_sys(
     ]
     if reader.source_dialect == "postgres":
         return
-    write_db_to_delta(reader, ("dbo", "company2"), dest)  # empty
+    # Use legacy mode for backward compatibility with existing test assertions
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    write_db_to_delta(reader, ("dbo", "company2"), dest, cfg)  # empty
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
             cursor.execute(
                 """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
             )
     write_db_to_delta_with_check(  # normal full load
-        reader, ("dbo", "company2"), dest
+        reader, ("dbo", "company2"), dest, cfg
     )
 
     time.sleep(2)
@@ -192,7 +197,7 @@ def test_strange_delta_sys(
             cols = [c[0] for c in cursor.description]
             dicts = [dict(zip(cols, row)) for row in alls]
             print(dicts)
-    write_db_to_delta_with_check(reader, ("dbo", "company2"), dest)
+    write_db_to_delta_with_check(reader, ("dbo", "company2"), dest, cfg)
 
     with duckdb.connect() as con:
         duckdb_create_view_for_delta(
