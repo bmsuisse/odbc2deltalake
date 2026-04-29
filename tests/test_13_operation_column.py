@@ -80,8 +80,8 @@ def test_operation_column_delta_load(
     # Update data in source database
     with connection.new_connection(conf_name) as nc:
         cursor = nc.cursor()
-        cursor.execute("UPDATE dbo.[user] SET FirstName='Johnny' WHERE UserId=1")
-        cursor.execute("DELETE FROM dbo.[user] WHERE UserId=3")
+        cursor.execute("UPDATE dbo.[user] SET FirstName='Johnny' WHERE [User - iD]=1")
+        cursor.execute("DELETE FROM dbo.[user] WHERE [User - iD]=3")
         nc.commit()
 
     # Second load (delta)
