@@ -3,8 +3,13 @@
 This is a package that supports reading from ODBC or ADBC and writing to a scd2 DeltaTable. The delta table will always have the following "system" cols:
 
 - \_\_timestamp : The Date of the Load
+- \_\_operation : The operation type - "reload" (full load), "upsert" (insert/update), or "delete" (soft delete). This is the new default for new tables.
+  
+  **Or** (legacy mode):
 - \_\_is_deleted : True for a deletion of a record
 - \_\_is_full_load : True if it was a full load, meaning an implicit deletion of not delivered records
+
+> **Note**: The package automatically detects which tracking mode is used in existing tables. For new tables, it defaults to the `__operation` column.
 
 Currently, this package is focused very much on Microsoft SQL Server and on Postgres. But it should not be too hard to add support for other DB Systems.
 
@@ -126,6 +131,14 @@ class WriteConfig:
     )
     """A method that returns the target name of a column. This is used to map the source column names to the target column names.
     Use if you want to apply some naming convention or avoid special characters in the target. """
+
+    operation_column_mode: Literal["operation", "is_deleted_is_full_load"] | None = None
+    """Control which tracking columns to use:
+    - "operation": Write __operation column with values "reload", "upsert", "delete"
+    - "is_deleted_is_full_load": Write __is_deleted and __is_full_load columns (legacy)
+    - None (default): Auto-detect from existing table (__operation preferred, fallback to legacy)
+    See docs/OPERATION_COLUMN.md for details.
+    """
 
 ```
 
