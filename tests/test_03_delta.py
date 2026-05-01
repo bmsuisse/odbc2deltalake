@@ -23,7 +23,7 @@ def test_delta(
         conf_name
     ]
     # Use legacy mode for backward compatibility with existing test assertions
-    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load", dialect=reader.source_dialect)
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest, cfg)
     fields = reader.get_local_delta_ops(dest / "delta").column_infos()
     nbr_field = next(f for f in fields if f.column_name == "nbr")
@@ -158,7 +158,7 @@ def test_delta_sys(
         conf_name
     ]
     # Use legacy mode for backward compatibility with existing test assertions
-    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load", dialect=reader.source_dialect)
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest, cfg)  # full load
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:

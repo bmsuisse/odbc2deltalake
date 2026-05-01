@@ -22,7 +22,7 @@ def test_strange_delta(
         conf_name
     ]
     # Use legacy mode for backward compatibility with existing test assertions
-    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load", dialect=reader.source_dialect)
     write_db_to_delta_with_check(reader, ("dbo", "user3"), dest, cfg)
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
@@ -147,7 +147,7 @@ def test_strange_delta_sys(
     if reader.source_dialect == "postgres":
         return
     # Use legacy mode for backward compatibility with existing test assertions
-    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load")
+    cfg = WriteConfig(operation_column_mode="is_deleted_is_full_load", dialect=reader.source_dialect)
     write_db_to_delta(reader, ("dbo", "company2"), dest, cfg)  # empty
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
