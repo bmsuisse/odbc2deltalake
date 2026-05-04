@@ -662,13 +662,14 @@ def do_delta_load(
         if pk_ts.exists():
             pk_ts.remove(True)
 
+        latest_pk_path = destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
         write_latest_pk(
             reader,
             destination,
             infos.pk_cols,
             delta_col,
             write_config=write_config,
-            merge_delta=True,
+            merge_delta=latest_pk_path.exists(),
         )
         target_count = _get_local_pk_count(infos)
         delta_result.dirty = source_count != target_count
