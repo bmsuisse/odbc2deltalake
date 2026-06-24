@@ -37,7 +37,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11"]
-        test_config: ["local", "spark", "azure"]
         database: ["postgres", "mssql"]
 
     steps:
@@ -54,17 +53,30 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install project dependencies (no spark yet)
+        run: uv sync --extra local --extra local_azure --group test --group dev  --extra ${{matrix.database}}    
+      - name: Test with pytest (local)
+        run: uv run -m pytest --maxfail=3 --cov=odbc2deltalake tests
+        env:
+          ODBCLAKE_TEST_CONFIGURATION: local
+          ODBCLAKE_TEST_SOURCE_SERVER: ${{matrix.database}}
+          NO_AZURITE_DOCKER: 1 # should not start azurite
+      - name: Install Azurite
+        run: npm install -g azurite      
+      - name: Test with pytest (azure)
+        run: uv run -m pytest --maxfail=3 --cov=odbc2deltalake tests
+        env:
+          ODBCLAKE_TEST_CONFIGURATION: azure
+          ODBCLAKE_TEST_SOURCE_SERVER: ${{matrix.database}}
+          NPM_AZURITE: 1
       - name: Install project dependencies incl Spark
-        if: matrix.test_config == 'spark'
         run: uv sync --group test --group dev --group spark --extra ${{matrix.database}}
       - name: Test beeing able to import
         if: matrix.test_config == 'spark'
         run: uv run ./test_spark_import.py
-      - name: Install project dependencies
-        if: matrix.test_config != 'spark'
-        run: uv sync --extra local --extra local_azure --group test --group dev  --extra ${{matrix.database}}
-      - name: Test with pytest
+      - name: Test with pytest (spark)
         run: uv run -m pytest --maxfail=3 --cov=odbc2deltalake tests
         env:
-          ODBCLAKE_TEST_CONFIGURATION: ${{ matrix.test_config }}
+          ODBCLAKE_TEST_CONFIGURATION: spark
           ODBCLAKE_TEST_SOURCE_SERVER: ${{matrix.database}}
+          NO_AZURITE_DOCKER: 1 # should not start azurite
