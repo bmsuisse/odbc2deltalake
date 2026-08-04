@@ -20,8 +20,22 @@ def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
 
 
 def _get_type(tp: "pa.DataType"):
+    import pyarrow as pa
     import pyarrow.types as pat
 
+    if isinstance(tp, pa.OpaqueType):
+        # Some ADBC drivers (observed with adbc-driver-postgresql==1.7.0) return
+        # columns they can't losslessly map to a native Arrow type as an
+        # `arrow.opaque` extension wrapping the driver's storage representation,
+        # e.g. Postgres NUMERIC/DECIMAL columns (unbounded precision) come back as
+        # extension<arrow.opaque[storage_type=string, type_name=numeric,
+        # vendor_name=PostgreSQL]> for a plain `SELECT numeric_col FROM ...` - not
+        # specific to any particular query shape (WHERE/LIMIT/casts all reproduce
+        # it). Map known numeric/decimal opaque types to DECIMAL, and otherwise
+        # fall back to resolving the underlying storage type rather than raising.
+        if tp.vendor_name == "PostgreSQL" and tp.type_name in ("numeric", "decimal"):
+            return ex.DataType.Type.DECIMAL
+        return _get_type(tp.storage_type)
     if pat.is_string(tp):
         return ex.DataType.Type.NVARCHAR
     if pat.is_boolean(tp):
