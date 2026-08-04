@@ -19,6 +19,58 @@ if TYPE_CHECKING:
     from adbc_driver_manager.dbapi import Connection
 
 
+def _fix_pg_opaque_numeric(reader: "pa.RecordBatchReader") -> "pa.RecordBatchReader":
+    """adbc-driver-postgresql has no fixed-width Arrow equivalent for Postgres'
+    arbitrary-precision NUMERIC/DECIMAL type, so it represents those columns
+    as an opaque extension type backed by a plain string (eg "14.000"). Left
+    untouched, that string-backed type is what ends up in the written
+    Delta/Parquet schema - silently turning every postgres numeric/decimal
+    source column into a plain string column, regardless of what the source
+    column is actually declared as (and regardless of any later schema-drift
+    handling, which never sees anything but "string" for these columns).
+
+    Detect those opaque numeric columns and cast them back to a real
+    pyarrow decimal before they reach write_deltalake, so the written Delta
+    schema reflects DECIMAL rather than NVARCHAR/string. A generous fixed
+    (38, 18) target is used since the exact source precision/scale isn't
+    recoverable from the opaque type's metadata.
+    """
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    schema = reader.schema
+    numeric_idx = [
+        i
+        for i, field in enumerate(schema)
+        if isinstance(field.type, pa.OpaqueType)
+        and field.type.vendor_name == "PostgreSQL"
+        and field.type.type_name in ("numeric", "decimal")
+    ]
+    if not numeric_idx:
+        return reader
+
+    target_type = pa.decimal128(38, 18)
+    new_schema = pa.schema(
+        [
+            f.with_type(target_type) if i in numeric_idx else f
+            for i, f in enumerate(schema)
+        ]
+    )
+
+    def _fix_batch(b: "pa.RecordBatch") -> "pa.RecordBatch":
+        cols = []
+        for i, col in enumerate(b.columns):
+            if i in numeric_idx:
+                storage = col.storage if isinstance(col, pa.ExtensionArray) else col
+                col = pc.cast(storage, target_type)
+            cols.append(col)
+        return pa.RecordBatch.from_arrays(cols, schema=new_schema)
+
+    return pa.RecordBatchReader.from_batches(
+        new_schema, (_fix_batch(b) for b in reader)
+    )
+
+
 class ADBCReader(DataSourceReader):
     def __init__(
         self,
@@ -299,6 +351,7 @@ class ADBCReader(DataSourceReader):
             with self.connection.cursor() as cursor:
                 cursor.execute(sql)
                 reader = cursor.fetch_record_batch()
+                reader = _fix_pg_opaque_numeric(reader)
 
                 dp, do = delta_path.as_path_options(flavor="object_store")
                 cast_schema, schema_mode = self._handle_schema_drift(
