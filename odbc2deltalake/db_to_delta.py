@@ -624,6 +624,16 @@ def do_delta_load(
             infos=infos,
             old_pk_version=old_pk_version,
         )
+        if isinstance(new_delta_load_value, FullLoadResult):
+            # _handle_additional_updates fell back to a full load (eg the
+            # "additional updates" detection failed and restore_last_pk
+            # also failed). do_full_load already correctly rewrote
+            # latest_pk_version from a fresh read of the source - the
+            # do_deletes/write_latest_pk steps below operate on
+            # delta_1/delta_2/primary_keys_ts computed *before* that
+            # fallback, so running them now would overwrite the correct,
+            # freshly-rebuilt state with one built from stale data.
+            return new_delta_load_value
         delta_load_value = new_delta_load_value or delta_load_value
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
 
@@ -1071,8 +1081,7 @@ def _handle_additional_updates(
             restore_success = False
         if not restore_success:
             logger.warning("No primary keys found, do a full load")
-            do_full_load(infos=infos, mode="append")
-            return
+            return do_full_load(infos=infos, mode="append")
         else:
             _local_view_for_updates()
     sql_query = ex.except_(
