@@ -725,7 +725,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
             no_trim=write_config.no_trim,
         )
         > ex.convert(delta_load_value)
-        if delta_load_value
+        if delta_load_value is not None
         else None
     )
     logger.info(" Start delta step 2, load updates by timestamp")
