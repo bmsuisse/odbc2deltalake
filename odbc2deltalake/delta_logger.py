@@ -11,11 +11,10 @@ is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
 
 
 class DeltaStorageBackend(StorageBackend):
-    _pending_logs: list[LogMessage] = []
-
     def __init__(self, log_file_path: Destination, source: DataSourceReader):
         self.log_file_path = log_file_path
         self.source = source
+        self._pending_logs: list[LogMessage] = []
 
     def log(self, msg: LogMessage):
         self._pending_logs.append(msg)
