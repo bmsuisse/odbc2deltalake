@@ -253,9 +253,12 @@ class ADBCReader(DataSourceReader):
         from ..metadata import InformationSchemaColInfo
 
         limit_sql = sql.limit(0).sql(self.source_dialect)
-        with self.connection.cursor() as cursor:
-            cursor.execute(limit_sql)
-            sc = cursor.fetch_arrow_table().schema
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(limit_sql)
+                sc = cursor.fetch_arrow_table().schema
+        finally:
+            self.connection.commit()
         return [
             InformationSchemaColInfo(
                 column_name=n,
@@ -270,12 +273,15 @@ class ADBCReader(DataSourceReader):
         if isinstance(sql, ex.Query):
             sql = sql.sql(self.source_dialect)
         result = list()
-        with self.connection.cursor() as cursor:
-            cursor.execute(sql)
-            assert cursor.description is not None
-            col_names = [desc[0] for desc in cursor.description]
-            for row in cursor.fetchall():
-                result.append(dict(zip(col_names, row)))
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(sql)
+                assert cursor.description is not None
+                col_names = [desc[0] for desc in cursor.description]
+                for row in cursor.fetchall():
+                    result.append(dict(zip(col_names, row)))
+        finally:
+            self.connection.commit()
         return result
 
     def source_write_sql_to_delta(
@@ -289,38 +295,41 @@ class ADBCReader(DataSourceReader):
         from deltalake import write_deltalake
         from deltalake.exceptions import DeltaError
 
-        with self.connection.cursor() as cursor:
-            cursor.execute(sql)
-            reader = cursor.fetch_record_batch()
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(sql)
+                reader = cursor.fetch_record_batch()
 
-            dp, do = delta_path.as_path_options(flavor="object_store")
-            cast_schema, schema_mode = self._handle_schema_drift(
-                delta_path, allow_schema_drift, mode, reader.schema
-            )
-
-            if cast_schema:
-                import pyarrow as pa
-
-                reader = pa.RecordBatchReader.from_batches(
-                    cast_schema, (b.cast(cast_schema) for b in reader)
+                dp, do = delta_path.as_path_options(flavor="object_store")
+                cast_schema, schema_mode = self._handle_schema_drift(
+                    delta_path, allow_schema_drift, mode, reader.schema
                 )
-            try:
-                write_deltalake(
-                    dp,
-                    reader,
-                    schema=_all_nullable(reader.schema),
-                    mode=mode,
-                    writer_properties=self.writer_properties,
-                    schema_mode=schema_mode,
-                    engine="rust",
-                    storage_options=do,
-                )
-            except DeltaError as e:
-                if "No data source supplied to write command" in str(e):
-                    if mode == "overwrite":
-                        self._write_empty_delta_table(reader.schema, dp, do)
-                else:
-                    raise e
+
+                if cast_schema:
+                    import pyarrow as pa
+
+                    reader = pa.RecordBatchReader.from_batches(
+                        cast_schema, (b.cast(cast_schema) for b in reader)
+                    )
+                try:
+                    write_deltalake(
+                        dp,
+                        reader,
+                        schema=_all_nullable(reader.schema),
+                        mode=mode,
+                        writer_properties=self.writer_properties,
+                        schema_mode=schema_mode,
+                        engine="rust",
+                        storage_options=do,
+                    )
+                except DeltaError as e:
+                    if "No data source supplied to write command" in str(e):
+                        if mode == "overwrite":
+                            self._write_empty_delta_table(reader.schema, dp, do)
+                    else:
+                        raise e
+        finally:
+            self.connection.commit()
 
     def _write_empty_delta_table(
         self,
