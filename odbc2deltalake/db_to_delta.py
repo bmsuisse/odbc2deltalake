@@ -277,7 +277,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
         import traceback
 
         dest_logger.error(
-            "Error during load: {e}", error_trackback=traceback.format_exc()
+            f"Error during load: {e}", error_trackback=traceback.format_exc()
         )
         raise e
     finally:
