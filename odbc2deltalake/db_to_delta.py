@@ -541,6 +541,16 @@ def do_delta_load(
             )
             return do_full_load(infos=infos, mode="append")
 
+    if simple and not reader.local_delta_table_exists(
+        destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
+    ):
+        # simple_delta has no restore-pk fallback (unlike the non-simple path
+        # above): if latest_pk_version was never written (eg the destination
+        # was bootstrapped by a delta_col-less full load), fall back to a
+        # full load instead of crashing later on the missing primary_keys_ts.
+        logger.warning("latest_pk_version missing for simple_delta, do a full load")
+        return do_full_load(infos=infos, mode="append")
+
     old_pk_version = (
         reader.get_local_delta_ops(
             destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
