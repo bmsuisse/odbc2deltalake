@@ -982,7 +982,7 @@ def _write_delta2(
             full_sql(json.dumps(chunk_2, default=str)),
             delta_2_path,
             mode="append",
-            allow_schema_drift=True,
+            allow_schema_drift=write_config.allow_schema_drift,
         )
     else:
         infos.source.source_write_sql_to_delta(
