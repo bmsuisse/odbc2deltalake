@@ -118,7 +118,7 @@ def get_test_run_configs(
             import adbc_driver_postgresql.dbapi as adbc_pg
 
             return ADBCReader(
-                adbc_pg.connect(connection.conn_str[config]),
+                adbc_pg.connect(connection.conn_str[config], autocommit=True),
                 f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
                 source_dialect=connection.dialect,
             )

@@ -35,7 +35,7 @@ class SparkDeltaOps(DeltaOps):
             [f"'{_escape(k)}' = '{_escape(v)}'" for k, v in props.items()]
         )
         self.spark.sql(
-            f"ALTER TABLE delta.`{str(self.dest)}` SET TBLPROPERTIES {prop_str}"
+            f"ALTER TABLE delta.`{str(self.dest)}` SET TBLPROPERTIES ({prop_str})"
         )
 
     def get_property(self, key: str) -> Optional[str]:
@@ -151,6 +151,8 @@ class SparkReader(DataSourceReader):
     ):
         df = self.spark.sql(sql.sql(self._dialect))
         writer = df.write.format("delta")
+        if mode == "append" and allow_schema_drift == "new_only":
+            self._migrate_changed_column_types(delta_path, df.schema)
         if allow_schema_drift == "new_only":
             self._append_new_cols(delta_path, df.schema)
         elif allow_schema_drift:
@@ -310,6 +312,84 @@ class SparkReader(DataSourceReader):
                     "append"
                 ).save(str(delta_path))
 
+    _MIGRATION_TMP_SUFFIX = "__odbc2delta_tmp"
+
+    @staticmethod
+    def _type_needs_migration(existing, new) -> bool:
+        from pyspark.sql.types import StringType
+
+        # strings can hold anything we would append
+        return existing != new and not isinstance(existing, StringType)
+
+    def _migrate_changed_column_types(
+        self,
+        delta_path: Destination,
+        source_schema: "StructType",
+    ):
+        """Rewrites columns of an existing table whose datatype changed in the source
+        (e.g. int -> string), as Delta cannot append such data or merge the schemas."""
+        from delta import DeltaTable
+
+        if not DeltaTable.isDeltaTable(self.spark, str(delta_path)):
+            return
+        existing_fields = (
+            self.spark.read.format("delta").load(str(delta_path)).schema.fields
+        )
+        by_name = {f.name.lower(): f for f in existing_fields}
+        suffix = self._MIGRATION_TMP_SUFFIX
+        for f in existing_fields:  # resume interrupted migrations
+            if (
+                f.name.endswith(suffix)
+                and f.name[: -len(suffix)].lower() not in by_name
+            ):
+                self._migrate_column(delta_path, f.name[: -len(suffix)], None)
+        for sf in source_schema.fields:
+            ef = by_name.get(sf.name.lower())
+            if ef is not None and self._type_needs_migration(ef.dataType, sf.dataType):
+                self._migrate_column(delta_path, ef.name, sf.dataType.simpleString())
+
+    def _migrate_column(
+        self, delta_path: Destination, name: str, new_type: Optional[str]
+    ):
+        def q(n: str):
+            return "`" + n.replace("`", "``") + "`"
+
+        table = f"delta.`{str(delta_path)}`"
+        tmp = name + self._MIGRATION_TMP_SUFFIX
+        ops = SparkDeltaOps(delta_path, self.spark)
+        fields = [
+            f.name for f in self.spark.read.format("delta").load(str(delta_path)).schema
+        ]
+        append_only = ops.get_property("delta.appendOnly")
+        try:
+            if append_only is not None and append_only.lower() == "true":
+                ops.set_properties({"delta.appendOnly": "false"})
+            if new_type is not None:  # otherwise the values were already copied
+                if tmp not in fields:
+                    self.spark.sql(
+                        f"ALTER TABLE {table} ADD COLUMN {q(tmp)} {new_type}"
+                    )
+                self.spark.sql(
+                    f"UPDATE {table} SET {q(tmp)} = CAST({q(name)} AS {new_type})"
+                )
+                if ops.get_property("delta.columnMapping.mode") != "name":
+                    detail = self.spark.sql(f"DESCRIBE DETAIL {table}").collect()[0]
+                    props = {"delta.columnMapping.mode": "name"}
+                    if detail.minReaderVersion < 2:
+                        props["delta.minReaderVersion"] = "2"
+                    if detail.minWriterVersion < 5:
+                        props["delta.minWriterVersion"] = "5"
+                    ops.set_properties(props)
+                self.spark.sql(f"ALTER TABLE {table} DROP COLUMN {q(name)}")
+            self.spark.sql(f"ALTER TABLE {table} RENAME COLUMN {q(tmp)} TO {q(name)}")
+            if name in fields:  # keep the original column position
+                idx = fields.index(name)
+                where = f"AFTER {q(fields[idx - 1])}" if idx > 0 else "FIRST"
+                self.spark.sql(f"ALTER TABLE {table} ALTER COLUMN {q(name)} {where}")
+        finally:
+            if append_only is not None and append_only.lower() == "true":
+                ops.set_properties({"delta.appendOnly": "true"})
+
     def source_write_sql_to_delta(
         self,
         sql: str,
@@ -321,6 +401,8 @@ class SparkReader(DataSourceReader):
         reader = self._reader(sql)
         reader = self.transformation_hook(reader.load(), "sql2delta")
         writer = reader.write.format("delta")
+        if mode == "append" and allow_schema_drift == "new_only":
+            self._migrate_changed_column_types(delta_path, reader.schema)
         if allow_schema_drift == "new_only":
             self._append_new_cols(delta_path, reader.schema)
         elif allow_schema_drift:

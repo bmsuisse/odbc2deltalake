@@ -976,7 +976,7 @@ def _write_delta2(
             full_sql(json.dumps(chunk_1, default=str)),
             delta_2_path,
             mode=mode,
-            allow_schema_drift=write_config.allow_schema_drift,
+            allow_schema_drift=True,
         )
         infos.source.source_write_sql_to_delta(
             full_sql(json.dumps(chunk_2, default=str)),
@@ -989,7 +989,7 @@ def _write_delta2(
             sql,
             delta_2_path,
             mode=mode,
-            allow_schema_drift=write_config.allow_schema_drift,
+            allow_schema_drift=True,
         )
 
 
@@ -1238,7 +1238,7 @@ def _load_updates_to_delta(
         sql,
         delta_name_path,
         mode="overwrite",
-        allow_schema_drift=write_config.allow_schema_drift,
+        allow_schema_drift=True,
     )
     reader.local_register_update_view(delta_name_path, delta_name)
     count = reader.local_execute_sql_to_py(count_limit_one(delta_name))[0]["cnt"]
