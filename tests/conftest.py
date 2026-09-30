@@ -79,16 +79,15 @@ class DB_Connection:
                     "database=master", "database=" + db_name
                 ).replace("Database=master", "database=" + db_name)
         else:
-            connstr = (
-                "postgresql://testuser:MyPasswortli4tests@localhost:54320/postgres"
-            )
-            self.conn_str_master = connstr
+            # base url without database, e.g. postgresql://user:pw@localhost:5432
+            pg_base = os.getenv(
+                "ODBCLAKE_TEST_PG_URL",
+                "postgresql://testuser:MyPasswortli4tests@localhost:54320",
+            ).rstrip("/")
+            self.conn_str_master = pg_base + "/postgres"
             for cfg in configs:
                 db_name = "db_to_delta_test_" + cfg
-                self.conn_str[cfg] = (
-                    "postgresql://testuser:MyPasswortli4tests@localhost:54320/"
-                    + db_name
-                )
+                self.conn_str[cfg] = pg_base + "/" + db_name
 
         master_conn = get_conn(self.conn_str_master, autocommit=True)
         for cfg in configs:
