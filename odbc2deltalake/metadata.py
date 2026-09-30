@@ -91,7 +91,7 @@ def _get_table_cols(
             numeric_scale,
             datetime_precision,
             null as generated_always_type_desc,
-            ccu.is_identity=='yes' as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
+            ccu.is_identity=='YES' as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
             """,
             dialect=dialect,
         )
