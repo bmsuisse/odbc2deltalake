@@ -1,3 +1,4 @@
+import os
 from .reader import DataSourceReader, DeltaOps
 from ..destination import Destination
 from sqlglot.expressions import Query, DataType
@@ -111,10 +112,18 @@ class SparkReader(DataSourceReader):
         self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
             transformation_hook or (lambda d, _: d)
         )
+        # spark.conf.get(key) with no default raises if the key isn't set
+        # (rather than returning None), so calling it bare here always threw
+        # and was silently swallowed by the broad except below - Databricks
+        # was therefore never actually detected. DATABRICKS_RUNTIME_VERSION
+        # is set in every Databricks cluster's environment and is the
+        # standard way to detect one; kept the spark.home check (now with an
+        # explicit default so it can't raise) as a secondary heuristic.
         try:
             self._dialect = (
                 "databricks"
-                if "/databricks" in (spark.conf.get("spark.home") or "")
+                if os.environ.get("DATABRICKS_RUNTIME_VERSION") is not None
+                or "/databricks" in (spark.conf.get("spark.home", "") or "")
                 else "spark"
             )
         except Exception:
