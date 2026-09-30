@@ -19,6 +19,41 @@ if TYPE_CHECKING:
     from adbc_driver_manager.dbapi import Connection
 
 
+# ADBC returns postgres "numeric" as an opaque string extension type without
+# precision/scale, so we read it as a wide decimal
+
+
+def _is_opaque_numeric(tp: "pa.DataType") -> bool:
+    import pyarrow as pa
+
+    return (
+        isinstance(tp, pa.BaseExtensionType)
+        and getattr(tp, "type_name", None) == "numeric"
+    )
+
+
+def _decimal_schema(schema: "pa.Schema") -> "pa.Schema":
+    import pyarrow as pa
+
+    return pa.schema(
+        [
+            f.with_type(pa.decimal128(38, 18)) if _is_opaque_numeric(f.type) else f
+            for f in schema
+        ],
+        metadata=schema.metadata,
+    )
+
+
+def _decimal_batch(batch: "pa.RecordBatch", schema: "pa.Schema") -> "pa.RecordBatch":
+    import pyarrow as pa
+
+    cols = [
+        c.storage.cast(f.type) if _is_opaque_numeric(c.type) else c
+        for c, f in zip(batch.columns, schema)
+    ]
+    return pa.RecordBatch.from_arrays(cols, schema=schema)
+
+
 class ADBCReader(DataSourceReader):
     def __init__(
         self,
@@ -255,7 +290,7 @@ class ADBCReader(DataSourceReader):
         limit_sql = sql.limit(0).sql(self.source_dialect)
         with self.connection.cursor() as cursor:
             cursor.execute(limit_sql)
-            sc = cursor.fetch_arrow_table().schema
+            sc = _decimal_schema(cursor.fetch_arrow_table().schema)
         return [
             InformationSchemaColInfo(
                 column_name=n,
@@ -292,6 +327,13 @@ class ADBCReader(DataSourceReader):
         with self.connection.cursor() as cursor:
             cursor.execute(sql)
             reader = cursor.fetch_record_batch()
+            if any(_is_opaque_numeric(f.type) for f in reader.schema):
+                import pyarrow as pa
+
+                dec_schema = _decimal_schema(reader.schema)
+                reader = pa.RecordBatchReader.from_batches(
+                    dec_schema, (_decimal_batch(b, dec_schema) for b in reader)
+                )
 
             dp, do = delta_path.as_path_options(flavor="object_store")
             cast_schema, schema_mode = self._handle_schema_drift(
