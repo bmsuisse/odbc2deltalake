@@ -75,4 +75,4 @@ def test_source_type_change_int_to_string_spark(
     assert df.columns.index("name_len") == 2  # keeps its position
     assert ops.get_property("delta.appendOnly") == "true"
     assert df.where("name_len is null").count() == 0
-    assert df.where("name_len = '4'").count() > 0  # old rows were cast, not lost
+    assert df.where("name_len = '5'").count() > 0  # old rows were cast, not lost
