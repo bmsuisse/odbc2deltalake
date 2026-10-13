@@ -56,17 +56,19 @@ def create_last_pk_version_view(
             copy=False,
         )
         .where(
-            ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True)
-            and ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
-                ex.Subquery(
-                    this=ex.select(
-                        ex.func(
-                            "MAX", ex.column(VALID_FROM_COL_NAME, "ts", quoted=True)
+            ex.and_(
+                ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True),
+                ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
+                    ex.Subquery(
+                        this=ex.select(
+                            ex.func(
+                                "MAX", ex.column(VALID_FROM_COL_NAME, "ts", quoted=True)
+                            )
                         )
+                        .from_(ex.table_(ex.to_identifier(temp_table), alias="ts"))
+                        .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True))
                     )
-                    .from_(ex.table_(ex.to_identifier(temp_table), alias="ts"))
-                    .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True))
-                )
+                ),
             )
         ),
         view_prefix + "last_full_load",
