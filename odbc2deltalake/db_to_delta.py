@@ -101,6 +101,32 @@ valid_from_exprs = {
 }
 
 
+def _fetch_load_timestamp(source: DataSourceReader, dialect: str) -> Optional[ex.Alias]:
+    """Reads the clock of the source server once, to use it as `__timestamp` literal in all source queries of a load.
+    With a clock function in the source query, a reader that splits the query into slices
+    (e.g. parallel partitions) would deliver different timestamps within one load."""
+    if dialect == "tsql":
+        res = source.source_sql_to_py(
+            "SELECT CAST(GETUTCDATE() AS datetime2(6)) AS ts"
+        )[0]["ts"]
+        if isinstance(res, datetime):
+            res = res.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S.%f")
+        return ex.cast(
+            ex.Literal.string(str(res)), ex.DataType(this="datetime2(6)")
+        ).as_(VALID_FROM_COL_NAME, quoted=True)
+    if dialect == "postgres":
+        res = source.source_sql_to_py("SELECT STATEMENT_TIMESTAMP() AS ts")[0]["ts"]
+        if isinstance(res, datetime):
+            if res.tzinfo is None:
+                res = res.replace(tzinfo=timezone.utc)
+            res = res.isoformat(sep=" ")
+        return ex.cast(
+            ex.Literal.string(str(res)),
+            ex.DataType.build("timestamptz", dialect="postgres"),
+        ).as_(VALID_FROM_COL_NAME, quoted=True)
+    return None
+
+
 def _get_cols_select(
     cols: Sequence[InformationSchemaColInfo],
     *,
@@ -113,6 +139,7 @@ def _get_cols_select(
     get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
     no_trim: bool,
     source_dialect: str = "tsql",
+    valid_from: Optional[ex.Expression] = None,
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
         get_target_name = lambda c: c.column_name
@@ -135,7 +162,11 @@ def _get_cols_select(
             for c in cols
         ]
         + (
-            [valid_from_exprs.get(source_dialect, valid_from_exprs["default"])]
+            [
+                valid_from
+                if valid_from is not None
+                else valid_from_exprs.get(source_dialect, valid_from_exprs["default"])
+            ]
             if with_valid_from
             else []
         )
@@ -227,6 +258,16 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
         ):
             lock_file_path.remove()
         lock_file_path.upload_str("")
+        if infos.load_timestamp is None:
+            try:
+                infos = dataclasses.replace(
+                    infos,
+                    load_timestamp=_fetch_load_timestamp(source, write_config.dialect),
+                )
+            except Exception as e:
+                dest_logger.warning(
+                    f"Could not read the load timestamp from the source, the source clock is used per query: {e}"
+                )
         if (
             not source.local_delta_table_exists(delta_path)
             or write_config.load_mode == "overwrite"
@@ -599,6 +640,7 @@ def do_delta_load(
         criterion=criterion,
         query=infos.from_("t"),
         write_config=write_config,
+        valid_from=infos.load_timestamp,
     )
     _load_updates_to_delta(
         logger,
@@ -662,7 +704,9 @@ def do_delta_load(
         if pk_ts.exists():
             pk_ts.remove(True)
 
-        latest_pk_path = destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+        latest_pk_path = (
+            destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+        )
         write_latest_pk(
             reader,
             destination,
@@ -737,6 +781,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
             criterion=criterion,
             query=infos.from_("t"),
             write_config=write_config,
+            valid_from=infos.load_timestamp,
         ),
         delta_path=infos.destination / "delta",
         delta_name="delta_1",
@@ -938,6 +983,7 @@ def _write_delta2(
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
                 source_dialect=infos.write_config.dialect,
+                valid_from=infos.load_timestamp,
             )
         )
         sql = infos.from_("t").select(*selects).sql(write_config.dialect)
@@ -1132,6 +1178,7 @@ def _handle_additional_updates(
             criterion=criterion,
             query=infos.from_("t"),
             write_config=write_config,
+            valid_from=infos.load_timestamp,
         )
         logger.info(
             "execute sql", load="delta", sub_load="delta_1_additional", sql=upds_sql
@@ -1190,6 +1237,7 @@ def _get_update_sql(
     criterion: Union[Sequence[ex.Expression], ex.Expression, None],
     query: ex.Select,
     write_config: WriteConfig,
+    valid_from: Optional[ex.Expression] = None,
 ):
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
@@ -1206,6 +1254,7 @@ def _get_update_sql(
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
                 source_dialect=write_config.dialect,
+                valid_from=valid_from,
             )
         )
         .where(
@@ -1274,6 +1323,7 @@ def do_full_load(
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
                 source_dialect=infos.write_config.dialect,
+                valid_from=infos.load_timestamp,
             )
         )
         .sql(write_config.dialect)
