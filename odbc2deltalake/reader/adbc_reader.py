@@ -222,13 +222,13 @@ class ADBCReader(DataSourceReader):
         import pyarrow as pa
         from deltalake import write_deltalake
         from deltalake.exceptions import DeltaError
+        from odbc2deltalake.read_utils.duckdb_utils import duckdb_arrow_reader
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
 
         with self.duck_con.cursor() as cur:
-            cur.execute(sql.sql(self.query_dialect))
             dp, do = delta_path.as_path_options("object_store")
-            batch_reader = cur.fetch_record_batch()
+            batch_reader = duckdb_arrow_reader(cur, sql.sql(self.query_dialect))
             schema = batch_reader.schema
             fields = []
             must_fix_tz = False
@@ -397,11 +397,14 @@ class ADBCReader(DataSourceReader):
         merge_cols: Sequence[str],
     ):
         import duckdb
+        from odbc2deltalake.read_utils.duckdb_utils import duckdb_arrow_reader
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
 
         with self.duck_con.cursor() as cursor:
-            cursor.execute(local_sql_source.sql(self.query_dialect))
+            src_reader = duckdb_arrow_reader(
+                cursor, local_sql_source.sql(self.query_dialect)
+            )
 
             dt = target_delta.as_delta_table()
             if isinstance(dt, Path):
@@ -410,7 +413,7 @@ class ADBCReader(DataSourceReader):
                 dt = DeltaTable(dt)
             res = (
                 dt.merge(
-                    cursor.fetch_record_batch(),
+                    src_reader,
                     sg.and_(
                         *[
                             sg.column(mc, "tgt", quoted=True).eq(

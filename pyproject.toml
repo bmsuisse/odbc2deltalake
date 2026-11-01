@@ -36,6 +36,13 @@ local_azure = [
 ]
 postgres = ["adbc-driver-postgresql>=1.7.0"]
 mssql = ["pyodbc >=5.1.0,<6"]
+arrowsql = [
+    "arrowsql >=0.1.0; python_version >= '3.10'",
+    "deltalake2db[deltalake] >=0.9.3",
+    "duckdb",
+    "pyarrow >=16.1",
+    "deltalake >=0.17.1",
+]
 adbc = ["adbc-driver-manager>=1.7.0"]
 
 [build-system]

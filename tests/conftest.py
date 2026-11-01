@@ -17,12 +17,37 @@ source_server: Final[Literal["mssql", "postgres"]] = (
     "mssql" if not use_postgres else "postgres"
 )
 
+
+def _pyodbc_has_driver() -> bool:
+    try:
+        import pyodbc
+
+        return len(pyodbc.drivers()) > 0
+    except ImportError:  # pyodbc or unixODBC not installed
+        return False
+
+
+# The "arrowsql" test configuration reads the source through arrowsql (no ODBC driver needed).
+# The test setup (and the spark config, which reads via JDBC) uses arrowsql instead of pyodbc
+# for its own connections if there is no ODBC driver on the machine.
+use_arrowsql = source_server == "mssql" and (
+    (os.getenv("ODBCLAKE_TEST_CONFIGURATION") or "").lower() == "arrowsql"
+    or not _pyodbc_has_driver()
+)
+
 logger = logging.getLogger(__name__)
 
 
 def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
     try:
         if source_server == "mssql":
+            if use_arrowsql:
+                import arrowsql
+                from odbc2deltalake.reader.arrowsql_reader import strip_odbc_driver
+
+                return arrowsql.connect(
+                    strip_odbc_driver(conn_str), autocommit=autocommit
+                )
             import pyodbc
 
             return pyodbc.connect(conn_str, autocommit=autocommit)
@@ -70,7 +95,7 @@ class DB_Connection:
                     "UID": "sa",
                     "PWD": "MyPass@word4tests",
                 },
-                odbc=True,
+                odbc=not use_arrowsql,
             )
             self.conn_str_master = conn_str
             for cfg in configs:

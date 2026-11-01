@@ -114,6 +114,9 @@ class WriteConfigAndInfos:
     source: DataSourceReader
     table_or_query: Union[ex.Query, tuple[str, str], str]
     logger: DeltaLogger
+    load_timestamp: Union[ex.Alias, None] = None
+    """The `__timestamp` select expression of this load, a literal fixed once at the start of the load.
+    If None, the source evaluates its own clock per query (wrong if a reader splits one load into several queries)."""
 
     def execute(self):
         from .db_to_delta import exec_write_db_to_delta

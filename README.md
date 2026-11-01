@@ -55,6 +55,23 @@ reader = SparkReader(spark=spark, sql_config={ # see https://docs.databricks.com
 write_db_to_delta(reader, ("dbo", "user"), dest)
 ```
 
+### Usage with arrowsql (no ODBC driver)
+
+[arrowsql](https://pypi.org/project/arrowsql/) is a Rust TDS driver for SQL Server with native Arrow output, so no ODBC driver has to be installed. `ArrowSQLReader` is a drop-in replacement for the default reader: same local engine (DuckDB + delta-rs), but every read from SQL Server goes through arrowsql. Requires Python 3.10+.
+
+`pip install odbc2deltalake[arrowsql]`
+
+```python
+from pathlib import Path
+from odbc2deltalake import write_db_to_delta
+from odbc2deltalake.reader.arrowsql_reader import ArrowSQLReader
+
+reader = ArrowSQLReader("Server=myhost,1433;Database=mydb;Uid=me;Pwd=secret;Encrypt=yes")
+write_db_to_delta(reader, ("dbo", "user"), Path("YOUR_TARGET_PATH"))
+```
+
+An ODBC `Driver=` keyword in the connection string is ignored. The test suite runs against it with `ODBCLAKE_TEST_CONFIGURATION=arrowsql`.
+
 ## Use a query as source
 
 Instead of reading from a table/view, you can also read from a query. To use, pass a sqlglot Query instance, like so:
