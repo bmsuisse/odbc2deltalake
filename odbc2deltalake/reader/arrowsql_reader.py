@@ -1,5 +1,5 @@
 import re
-from typing import TYPE_CHECKING, Literal, Union
+from typing import TYPE_CHECKING, Literal, Optional, Union
 
 import sqlglot.expressions as ex
 
@@ -30,6 +30,10 @@ def _normalize_schema(schema: "pa.Schema") -> "pa.Schema":
             return pa.string()
         if pat.is_large_binary(t):
             return pa.binary()
+        if pat.is_time(t):
+            return pa.string()  # Delta has no time type, ODBC delivers it as text
+        if pat.is_timestamp(t) and t.tz is not None and t.tz != "UTC":
+            return pa.timestamp(t.unit, tz="UTC")  # datetimeoffset, Delta wants UTC
         if pat.is_uint8(t):
             return pa.int16()  # tinyint is unsigned in T-SQL, see write_init.py
         return t
@@ -37,6 +41,27 @@ def _normalize_schema(schema: "pa.Schema") -> "pa.Schema":
     return pa.schema(
         [pa.field(f.name, _t(f.type), f.nullable, f.metadata) for f in schema]
     )
+
+
+def _format_time(v) -> Optional[str]:
+    if v is None:
+        return None
+    return f"{v.hour:02d}:{v.minute:02d}:{v.second:02d}.{v.microsecond:06d}0"
+
+
+def _normalize_batch(batch: "pa.RecordBatch", target: "pa.Schema") -> "pa.RecordBatch":
+    import pyarrow as pa
+    import pyarrow.types as pat
+
+    arrays = []
+    for col, field in zip(batch.columns, target):
+        if pat.is_time(col.type) and pat.is_string(field.type):
+            arrays.append(
+                pa.array([_format_time(v) for v in col.to_pylist()], field.type)
+            )
+        else:
+            arrays.append(col.cast(field.type))
+    return pa.RecordBatch.from_arrays(arrays, schema=target)
 
 
 class ArrowSQLReader(ODBCReader):
@@ -68,7 +93,7 @@ class ArrowSQLReader(ODBCReader):
         if target.equals(reader.schema):
             return reader
         return pa.RecordBatchReader.from_batches(
-            target, (b.cast(target) for b in reader)
+            target, (_normalize_batch(b, target) for b in reader)
         )
 
     def source_schema_limit_one(
