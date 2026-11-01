@@ -17,12 +17,25 @@ source_server: Final[Literal["mssql", "postgres"]] = (
     "mssql" if not use_postgres else "postgres"
 )
 
+# the "arrowsql" test configuration reads the source through arrowsql (no ODBC driver needed)
+use_arrowsql = (
+    source_server == "mssql"
+    and (os.getenv("ODBCLAKE_TEST_CONFIGURATION") or "").lower() == "arrowsql"
+)
+
 logger = logging.getLogger(__name__)
 
 
 def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
     try:
         if source_server == "mssql":
+            if use_arrowsql:
+                import arrowsql
+                from odbc2deltalake.reader.arrowsql_reader import strip_odbc_driver
+
+                return arrowsql.connect(
+                    strip_odbc_driver(conn_str), autocommit=autocommit
+                )
             import pyodbc
 
             return pyodbc.connect(conn_str, autocommit=autocommit)
@@ -70,7 +83,7 @@ class DB_Connection:
                     "UID": "sa",
                     "PWD": "MyPass@word4tests",
                 },
-                odbc=True,
+                odbc=not use_arrowsql,
             )
             self.conn_str_master = conn_str
             for cfg in configs:

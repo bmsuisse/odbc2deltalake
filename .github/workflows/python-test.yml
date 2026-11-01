@@ -37,8 +37,11 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.11"]
-        test_config: ["local", "spark", "azure"]
+        test_config: ["local", "spark", "azure", "arrowsql"]
         database: ["postgres", "mssql"]
+        exclude:
+          - test_config: arrowsql
+            database: postgres
 
     steps:
       - uses: actions/checkout@v3
@@ -49,7 +52,7 @@ jobs:
       - uses: Yarden-zamir/install-mssql-odbc@main
         with:
           ODBC_VERSION: 18
-        if: matrix.database == 'mssql'
+        if: matrix.database == 'mssql' && matrix.test_config != 'arrowsql'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -60,8 +63,11 @@ jobs:
       - name: Test beeing able to import
         if: matrix.test_config == 'spark'
         run: uv run ./test_spark_import.py
+      - name: Install project dependencies (arrowsql, no ODBC driver)
+        if: matrix.test_config == 'arrowsql'
+        run: uv sync --extra arrowsql --group test --group dev
       - name: Install project dependencies
-        if: matrix.test_config != 'spark'
+        if: matrix.test_config != 'spark' && matrix.test_config != 'arrowsql'
         run: uv sync --extra local --extra local_azure --group test --group dev  --extra ${{matrix.database}}
       - name: Test with pytest
         run: uv run -m pytest --maxfail=3 --cov=odbc2deltalake tests

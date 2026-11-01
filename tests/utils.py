@@ -106,6 +106,14 @@ def get_test_run_configs(
 
     def _local_reader(connection, config):
         if connection.source_server in ["tsql", "mssql"]:
+            if config == "arrowsql":
+                from odbc2deltalake.reader.arrowsql_reader import ArrowSQLReader
+
+                return ArrowSQLReader(
+                    connection.conn_str[config],
+                    f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
+                    source_dialect=connection.dialect,
+                )
             from odbc2deltalake.reader.odbc_reader import ODBCReader
 
             return ODBCReader(
@@ -133,6 +141,12 @@ def get_test_run_configs(
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "local").lower() == "local":
         cfg["local"] = (
             _local_reader(connection, "local"),
+            FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
+        )
+    if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "local").lower() == "arrowsql":
+        os.makedirs("tests/_db/_arrowsql/" + sub_path, exist_ok=True)
+        cfg["arrowsql"] = (
+            _local_reader(connection, "arrowsql"),
             FileSystemDestination(Path(f"tests/_data/{tbl_dest_name}")),
         )
     if spark_session is not None:

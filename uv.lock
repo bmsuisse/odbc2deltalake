@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 5
 requires-python = ">=3.9, <4"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -231,6 +231,69 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/81/b4/bae24233c2fb08468b5a540b3dcbcc736f430d252c9fec30fde0d425a4a2/arrow_odbc-9.1.0-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:4fe923f85a8c4d63d342a76aee7b920f3c3ab8de0fbb58ed90b42a9859e00f1e", size = 868171, upload-time = "2025-06-22T23:34:13.198Z" },
     { url = "https://files.pythonhosted.org/packages/0d/fe/e91cddaf4c6d2345b3e706d131158332c2dfdbb6b4aea678ff900fc8143e/arrow_odbc-9.1.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:ad93697793af19b3359a7238b6da00ccf3d6a9c60e0ab8313769aa6552ea7874", size = 897596, upload-time = "2025-06-22T23:34:07.461Z" },
     { url = "https://files.pythonhosted.org/packages/51/76/d6cbf167e0244cf34fdf21167748952cfcee3b1012245fc8a53bc12ab3d3/arrow_odbc-9.1.0-py3-none-win_amd64.whl", hash = "sha256:e2e815b29903fcdbfea95457e15ace0fa0055833a28ffac438af2d247dbbdc0b", size = 636513, upload-time = "2025-06-22T23:33:40.712Z" },
+]
+
+[[package]]
+name = "arrowsql"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/67/30cd04f42b62538e376f165264dc4dfbda70ff8b6c3ed92b26ed144d6115/arrowsql-0.2.0.tar.gz", hash = "sha256:92dba8038091b85b8cc0f0ce6521904bacceb4652a4ab2fd7c729b3bd3fa0acb", size = 1904234, upload-time = "2026-11-01T17:37:59.23Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/af/b1dfbaefb7c095b3137eacee968293ce644afe77ffa9b64cf42d44b0917f/arrowsql-0.2.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:4962c6880d20f94bb7bbe10ff0acbb1cf2d80c5e4937e7ab35a3d58cf3ea0922", size = 3871402, upload-time = "2026-11-01T17:36:26.301Z" },
+    { url = "https://files.pythonhosted.org/packages/29/a3/a9556d9d645b8a9f1e6353299274edcf8e66dc462723c9534113089f842f/arrowsql-0.2.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:29f1426278bb0aa4a5f51e14f72deccb2ed06a43b0af9769a0b304851aba226e", size = 3624972, upload-time = "2026-11-01T17:36:28.034Z" },
+    { url = "https://files.pythonhosted.org/packages/78/70/6e268d0ac91c121a77979564fe273c313b98a2355f5cd5dfed3cc2bdd391/arrowsql-0.2.0-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:4cd25c2e8c64e5df8b8465b220d8eda82e282a2c4b586d2bfe1f488f59ff0cc9", size = 3758129, upload-time = "2026-11-01T17:36:29.648Z" },
+    { url = "https://files.pythonhosted.org/packages/39/78/20e30971572ac62c0859b15574d74e38f16c27ccdbd4db7d3624c5f4942e/arrowsql-0.2.0-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:94476c6031b3ddf622a4594e6466af54b1f1118f0afa9953aa6c4f4fda37b40e", size = 3899743, upload-time = "2026-11-01T17:36:31.178Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/22/48df3bc55236d4581ddc62d36f2a0e1e66f3f8b1caf0e98713c19bb78918/arrowsql-0.2.0-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:296b59372cd45d727ef9532797a60f4e28246bcaac4c49945c892ea9f8dcf746", size = 3934776, upload-time = "2026-11-01T17:36:32.974Z" },
+    { url = "https://files.pythonhosted.org/packages/6e/bd/51b77de6527f9a30d6acd1dadfb87ea86b89c9a2e34ac342180636785bb9/arrowsql-0.2.0-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:940c68eba51f22469a300d1236ee487c4c7dbd7d2de2611dc6529831d623b004", size = 4142265, upload-time = "2026-11-01T17:36:34.589Z" },
+    { url = "https://files.pythonhosted.org/packages/07/ba/59ba77b39efb3ae838a0087b76a296ab0e0f05d03b75783d0bab917208c6/arrowsql-0.2.0-cp310-cp310-win_amd64.whl", hash = "sha256:e9cc48ef76d165c5f7d5bb1599f1ed05de85cef61dfc1194b3292e0db84f9862", size = 3336460, upload-time = "2026-11-01T17:36:36.349Z" },
+    { url = "https://files.pythonhosted.org/packages/42/9d/5945fbddb36d3d6fdf5c60d94809d412fcbac03ff06ea0f41ee7a9945f0b/arrowsql-0.2.0-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:eb3857cdc093eff21fde1343f7fe2898ac7d8611caeaf6480bf71b32dc8c7407", size = 3870485, upload-time = "2026-11-01T17:36:38.028Z" },
+    { url = "https://files.pythonhosted.org/packages/71/0e/cd5207128c06190c122218ac95b4b65a9c941942017ae3823b5ae7970fe6/arrowsql-0.2.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:89457524864788a0f44b260cb5ebe32d67069fb7b6ca661d89dcf080b26c4ed6", size = 3623164, upload-time = "2026-11-01T17:36:39.587Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/10/22f8ed6c2e00410054f4eebae1a6cc1df1093823cddcb9b2ddfc23dfcd1c/arrowsql-0.2.0-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:112a201da8ab253546aec3c670648236dede4695ac85f27780953e7a78351735", size = 3756283, upload-time = "2026-11-01T17:36:41.524Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/24/99fb0fd403f510186493e529d869bc643342195b1c6c2bc229dd76337a4b/arrowsql-0.2.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:5c9d4f4d74981aaf713b6d8811b004fd81b889256e891022097c97fffbf88945", size = 3898360, upload-time = "2026-11-01T17:36:43.296Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/11/7b37ab64cf14b462e71de9ff26597f86d9d2178907bef7a05c1a0564a386/arrowsql-0.2.0-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:88315adf367ae9602c8298ff56824939902d27dc4fe30a34994682c35f48985e", size = 3933319, upload-time = "2026-11-01T17:36:45.157Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/47/d04309550053ffeb6de38b2d42713820977d5b752214fad10bdaab817aa1/arrowsql-0.2.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:4f5217eb65aa4e9d7f151844a5d9c3ca788f11420c0ecb43edb011634a60ad3c", size = 4141214, upload-time = "2026-11-01T17:36:46.671Z" },
+    { url = "https://files.pythonhosted.org/packages/63/71/99ecf3d42d70fdbece3952997eb5807875ceadee6cfc07861dd863784062/arrowsql-0.2.0-cp311-cp311-win_amd64.whl", hash = "sha256:e9aaec9b74e793370f5954844a2e704d2182b2005a92c61be0c3ec915b89d02c", size = 3335182, upload-time = "2026-11-01T17:36:48.822Z" },
+    { url = "https://files.pythonhosted.org/packages/14/fd/07ea66b53c63b6620abc7b8386bc31335c1dc32f760305f6df9d71449e94/arrowsql-0.2.0-cp311-cp311-win_arm64.whl", hash = "sha256:f17c8ab3296d89acd8270500211b28f77c0ec1f36bf2b8cfb866f0d0d1b76eb3", size = 3140748, upload-time = "2026-11-01T17:36:50.717Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/f5/d08c26fb9f740fef1b61878f6cee11450d6497df0658d3c1ca2e5b01d3dd/arrowsql-0.2.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:3eedee3945d9081a5a0cc3cd8f35f623004b4a5d2e1dbbe450f489efe1488a42", size = 3887937, upload-time = "2026-11-01T17:36:52.553Z" },
+    { url = "https://files.pythonhosted.org/packages/89/46/1434df8522387204f921a8eb4af0632272a17218cd4105e4de15126059db/arrowsql-0.2.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:941e7d75b31e9ef727a432b982a4ebb2811b7b77083687c27480c9d739400ee9", size = 3616508, upload-time = "2026-11-01T17:36:54.598Z" },
+    { url = "https://files.pythonhosted.org/packages/6d/8e/e9f0a9e15f51d6f08d438b4ad53dcd39c78f50dfbece0d8ffa40a1585558/arrowsql-0.2.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:d43aa0f84452c513d49a809749f6d48894749aaf5150c6508a5a987b5f460686", size = 3758477, upload-time = "2026-11-01T17:36:56.133Z" },
+    { url = "https://files.pythonhosted.org/packages/99/20/c70482b32896502fc86959da6715b554c51d972c36d124a5c37cc8ecb003/arrowsql-0.2.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:75030c7b41dd158f990183d0326125dbf1df0784adc53dd62b74d8aa9bedec52", size = 3900501, upload-time = "2026-11-01T17:36:57.998Z" },
+    { url = "https://files.pythonhosted.org/packages/48/35/efeafcefc498e9029e380e98776ffb76a6f5c54c9a4f83497b68f3249bce/arrowsql-0.2.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:bba0bf5eae54aaecd472706cf14b57ad3c3c32756e1847df616a72ae0500d83d", size = 3934075, upload-time = "2026-11-01T17:36:59.614Z" },
+    { url = "https://files.pythonhosted.org/packages/16/29/a08bd82d20d74a49750a13ff7bae7c6959a553386b5bc72bfdf818706d81/arrowsql-0.2.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:5bd241d2c706e74df741830de7775ab3672d75eb9a122002f66e46186e7be145", size = 4143525, upload-time = "2026-11-01T17:37:01.296Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/d0/5c5fa9904b7e33d7911777daa1a19e0122aeb7ddc875900e0b48fde34246/arrowsql-0.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:2d62dd9f7207cd8cbd8ed6026d617db7c860e6be8d326bc0edc0f4def9362aa7", size = 3338252, upload-time = "2026-11-01T17:37:03.107Z" },
+    { url = "https://files.pythonhosted.org/packages/91/c2/b3b73be3a23c96fc859f838f9c1784275e0645e11c0f90f08e230d287f45/arrowsql-0.2.0-cp312-cp312-win_arm64.whl", hash = "sha256:af711cc4bab8b4ae42e48edee5d33672474c2c59d80aac1064fb54aa11d3ff59", size = 3140355, upload-time = "2026-11-01T17:37:04.834Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/be/82dc827876c2b9880bdb79fb001bfb31d2e29a2678317033ec5aeac019fb/arrowsql-0.2.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:f6fb298ea60a77f7467f54937a1145005c4653749fe04ada395cf7fe0a6574a1", size = 3889071, upload-time = "2026-11-01T17:37:06.461Z" },
+    { url = "https://files.pythonhosted.org/packages/56/27/c91fad9250c12d4a46a8f86fec32a6468bc4e45ccef37770047b89ea9603/arrowsql-0.2.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:ac21343edea48aab4f9520361f167744c4f6cb2acf8743393a82585736b92770", size = 3616539, upload-time = "2026-11-01T17:37:08.013Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/dc/6dacb77f1c92085156fe899154c37fe5a7326c62160a45c093a4b96ff206/arrowsql-0.2.0-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:bac4b71a4461bee170a32f24a0b75272f70782e99e8431864c913f4772cd5f05", size = 3758904, upload-time = "2026-11-01T17:37:09.589Z" },
+    { url = "https://files.pythonhosted.org/packages/12/65/0fcbc811d2b798e1afbf5d9acb3e05d48e167684f74adbc1aa72e0f4fbed/arrowsql-0.2.0-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:783cd61b1520ba31a8ed9d6c9022f1aa9bb0e982674068d2e9dc5a8e265198b2", size = 3901707, upload-time = "2026-11-01T17:37:11.138Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/02/6a125b39259666fd750a7d619b6190ad0900cf52a1236b0015a398692ce8/arrowsql-0.2.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:edfbbe78a133c4bd2ab2a5450eddb48bc5e5eb6e076302eda617f06d367f0db5", size = 3935389, upload-time = "2026-11-01T17:37:12.714Z" },
+    { url = "https://files.pythonhosted.org/packages/78/29/320e975cc6495a59c668e9b6ce0add303cb04c7e7bec1b3da5b26aa3b1ba/arrowsql-0.2.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:f275e72255b441251aa16456421af59764b83ef8828986123e1f510a6b625b9d", size = 4144040, upload-time = "2026-11-01T17:37:14.382Z" },
+    { url = "https://files.pythonhosted.org/packages/40/6a/1d13e5bfd0814626064105ec73395ddce30e571f38d94501bcd4e0097b74/arrowsql-0.2.0-cp313-cp313-win_amd64.whl", hash = "sha256:eabeac1fe070d157ffe95f365b1db38701ab2522c7009ea72c3c19852c2cad86", size = 3338978, upload-time = "2026-11-01T17:37:15.92Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/85/da0d9039a245bc579a35384999888daa7e26b89a0bf12c9b1de84976b9c6/arrowsql-0.2.0-cp313-cp313-win_arm64.whl", hash = "sha256:6246549c48ae2abcb3677a41d8375c145d760191ac29df0770e505cfffd766e4", size = 3141309, upload-time = "2026-11-01T17:37:17.322Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/2b/d44deb07925aa8dc25d9feb840a6c7f9f04d682ccb2352b42e5f14bc901e/arrowsql-0.2.0-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:b0d9f801d98fd9eb186309a5e4626523e22dde3f62ab00ebd45b926fc05cc45a", size = 3757949, upload-time = "2026-11-01T17:37:18.752Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/3b/fd3059f63a82a936fa0e939bb05383734833c346667a5da88f5af4f7f924/arrowsql-0.2.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:c4286970180e13c6c85fae0403c1994eef0a90d14cc857efba68943b93da2e3f", size = 3901646, upload-time = "2026-11-01T17:37:20.159Z" },
+    { url = "https://files.pythonhosted.org/packages/06/ec/d3f231d39a8a5cd0d4edba6215d6023fadec7912403ebac6a22bdf6224af/arrowsql-0.2.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:5676d94277b7b007ef660e7d2a17ba4bc47e23370bd31667d8aca0632201a1e5", size = 3934904, upload-time = "2026-11-01T17:37:21.73Z" },
+    { url = "https://files.pythonhosted.org/packages/db/c3/0a1dbf7bc8429fe00b58a9b61cea034468c77ed5048e341769cf5537022a/arrowsql-0.2.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:8dc209aa00bd9d6fc4aaccf399a015c1367d4d045a0ac3c92d63d8537a6d3c34", size = 4144348, upload-time = "2026-11-01T17:37:23.256Z" },
+    { url = "https://files.pythonhosted.org/packages/06/f9/c4d5e4e07033740a3a79d58dc7b98cdc934eac2e0e3866fcaedba097f02e/arrowsql-0.2.0-cp314-cp314-win_arm64.whl", hash = "sha256:1e2924011b98bac878c9cff27ea02d05290a82cdd52a0e23148d2abf0360bd55", size = 3139653, upload-time = "2026-11-01T17:37:24.74Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/a1/913a39f6b76b1fdb7980888d652047ae74da65ee8725124d684ec642251f/arrowsql-0.2.0-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:8f923ba88cfb64e899a8b8080e27388f2828ca8ce12b15bb0fd26dd4552de393", size = 3884024, upload-time = "2026-11-01T17:37:26.495Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/4d/80680c79e98b1605a606bd2073e8928b568217fbf96de4b86f0167c94302/arrowsql-0.2.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:4137de9952fe17c338491787ed54db60229e8eff08868a4219b54466b10133b3", size = 3611613, upload-time = "2026-11-01T17:37:28.028Z" },
+    { url = "https://files.pythonhosted.org/packages/30/a7/352496e2d3ac98003c6067739b9237e982a53e8fed89a6d0067a50f96713/arrowsql-0.2.0-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:d1227b53c287d64720859a7d69db8f557233e1f260402229d6b0a393f597ae85", size = 3749167, upload-time = "2026-11-01T17:37:29.552Z" },
+    { url = "https://files.pythonhosted.org/packages/05/f0/877558966c42521d53c47bd04589551e9e3447f2496533e188a97814778a/arrowsql-0.2.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:342a3a16870d4218a331faf1c5a266bd38247b422d79ad1ea23c0efc332d6fa0", size = 3895555, upload-time = "2026-11-01T17:37:31.1Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/ff/a4e3fbde8e20cbaa96f972660f372fb0351f01c5a479d7b9649d4ac31afe/arrowsql-0.2.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:3c7e4347c1647c206eb6909dbf37ba9c9a4ca9c1b8ad9093554e6fa83649ee8e", size = 3927239, upload-time = "2026-11-01T17:37:33.261Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/b6/0cb8fdf0ab0f52227fa433dd7cb5c2ad3f20f5af918c62b2d505492aac71/arrowsql-0.2.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:245f9eed91d630ec967dcc9a3c129525ffc2edcf742a8d33155b668b1fcfc23e", size = 4138019, upload-time = "2026-11-01T17:37:35.122Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/6d/18dceca238c16aabed454d9fc964b1e69563ea1480029061999cacae7f35/arrowsql-0.2.0-cp314-cp314t-win_amd64.whl", hash = "sha256:72e6b52be068687d9b130e826593f17066518f6a5fb4c29fee44cd8cedb06d06", size = 3333081, upload-time = "2026-11-01T17:37:36.561Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/e8/070c438791ac01919010b69ba098e8744a52d58e57494b93d25d55a0f6ed/arrowsql-0.2.0-cp315-cp315-manylinux_2_28_aarch64.whl", hash = "sha256:e58dfae868e1210c161184a382f02180212c1ce71e14e092c45f83d987b932d0", size = 3758062, upload-time = "2026-11-01T17:37:38.193Z" },
+    { url = "https://files.pythonhosted.org/packages/4a/b9/e40f0c6b62875cf12136f98df342819ee4d1fb1928897184ab69dc431491/arrowsql-0.2.0-cp315-cp315-manylinux_2_28_x86_64.whl", hash = "sha256:33509b70cbbb670fbabc6c7c130ea1c500a7e6d59acdbdfc58ac9f7c17504688", size = 3901820, upload-time = "2026-11-01T17:37:39.86Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/86/73003821a6c5a1912afabd41311613194a607c2431d6ef7d5dae00acb73f/arrowsql-0.2.0-cp315-cp315-musllinux_1_2_aarch64.whl", hash = "sha256:afcfd8f82888045de24ef162332a9c6d218a6ea4e1f1d82d0b7ee4cfa8186793", size = 3934612, upload-time = "2026-11-01T17:37:41.886Z" },
+    { url = "https://files.pythonhosted.org/packages/60/84/b896e0637d003604014eb029a9aab64b2c42dfe623c68b73181fd54606ba/arrowsql-0.2.0-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:0145855941b700a09a364dbc98ba4d260d171048942a6c14ab5bb526f42fc8fa", size = 4144555, upload-time = "2026-11-01T17:37:43.382Z" },
+    { url = "https://files.pythonhosted.org/packages/31/69/c32f2e6e0c13b38954a02301ca3ee72e33dfefc63ce3c8da14875f44da3b/arrowsql-0.2.0-cp315-cp315-win_arm64.whl", hash = "sha256:12de40c5dc23e995c645879c5bf3edfec8571ed447b121ad522ef0ea02c2feb4", size = 3139389, upload-time = "2026-11-01T17:37:45.118Z" },
+    { url = "https://files.pythonhosted.org/packages/76/a0/7c74ece5165990665f4e1f00867da202689df20371a323df9cd6ca7a90fb/arrowsql-0.2.0-cp315-cp315t-macosx_10_12_x86_64.whl", hash = "sha256:9cb73dcbe6225315a0cb42bb3db384125995da017158ff4b1c44c90970b9fb14", size = 3884141, upload-time = "2026-11-01T17:37:46.571Z" },
+    { url = "https://files.pythonhosted.org/packages/71/b4/abfc54e7731ee9cdaa09a26a6236801609004a9158fa3af357f9e4870082/arrowsql-0.2.0-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:534a5f92886ae74baec1d630e7e8b303eca5fcf9524adcdcbd48824bfc4f43db", size = 3611492, upload-time = "2026-11-01T17:37:48.581Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/90/605cec76580ca96dfcf31a226e1a07663e567a2adc5461f0246f1d6acab7/arrowsql-0.2.0-cp315-cp315t-manylinux_2_28_aarch64.whl", hash = "sha256:dcc681d2124f8cf3d57bc14a3438f690f802f83a740dd9eba30c73fa92e2f73b", size = 3748984, upload-time = "2026-11-01T17:37:50.267Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/f3/9b33cf8d91ba619c9ab29883206e7a013fc3dd0fa30b0d70b8650cd06064/arrowsql-0.2.0-cp315-cp315t-manylinux_2_28_x86_64.whl", hash = "sha256:0d711609d3ae41178285eb995815f98b03e81c4340362711286cd6c3114cd945", size = 3895443, upload-time = "2026-11-01T17:37:51.94Z" },
+    { url = "https://files.pythonhosted.org/packages/82/a5/1485949fa4cc1e05e1b77dcfaef0d0a143a26b693049e21007366c142293/arrowsql-0.2.0-cp315-cp315t-musllinux_1_2_aarch64.whl", hash = "sha256:540eff8abde136ab872fb7ec71a79e29be4458b10a968f989b64857386346b18", size = 3927237, upload-time = "2026-11-01T17:37:54.049Z" },
+    { url = "https://files.pythonhosted.org/packages/60/d9/ccadc3bbb63ecdba90945da06f818b611235942ee365d93503271832fe40/arrowsql-0.2.0-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:97eee5ace82db46e07a8d7b6b317ad6271c40e4153b11fdd68775a16bcca0700", size = 4138009, upload-time = "2026-11-01T17:37:56.112Z" },
+    { url = "https://files.pythonhosted.org/packages/93/55/d19ff8cef9364c1b7be90976ad714cbdf4a33fcce8acba5b5ddbaf5b873f/arrowsql-0.2.0-cp315-cp315t-win_amd64.whl", hash = "sha256:c6dfc95eed9731154dfa823f7e41a86f0732185606b6c88611b5682e1c98a3aa", size = 3333052, upload-time = "2026-11-01T17:37:57.734Z" },
 ]
 
 [[package]]
@@ -723,7 +786,7 @@ name = "exceptiongroup"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/a65090624ecf468cdca03533906e7c69ed7588582240cfe7cc9e770b50eb/exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88", size = 29749, upload-time = "2025-05-10T17:42:51.123Z" }
 wheels = [
@@ -1240,7 +1303,7 @@ wheels = [
 
 [[package]]
 name = "odbc2deltalake"
-version = "0.13.0"
+version = "0.14.3"
 source = { editable = "." }
 dependencies = [
     { name = "azure-identity" },
@@ -1251,6 +1314,13 @@ dependencies = [
 [package.optional-dependencies]
 adbc = [
     { name = "adbc-driver-manager" },
+]
+arrowsql = [
+    { name = "arrowsql", marker = "python_full_version >= '3.10'" },
+    { name = "deltalake" },
+    { name = "deltalake2db", extra = ["deltalake"] },
+    { name = "duckdb" },
+    { name = "pyarrow" },
 ]
 local = [
     { name = "arrow-odbc" },
@@ -1311,15 +1381,20 @@ requires-dist = [
     { name = "arrow-odbc", marker = "extra == 'local'" },
     { name = "arrow-odbc", marker = "extra == 'local'", specifier = ">=5.0.0" },
     { name = "arrow-odbc", marker = "extra == 'local-azure'", specifier = ">=5.0.0" },
+    { name = "arrowsql", marker = "python_full_version >= '3.10' and extra == 'arrowsql'", specifier = ">=0.1.0" },
     { name = "azure-identity", specifier = ">=1.15.0,<2" },
     { name = "azure-identity", marker = "extra == 'local-azure'" },
     { name = "azure-storage-file-datalake", marker = "extra == 'local-azure'" },
+    { name = "deltalake", marker = "extra == 'arrowsql'", specifier = ">=0.17.1" },
     { name = "deltalake", marker = "extra == 'local'" },
     { name = "deltalake", marker = "extra == 'local'", specifier = ">=0.17.1" },
     { name = "deltalake", marker = "extra == 'local-azure'", specifier = ">=0.17.1" },
+    { name = "deltalake2db", extras = ["deltalake"], marker = "extra == 'arrowsql'", specifier = ">=0.9.3" },
     { name = "deltalake2db", extras = ["deltalake"], marker = "extra == 'local'", specifier = ">=0.9.3" },
     { name = "deltalake2db", extras = ["deltalake"], marker = "extra == 'local-azure'", specifier = ">=0.9.3" },
+    { name = "duckdb", marker = "extra == 'arrowsql'" },
     { name = "duckdb", marker = "extra == 'local'" },
+    { name = "pyarrow", marker = "extra == 'arrowsql'", specifier = ">=16.1" },
     { name = "pyarrow", marker = "extra == 'local'", specifier = ">=16.1" },
     { name = "pyarrow", marker = "extra == 'local-azure'", specifier = ">=16.1" },
     { name = "pydantic", specifier = ">=1.10.0" },
@@ -1328,7 +1403,7 @@ requires-dist = [
     { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=5.1.0,<6" },
     { name = "sqlglot", specifier = ">=23.17.0" },
 ]
-provides-extras = ["local", "local-azure", "postgres", "mssql", "adbc"]
+provides-extras = ["local", "local-azure", "postgres", "mssql", "arrowsql", "adbc"]
 
 [package.metadata.requires-dev]
 dev = [
