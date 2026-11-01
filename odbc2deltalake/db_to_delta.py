@@ -101,6 +101,13 @@ valid_from_exprs = {
 }
 
 
+def _comparable_ts(value):
+    """Rowversion arrives as bytes from the source, but the local copy holds CAST(rowversion AS BIGINT)."""
+    if isinstance(value, (bytes, bytearray)):
+        return int.from_bytes(value, "big")
+    return value
+
+
 def _fetch_load_timestamp(source: DataSourceReader, dialect: str) -> Optional[ex.Alias]:
     """Reads the clock of the source server once, to use it as `__timestamp` literal in all source queries of a load.
     With a clock function in the source query, a reader that splits the query into slices
@@ -601,7 +608,8 @@ def do_delta_load(
     if (
         delta_load_value is not None
         and source_delta is not None
-        and (delta_load_value, current_count) == (source_delta, source_count)
+        and (_comparable_ts(delta_load_value), current_count)
+        == (_comparable_ts(source_delta), source_count)
     ):
         logger.info("No updates, done")
         return NoLoadResult()
