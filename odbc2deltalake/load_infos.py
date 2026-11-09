@@ -2,7 +2,6 @@ from typing import Any, TYPE_CHECKING
 import sqlglot as sg
 import sqlglot.expressions as ex
 
-from odbc2deltalake.metadata import InformationSchemaColInfo
 
 if TYPE_CHECKING:
     from .write_init import WriteConfigAndInfos
@@ -42,21 +41,25 @@ def get_local_delta_value_and_count(
 
 
 def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos"):
-    def _delta_col(col: InformationSchemaColInfo):
-        col_expr = ex.column(col.column_name, quoted=True)
-        if col.data_type_str == "xid":
-            return ex.cast(
-                ex.cast(col_expr, ex.DataType.Type.TEXT), ex.DataType.Type.BIGINT
-            )
-        return col_expr
+    # MAX over the delta column as the load writes it (e.g. a rowversion cast to bigint), so
+    # it compares with get_local_delta_value_and_count and the "no updates" check can match
+    from .db_to_delta import _get_type_map, _source_convert
 
+    delta_col = infos.delta_col
     pk_ts_col_select = infos.from_("t").select(
         (
             ex.func(
                 "MAX",
-                _delta_col(infos.delta_col),
+                _source_convert(
+                    delta_col.column_name,
+                    delta_col.data_type,
+                    delta_col.data_type_str,
+                    table_alias="t",
+                    type_map=_get_type_map(infos.write_config),
+                    no_trim=infos.write_config.no_trim,
+                ),
             ).as_("max_ts")
-            if infos.delta_col
+            if delta_col
             else ex.convert(None).as_("max_ts")
         ),
         ex.Count(this=ex.Star()).as_("cnt"),
@@ -67,4 +70,5 @@ def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos"):
         sql=pk_ts_col_select.sql(infos.write_config.dialect),
     )
     row = infos.source.source_sql_to_py(sql=pk_ts_col_select)
-    return row[0]["max_ts"], row[0]["cnt"]
+    mt = row[0]["max_ts"]
+    return (bytes(mt) if isinstance(mt, bytearray) else mt), row[0]["cnt"]

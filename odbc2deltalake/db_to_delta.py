@@ -259,6 +259,8 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
                     simple_check=write_config.load_mode == "simple_delta_check",
                 )
         lock_file_path.remove()
+        if isinstance(load_result, NoLoadResult):
+            return load_result  # nothing written, nothing to vacuum
         _vacuum(
             source, destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
         )
