@@ -26,7 +26,7 @@ def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DB_Connection
     import adbc_driver_postgresql.dbapi as adbc_pg
     from odbc2deltalake.reader.adbc_reader import ADBCReader
 
-    connstr = connection.conn_str["local"]
+    connstr = next(iter(connection.conn_str.values()))
     reader_conn = adbc_pg.connect(connstr)
     reader = ADBCReader(reader_conn, local_db=":memory:", source_dialect="postgres")
 

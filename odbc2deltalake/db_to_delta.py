@@ -544,10 +544,7 @@ def do_delta_load(
     if simple and not reader.local_delta_table_exists(
         destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
     ):
-        # simple_delta has no restore-pk fallback (unlike the non-simple path
-        # above): if latest_pk_version was never written (eg the destination
-        # was bootstrapped by a delta_col-less full load), fall back to a
-        # full load instead of crashing later on the missing primary_keys_ts.
+        # eg after initialization: simple_delta has no restore of the primary keys
         logger.warning("latest_pk_version missing for simple_delta, do a full load")
         return do_full_load(infos=infos, mode="append")
 
@@ -625,14 +622,7 @@ def do_delta_load(
             old_pk_version=old_pk_version,
         )
         if isinstance(new_delta_load_value, FullLoadResult):
-            # _handle_additional_updates fell back to a full load (eg the
-            # "additional updates" detection failed and restore_last_pk
-            # also failed). do_full_load already correctly rewrote
-            # latest_pk_version from a fresh read of the source - the
-            # do_deletes/write_latest_pk steps below operate on
-            # delta_1/delta_2/primary_keys_ts computed *before* that
-            # fallback, so running them now would overwrite the correct,
-            # freshly-rebuilt state with one built from stale data.
+            # the full load wrote latest_pk_version, the steps below would overwrite it with stale data
             return new_delta_load_value
         delta_load_value = new_delta_load_value or delta_load_value
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))

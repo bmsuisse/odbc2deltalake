@@ -31,11 +31,7 @@ def _get_default_token(**kwargs) -> str:
     global _token_state
     from azure.identity import DefaultAzureCredential
 
-    # cache key must include the kwargs: different destinations can use
-    # different identities (eg different managed_identity_client_id), and
-    # a single process-wide cache keyed only on "the first credential ever
-    # built" would silently reuse the wrong identity for every destination
-    # after the first.
+    # one credential per identity: destinations can use different managed_identity_client_id
     cache_key = tuple(sorted(kwargs.items()))
     cred: Union[DefaultAzureCredential, None] = _token_state.get(cache_key, None)
     if not cred:

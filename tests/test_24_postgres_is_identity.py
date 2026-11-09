@@ -32,7 +32,7 @@ def test_postgres_identity_column_detected(connection: "DB_Connection"):
     from odbc2deltalake.reader.adbc_reader import ADBCReader
     import adbc_driver_postgresql.dbapi as adbc_pg
 
-    connstr = connection.conn_str["local"]
+    connstr = next(iter(connection.conn_str.values()))
     conn = adbc_pg.connect(connstr, autocommit=True)
     try:
         with conn.cursor() as c:
