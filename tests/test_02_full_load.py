@@ -1,12 +1,11 @@
 from time import sleep
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 from datetime import date
 
 from odbc2deltalake.query import sql_quote_value
-from .utils import config_names, get_test_run_configs
+from .utils import config_names, get_test_run_configs, create_delta_view
 
 
 if TYPE_CHECKING:
@@ -34,9 +33,9 @@ def test_first_load_always_full(
 
     time.sleep(2)
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_long_table_name_temp",
             use_delta_ext=conf_name == "spark",
         )
@@ -71,9 +70,9 @@ def test_first_load_always_full(
     )
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_long_table_name",
             use_delta_ext=conf_name == "spark",
         )

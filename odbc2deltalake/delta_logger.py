@@ -22,6 +22,8 @@ class DeltaStorageBackend(StorageBackend):
             self.flush()
 
     def flush(self):
+        if not self._pending_logs:
+            return
         dummy = LogMessage(
             message="",
             type="",

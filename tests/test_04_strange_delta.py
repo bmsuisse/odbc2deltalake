@@ -1,9 +1,13 @@
 import os
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+from .utils import (
+    write_db_to_delta_with_check,
+    config_names,
+    get_test_run_configs,
+    create_delta_view,
+)
 import sqlglot as sg
 
 if TYPE_CHECKING:
@@ -67,9 +71,9 @@ def test_strange_delta(
                 )
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_user3_scd2_temp",
             use_delta_ext=conf_name == "spark",
         )
@@ -92,17 +96,15 @@ def test_strange_delta(
     )
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_user3_scd2",
             use_delta_ext=conf_name == "spark",
         )
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (
-                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).as_delta_table(),
+            dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
             "v_latest_pk_user3",
             use_delta_ext=conf_name == "spark",
         )
@@ -155,9 +157,9 @@ def test_strange_delta_sys(
 
     time.sleep(2)
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_company2_temp",
             use_delta_ext=conf_name == "spark",
         )
@@ -195,17 +197,15 @@ def test_strange_delta_sys(
     write_db_to_delta_with_check(reader, ("dbo", "company2"), dest)
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_company2_scd2",
             use_delta_ext=conf_name == "spark",
         )
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (
-                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).as_delta_table(),
+            dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
             "v_latest_pk_company2",
             use_delta_ext=conf_name == "spark",
         )
