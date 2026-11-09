@@ -83,6 +83,7 @@ test = [
     "pyarrow >=16.1",
     "duckdb",
     "deltalake2db >=1.0.0",
+    "deltalake >=0.22.3",
     "fsspec",
 ]
 spark = ["delta-spark >=3.2.0,<4", "pyspark >=3.5.1,<4"]

@@ -1283,6 +1283,7 @@ spark = [
 test = [
     { name = "azure-storage-blob" },
     { name = "delta-spark" },
+    { name = "deltalake" },
     { name = "deltalake2db" },
     { name = "docker" },
     { name = "duckdb" },
@@ -1336,6 +1337,7 @@ spark = [
 test = [
     { name = "azure-storage-blob", specifier = ">=12.19.1,<13" },
     { name = "delta-spark", specifier = ">=3.2.0,<4" },
+    { name = "deltalake", specifier = ">=0.22.3" },
     { name = "deltalake2db", specifier = ">=1.0.0" },
     { name = "docker", specifier = ">=7.0.0,<8" },
     { name = "duckdb" },
