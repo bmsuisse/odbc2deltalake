@@ -1,10 +1,14 @@
 import time
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 import sqlglot as sg
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+from .utils import (
+    write_db_to_delta_with_check,
+    config_names,
+    get_test_run_configs,
+    create_delta_view,
+)
 import sqlglot.expressions as ex
 
 if TYPE_CHECKING:
@@ -71,9 +75,9 @@ def test_first_load_timestamp(
     )
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_user",
             use_delta_ext=conf_name == "spark",
         )
@@ -86,11 +90,9 @@ def test_first_load_timestamp(
             "select data_type from information_Schema.columns where table_name='v_user' and lower(column_name)='age'"
         ).fetchall()[0]
         assert age_dt[0].upper() == "DOUBLE"
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (
-                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).as_delta_table(),
+            dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
             "v_latest_pk",
             use_delta_ext=conf_name == "spark",
         )

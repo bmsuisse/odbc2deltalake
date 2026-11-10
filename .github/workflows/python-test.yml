@@ -68,3 +68,34 @@ jobs:
         env:
           ODBCLAKE_TEST_CONFIGURATION: ${{ matrix.test_config }}
           ODBCLAKE_TEST_SOURCE_SERVER: ${{matrix.database}}
+  test_latest_deltalake:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+        database: ["postgres", "mssql"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: Yarden-zamir/install-mssql-odbc@main
+        with:
+          ODBC_VERSION: 18
+        if: matrix.database == 'mssql'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+      - name: Install project dependencies
+        run: uv sync --extra local --extra local_azure --group test --group dev --extra ${{matrix.database}}
+      - name: Upgrade to the newest deltalake
+        run: uv pip install --upgrade deltalake deltalake2db
+      - name: Test with pytest
+        run: uv run --no-sync -m pytest --maxfail=3 --cov=odbc2deltalake tests
+        env:
+          ODBCLAKE_TEST_CONFIGURATION: local
+          ODBCLAKE_TEST_SOURCE_SERVER: ${{matrix.database}}

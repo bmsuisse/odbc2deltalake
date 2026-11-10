@@ -1,8 +1,12 @@
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+from .utils import (
+    write_db_to_delta_with_check,
+    config_names,
+    get_test_run_configs,
+    create_delta_view,
+)
 import sqlglot as sg
 
 if TYPE_CHECKING:
@@ -63,9 +67,9 @@ def test_insert_while_load(
     time.sleep(2)
 
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_user_scd2",
             use_delta_ext=conf_name == "spark",
         )
@@ -74,9 +78,9 @@ def test_insert_while_load(
             'SELECT * from v_user_scd2 where "User_-_iD"=98'
         ).fetchall()
         assert len(name_tuples) == 0
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta_load/latest_pk_version").as_delta_table(),
+            dest / "delta_load/latest_pk_version",
             "v_user_lpk",
             use_delta_ext=conf_name == "spark",
         )

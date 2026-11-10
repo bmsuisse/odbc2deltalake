@@ -14,23 +14,23 @@ requires-python = "~=3.9"
 
 [project.optional-dependencies]
 local = [
-    "deltalake2db[deltalake] >=0.9.3",
+    "deltalake2db >=1.0.0",
     "arrow-odbc",
     "deltalake",
     "duckdb",
     "arrow-odbc >=5.0.0",
     "pyarrow >=16.1",
-    "deltalake >=0.17.1",
+    "deltalake >=0.22.3",
     "pyodbc >=5.1.0,<6",
 ]
 local_azure = [
     "azure-identity",
     "adlfs",
-    "deltalake2db[deltalake] >=0.9.3",
+    "deltalake2db >=1.0.0",
     "arrow-odbc >=5.0.0",
     "azure-storage-file-datalake",
     "pyarrow >=16.1",
-    "deltalake >=0.17.1",
+    "deltalake >=0.22.3",
     "adlfs >=2024.2.0,<2025",
     "pyodbc >=5.1.0,<6",
 ]
@@ -82,7 +82,8 @@ test = [
     "delta-spark >=3.2.0,<4",
     "pyarrow >=16.1",
     "duckdb",
-    "deltalake2db >=0.10.2",
+    "deltalake2db >=1.0.0",
+    "deltalake >=0.22.3",
     "fsspec",
 ]
 spark = ["delta-spark >=3.2.0,<4", "pyspark >=3.5.1,<4"]

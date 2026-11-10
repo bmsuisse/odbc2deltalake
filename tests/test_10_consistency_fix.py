@@ -1,11 +1,15 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import duckdb_create_view_for_delta
 import duckdb
 
 from odbc2deltalake.reader.spark_reader import SparkReader
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+from .utils import (
+    write_db_to_delta_with_check,
+    config_names,
+    get_test_run_configs,
+    create_delta_view,
+)
 
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
@@ -67,9 +71,9 @@ def test_delta_query(
 
     write_db_to_delta_with_check(reader, ("dbo", "user6"), dest, write_config=config)
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_user_scd2",
             use_delta_ext=conf_name == "spark",
         )
