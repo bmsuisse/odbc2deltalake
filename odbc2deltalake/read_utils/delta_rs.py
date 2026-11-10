@@ -19,6 +19,14 @@ def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
     return sc
 
 
+def _to_pyarrow_schema(delta_schema) -> "pa.Schema":
+    import pyarrow as pa
+
+    if hasattr(delta_schema, "to_pyarrow"):  # deltalake < 1.0
+        return delta_schema.to_pyarrow()
+    return pa.schema(delta_schema)
+
+
 def _get_type(tp: "pa.DataType"):
     import pyarrow.types as pat
 
@@ -134,7 +142,7 @@ class DeltaRSDeltaOps(DeltaOps):
         self.delta_table.restore(target)
 
     def set_properties(self, props: dict[str, str]):
-        self.delta_table.delete("1=0", custom_metadata=props)
+        self.delta_table.alter.set_table_properties(props, raise_if_not_exists=False)
 
     def get_property(self, key: str):
         return self.delta_table.metadata().configuration.get(key, None)

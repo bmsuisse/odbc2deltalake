@@ -6,6 +6,7 @@ from odbc2deltalake.read_utils.delta_rs import (
     _all_nullable,
     _build_type,
     _get_type,
+    _to_pyarrow_schema,
 )
 from odbc2deltalake.reader.reader import DeltaOps
 from .reader import DataSourceReader
@@ -84,14 +85,10 @@ class ADBCReader(DataSourceReader):
         from deltalake2db import duckdb_create_view_for_delta
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
-        dt = delta_path.as_delta_table()
-        if version is not None:
-            if isinstance(dt, Path):
-                from deltalake import DeltaTable
-
-                dt = DeltaTable(dt)
-            dt.load_as_version(version)
-        duckdb_create_view_for_delta(self.duck_con, dt, view_name)
+        dp, do = delta_path.as_path_options("object_store")
+        duckdb_create_view_for_delta(
+            self.duck_con, dp, view_name, storage_options=do, version=version
+        )
 
     def local_execute_sql_to_py(self, sql: ex.Query) -> list[dict]:
         import duckdb
@@ -129,13 +126,11 @@ class ADBCReader(DataSourceReader):
 
         write_deltalake(
             dp,
-            [batch],
+            pa.RecordBatchReader.from_batches(batch.schema, [batch]),
             storage_options=do,
-            schema=batch.schema,
             mode=mode,
             schema_mode="overwrite" if mode == "overwrite" else "merge",
             writer_properties=self.writer_properties,
-            engine="rust",
         )
 
     def local_delta_table_exists(
@@ -196,7 +191,7 @@ class ADBCReader(DataSourceReader):
                         from deltalake import DeltaTable
 
                         dt = DeltaTable(dt)
-                    pas_schema = dt.schema().to_pyarrow()
+                    pas_schema = _to_pyarrow_schema(dt.schema())
                     for n in input_schema.names:
                         if n in existing_field_names:
                             merge_schema_fields.append(pas_schema.field(n))
@@ -268,7 +263,6 @@ class ADBCReader(DataSourceReader):
                     mode=mode,
                     schema_mode=schema_mode,
                     writer_properties=self.writer_properties,
-                    engine="rust",
                     storage_options=do,
                 )
             except DeltaError as e:
@@ -288,9 +282,12 @@ class ADBCReader(DataSourceReader):
         from ..metadata import InformationSchemaColInfo
 
         limit_sql = sql.limit(0).sql(self.source_dialect)
-        with self.connection.cursor() as cursor:
-            cursor.execute(limit_sql)
-            sc = _decimal_schema(cursor.fetch_arrow_table().schema)
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(limit_sql)
+                sc = _decimal_schema(cursor.fetch_arrow_table().schema)
+        finally:
+            self.connection.commit()
         return [
             InformationSchemaColInfo(
                 column_name=n,
@@ -305,12 +302,15 @@ class ADBCReader(DataSourceReader):
         if isinstance(sql, ex.Query):
             sql = sql.sql(self.source_dialect)
         result = list()
-        with self.connection.cursor() as cursor:
-            cursor.execute(sql)
-            assert cursor.description is not None
-            col_names = [desc[0] for desc in cursor.description]
-            for row in cursor.fetchall():
-                result.append(dict(zip(col_names, row)))
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(sql)
+                assert cursor.description is not None
+                col_names = [desc[0] for desc in cursor.description]
+                for row in cursor.fetchall():
+                    result.append(dict(zip(col_names, row)))
+        finally:
+            self.connection.commit()
         return result
 
     def source_write_sql_to_delta(
@@ -321,48 +321,45 @@ class ADBCReader(DataSourceReader):
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
     ):
+        import pyarrow as pa
         from deltalake import write_deltalake
         from deltalake.exceptions import DeltaError
 
-        with self.connection.cursor() as cursor:
-            cursor.execute(sql)
-            reader = cursor.fetch_record_batch()
-            if any(_is_opaque_numeric(f.type) for f in reader.schema):
-                import pyarrow as pa
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(sql)
+                reader = cursor.fetch_record_batch()
+                if any(_is_opaque_numeric(f.type) for f in reader.schema):
+                    dec_schema = _decimal_schema(reader.schema)
+                    reader = pa.RecordBatchReader.from_batches(
+                        dec_schema, (_decimal_batch(b, dec_schema) for b in reader)
+                    )
 
-                dec_schema = _decimal_schema(reader.schema)
+                dp, do = delta_path.as_path_options(flavor="object_store")
+                cast_schema, schema_mode = self._handle_schema_drift(
+                    delta_path, allow_schema_drift, mode, reader.schema
+                )
+                schema = _all_nullable(cast_schema or reader.schema)
                 reader = pa.RecordBatchReader.from_batches(
-                    dec_schema, (_decimal_batch(b, dec_schema) for b in reader)
+                    schema, (b.cast(schema) for b in reader)
                 )
-
-            dp, do = delta_path.as_path_options(flavor="object_store")
-            cast_schema, schema_mode = self._handle_schema_drift(
-                delta_path, allow_schema_drift, mode, reader.schema
-            )
-
-            if cast_schema:
-                import pyarrow as pa
-
-                reader = pa.RecordBatchReader.from_batches(
-                    cast_schema, (b.cast(cast_schema) for b in reader)
-                )
-            try:
-                write_deltalake(
-                    dp,
-                    reader,
-                    schema=_all_nullable(reader.schema),
-                    mode=mode,
-                    writer_properties=self.writer_properties,
-                    schema_mode=schema_mode,
-                    engine="rust",
-                    storage_options=do,
-                )
-            except DeltaError as e:
-                if "No data source supplied to write command" in str(e):
-                    if mode == "overwrite":
-                        self._write_empty_delta_table(reader.schema, dp, do)
-                else:
-                    raise e
+                try:
+                    write_deltalake(
+                        dp,
+                        reader,
+                        mode=mode,
+                        writer_properties=self.writer_properties,
+                        schema_mode=schema_mode,
+                        storage_options=do,
+                    )
+                except DeltaError as e:
+                    if "No data source supplied to write command" in str(e):
+                        if mode == "overwrite":
+                            self._write_empty_delta_table(reader.schema, dp, do)
+                    else:
+                        raise e
+        finally:
+            self.connection.commit()
 
     def _write_empty_delta_table(
         self,
@@ -370,15 +367,12 @@ class ADBCReader(DataSourceReader):
         path: Union[str, Path],
         storage_options: Optional[dict[str, str]],
     ):
-        from deltalake import write_deltalake
+        from deltalake import DeltaTable
 
-        write_deltalake(
+        DeltaTable.create(
             path,
-            [],
-            schema=_all_nullable(schema),
+            _all_nullable(schema),
             mode="overwrite",
-            schema_mode="overwrite",
-            engine="pyarrow",
             storage_options=storage_options,
         )
 

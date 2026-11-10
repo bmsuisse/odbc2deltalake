@@ -1,8 +1,12 @@
 from typing import TYPE_CHECKING
 import pytest
-from deltalake2db import duckdb_create_view_for_delta
 import duckdb
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+from .utils import (
+    write_db_to_delta_with_check,
+    config_names,
+    get_test_run_configs,
+    create_delta_view,
+)
 import sqlglot as sg
 from odbc2deltalake.query import sql_quote_value
 
@@ -65,9 +69,9 @@ def test_delta(
     time.sleep(2)
     ts_col = "xmin" if reader.source_dialect == "postgres" else "time_stamp"
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_user_2_temp",
             use_delta_ext=conf_name == "spark",
         )
@@ -91,9 +95,9 @@ def test_delta(
     assert l2.executed_type == "delta"
     assert not l2.dirty
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_user_scd2",
             use_delta_ext=conf_name == "spark",
         )
@@ -121,11 +125,9 @@ def test_delta(
             ("Markus", "Müller"),
             ("Heiri", "Meier"),
         ]
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (
-                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).as_delta_table(),
+            dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
             "v_latest_pk",
             use_delta_ext=conf_name == "spark",
         )
@@ -181,18 +183,16 @@ set id='c2 '
             alls = cursor.fetchall()
             print(alls)
     with duckdb.connect() as con:
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (dest / "delta").as_delta_table(),
+            dest / "delta",
             "v_company_scd2",
             use_delta_ext=conf_name == "spark",
         )
 
-        duckdb_create_view_for_delta(
+        create_delta_view(
             con,
-            (
-                dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).as_delta_table(),
+            dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
             "v_latest_pk",
             use_delta_ext=conf_name == "spark",
         )

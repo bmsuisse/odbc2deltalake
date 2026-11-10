@@ -279,7 +279,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
         import traceback
 
         dest_logger.error(
-            "Error during load: {e}", error_trackback=traceback.format_exc()
+            f"Error during load: {e}", error_trackback=traceback.format_exc()
         )
         raise e
     finally:
@@ -543,6 +543,13 @@ def do_delta_load(
             )
             return do_full_load(infos=infos, mode="append")
 
+    if simple and not reader.local_delta_table_exists(
+        destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}"
+    ):
+        # eg after initialization: simple_delta has no restore of the primary keys
+        logger.warning("latest_pk_version missing for simple_delta, do a full load")
+        return do_full_load(infos=infos, mode="append")
+
     old_pk_version = (
         reader.get_local_delta_ops(
             destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
@@ -616,6 +623,9 @@ def do_delta_load(
             infos=infos,
             old_pk_version=old_pk_version,
         )
+        if isinstance(new_delta_load_value, FullLoadResult):
+            # the full load wrote latest_pk_version, the steps below would overwrite it with stale data
+            return new_delta_load_value
         delta_load_value = new_delta_load_value or delta_load_value
         reader.local_register_update_view(delta_path, _temp_table(infos.table_or_query))
 
@@ -727,7 +737,7 @@ def do_append_inserts_load(infos: WriteConfigAndInfos) -> AppendOnlyLoadResult:
             no_trim=write_config.no_trim,
         )
         > ex.convert(delta_load_value)
-        if delta_load_value
+        if delta_load_value is not None
         else None
     )
     logger.info(" Start delta step 2, load updates by timestamp")
@@ -1063,8 +1073,7 @@ def _handle_additional_updates(
             restore_success = False
         if not restore_success:
             logger.warning("No primary keys found, do a full load")
-            do_full_load(infos=infos, mode="append")
-            return
+            return do_full_load(infos=infos, mode="append")
         else:
             _local_view_for_updates()
     sql_query = ex.except_(

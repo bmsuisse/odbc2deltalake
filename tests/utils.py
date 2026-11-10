@@ -13,6 +13,26 @@ import os
 if TYPE_CHECKING:
     from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+    import duckdb
+
+
+def create_delta_view(
+    con: "duckdb.DuckDBPyConnection",
+    destination: Destination,
+    view_name: str,
+    *,
+    use_delta_ext: bool = False,
+):
+    from deltalake2db import duckdb_create_view_for_delta
+
+    path, storage_options = destination.as_path_options("object_store")
+    duckdb_create_view_for_delta(
+        con,
+        path,
+        view_name,
+        storage_options=storage_options,
+        use_delta_ext=use_delta_ext,
+    )
 
 
 def _ntz(df_in: pd.DataFrame):
