@@ -1,0 +1,15 @@
+# prek.toml - pre-commit hooks
+# Install git hook: prek install
+# Run on all files: prek run --all-files
+
+[[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "v0.17.4"
+hooks = [ { id = "ruff-check", args = ["--fix"] }, { id = "ruff-format" } ]
+
+[[repos]]
+repo = "local"
+hooks = [
+    { id = "ruff-warn-any", name = "ruff warn: typing.Any (ANN401)", language = "system", entry = "uv run ruff check --select ANN401 --exit-zero --output-format concise", types = ["python"], verbose = true },
+    { id = "ty", name = "ty check", language = "system", entry = "uv run --all-groups ty check", types = ["python"], pass_filenames = false },
+]
