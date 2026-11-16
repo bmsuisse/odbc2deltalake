@@ -13,6 +13,7 @@ from typing import (
 import sqlglot as sg
 import sqlglot.expressions as ex
 
+from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.destination.destination import (
     Destination,
 )
@@ -27,18 +28,16 @@ from odbc2deltalake.load_result import (
     LoadResult,
     NoLoadResult,
 )
-from odbc2deltalake.reader import DataSourceReader
-from odbc2deltalake.sql_schema import is_string_type
-
-from .delta_logger import DeltaLogger
-from .metadata import (
+from odbc2deltalake.metadata import (
     InformationSchemaColInfo,
     table_name_type,
 )
-from .query import sql_quote_name
-from .sql_glot_utils import count_limit_one, table_from_tuple, union
-from .utils import concat_seq, is_pydantic_2
-from .write_init import (
+from odbc2deltalake.query import sql_quote_name
+from odbc2deltalake.reader import DataSourceReader
+from odbc2deltalake.sql_glot_utils import count_limit_one, table_from_tuple, union
+from odbc2deltalake.sql_schema import is_string_type
+from odbc2deltalake.utils import concat_seq, is_pydantic_2
+from odbc2deltalake.write_init import (
     IS_DELETED_COL_NAME,
     IS_FULL_LOAD_COL_NAME,
     VALID_FROM_COL_NAME,
@@ -430,7 +429,7 @@ def _temp_table(table: Union[table_name_type, ex.Query]):
 
 def _get_type_map(write_config: WriteConfig) -> Mapping[str, ex.DataType]:
     if write_config.data_type_map == "default":
-        from .write_init import DEFAULT_DATA_TYPE_MAP
+        from odbc2deltalake.write_init import DEFAULT_DATA_TYPE_MAP
 
         return DEFAULT_DATA_TYPE_MAP.get(write_config.dialect, {})
     return write_config.data_type_map
@@ -469,7 +468,7 @@ def do_delta_load(
     if last_pk_path and not reader.local_delta_table_exists(last_pk_path):  # or do a full load?
         logger.warning("Primary keys missing, try to restore")
         try:
-            from .write_utils.restore_pk import restore_last_pk
+            from odbc2deltalake.write_utils.restore_pk import restore_last_pk
 
             restore_success = restore_last_pk(infos=infos)
         except Exception as e:
@@ -844,7 +843,7 @@ def _list_to_chunks(input: Iterable[T], chunk_size: int):
 
 def _write_delta2(infos: WriteConfigAndInfos, data: list[dict], mode: Literal["overwrite", "append"]):
     write_config = infos.write_config
-    from .query import sql_quote_value
+    from odbc2deltalake.query import sql_quote_value
 
     def _collate(c: InformationSchemaColInfo):
         if is_string_type(c.data_type) and infos.write_config.dialect == "tsql":
@@ -984,7 +983,7 @@ def _handle_additional_updates(
             error_trackback=traceback.format_exc(),
         )
         try:
-            from .write_utils.restore_pk import restore_last_pk
+            from odbc2deltalake.write_utils.restore_pk import restore_last_pk
 
             restore_success = restore_last_pk(infos=infos)
         except Exception as e:

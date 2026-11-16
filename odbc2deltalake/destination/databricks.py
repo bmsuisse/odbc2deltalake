@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Literal
 
-from .destination import Destination
+from odbc2deltalake.destination.destination import Destination
 
 
 class DatabricksDestination(Destination):

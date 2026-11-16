@@ -6,8 +6,7 @@ import duckdb
 import pytest
 
 from odbc2deltalake.query import sql_quote_value
-
-from .utils import config_names, create_delta_view, get_test_run_configs
+from tests.utils import config_names, create_delta_view, get_test_run_configs
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Union
 
-from .destination import Destination
+from odbc2deltalake.destination.destination import Destination
 
 if TYPE_CHECKING:
     import fsspec

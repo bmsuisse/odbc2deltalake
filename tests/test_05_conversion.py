@@ -6,7 +6,7 @@ import pytest
 import sqlglot as sg
 import sqlglot.expressions as ex
 
-from .utils import (
+from tests.utils import (
     config_names,
     create_delta_view,
     get_test_run_configs,

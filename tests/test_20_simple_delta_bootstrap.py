@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from .utils import config_names, get_test_run_configs
+from tests.utils import config_names, get_test_run_configs
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession

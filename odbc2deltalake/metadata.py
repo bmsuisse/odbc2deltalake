@@ -5,9 +5,8 @@ import sqlglot.expressions as ex
 from pydantic import BaseModel
 
 from odbc2deltalake.query import sql_quote_name
-
-from .reader import DataSourceReader
-from .utils import is_pydantic_2
+from odbc2deltalake.reader import DataSourceReader
+from odbc2deltalake.utils import is_pydantic_2
 
 if is_pydantic_2:
     from pydantic import ConfigDict

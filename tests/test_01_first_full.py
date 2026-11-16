@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import duckdb
 import pytest
 
-from .utils import (
+from tests.utils import (
     config_names,
     create_delta_view,
     get_test_run_configs,

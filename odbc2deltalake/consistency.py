@@ -3,8 +3,8 @@ from typing import Any
 import sqlglot as sg
 import sqlglot.expressions as ex
 
-from .write_init import DBDeltaPathConfigs, WriteConfigAndInfos
-from .write_utils.restore_pk import create_last_pk_version_view
+from odbc2deltalake.write_init import DBDeltaPathConfigs, WriteConfigAndInfos
+from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
 
 
 class InconsistentPrimaryKeyError(Exception):

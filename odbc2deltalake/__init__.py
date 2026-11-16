@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Union
 
-from .destination.destination import Destination
-from .reader.reader import DataSourceReader
-from .write_init import (
+from odbc2deltalake.destination.destination import Destination
+from odbc2deltalake.reader.reader import DataSourceReader
+from odbc2deltalake.write_init import (
     DEFAULT_DATA_TYPE_MAP,
     DBDeltaPathConfigs,
     WriteConfig,

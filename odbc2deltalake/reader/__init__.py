@@ -1,1 +1,1 @@
-from .reader import DataSourceReader
+from odbc2deltalake.reader.reader import DataSourceReader

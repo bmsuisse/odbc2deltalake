@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Literal, cast
 
-from .destination import Destination
+from odbc2deltalake.destination.destination import Destination
 
 if TYPE_CHECKING:
     import adlfs
@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 class AzureDestination(Destination):
     def __init__(self, container: str, path: str, storage_options: dict):
-        from .azure_utils import convert_options
+        from odbc2deltalake.destination.azure_utils import convert_options
 
         self.path = path
 
@@ -49,14 +49,14 @@ class AzureDestination(Destination):
         fs.rm(path, recursive=recurse)
 
     def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
-        from .azure_utils import convert_options
+        from odbc2deltalake.destination.azure_utils import convert_options
 
         return self.to_az_path(), cast(dict[str, str], convert_options(self.storage_options, flavor))
 
     def as_delta_table(self):
         from deltalake import DeltaTable
 
-        from .azure_utils import convert_options
+        from odbc2deltalake.destination.azure_utils import convert_options
 
         return DeltaTable(
             self.to_az_path(),

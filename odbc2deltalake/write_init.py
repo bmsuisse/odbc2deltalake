@@ -8,19 +8,18 @@ from typing import Callable, Literal, Optional, TypeVar, Union, cast
 import sqlglot as sg
 import sqlglot.expressions as ex
 
+from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.destination.destination import (
     Destination,
 )
 from odbc2deltalake.logging import StorageBackend
-from odbc2deltalake.reader import DataSourceReader
-
-from .delta_logger import DeltaLogger
-from .metadata import (
+from odbc2deltalake.metadata import (
     InformationSchemaColInfo,
     get_columns,
     get_primary_keys,
 )
-from .sql_glot_utils import table_from_tuple
+from odbc2deltalake.reader import DataSourceReader
+from odbc2deltalake.sql_glot_utils import table_from_tuple
 
 IS_DELETED_COL_NAME = "__is_deleted"
 VALID_FROM_COL_NAME = "__timestamp"
@@ -117,12 +116,12 @@ class WriteConfigAndInfos:
     logger: DeltaLogger
 
     def execute(self):
-        from .db_to_delta import exec_write_db_to_delta
+        from odbc2deltalake.db_to_delta import exec_write_db_to_delta
 
         return exec_write_db_to_delta(self)
 
     def check_delta_consistency(self, auto_fix=False):
-        from .consistency import check_latest_pk
+        from odbc2deltalake.consistency import check_latest_pk
 
         res = check_latest_pk(self, raise_if_not_consistent=not auto_fix)
         if res and auto_fix:
@@ -177,11 +176,11 @@ def make_writer(
     if write_config is None:
         write_config = WriteConfig(dialect=source.source_dialect if isinstance(source, DataSourceReader) else "tsql")
     if isinstance(destination, Path):
-        from .destination.file_system import FileSystemDestination
+        from odbc2deltalake.destination.file_system import FileSystemDestination
 
         destination = cast(Destination, FileSystemDestination(destination))
     if isinstance(source, str):
-        from .reader.odbc_reader import ODBCReader
+        from odbc2deltalake.reader.odbc_reader import ODBCReader
 
         source = ODBCReader(source, source_dialect=write_config.dialect)
 

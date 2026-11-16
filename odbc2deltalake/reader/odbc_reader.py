@@ -13,9 +13,7 @@ from odbc2deltalake.read_utils.delta_rs import (
     _get_type,
     _to_pyarrow_schema,
 )
-from odbc2deltalake.reader.reader import DeltaOps
-
-from .reader import DataSourceReader
+from odbc2deltalake.reader.reader import DataSourceReader, DeltaOps
 
 if TYPE_CHECKING:
     import pyarrow as pa
@@ -206,7 +204,7 @@ class ODBCReader(DataSourceReader):
         return "duckdb"
 
     def source_schema_limit_one(self, sql: ex.Query) -> "list[InformationSchemaColInfo]":
-        from ..metadata import InformationSchemaColInfo
+        from odbc2deltalake.metadata import InformationSchemaColInfo
 
         limit_sql = sql.limit(0).sql(self.source_dialect)
         from arrow_odbc import read_arrow_batches_from_odbc

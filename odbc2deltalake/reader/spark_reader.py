@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Callable, Literal, Optional, Union
 import sqlglot as sg
 from sqlglot.expressions import DataType, Query
 
-from ..destination import Destination
-from .reader import DataSourceReader, DeltaOps
+from odbc2deltalake.destination import Destination
+from odbc2deltalake.reader.reader import DataSourceReader, DeltaOps
 
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame, SparkSession
@@ -196,7 +196,7 @@ class SparkReader(DataSourceReader):
         return sql
 
     def source_schema_limit_one(self, sql: Query) -> "list[InformationSchemaColInfo]":
-        from ..metadata import InformationSchemaColInfo
+        from odbc2deltalake.metadata import InformationSchemaColInfo
 
         limit_query = sql.limit(0)
         reader = self._reader(limit_query)
