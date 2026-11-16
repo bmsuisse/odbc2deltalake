@@ -166,7 +166,7 @@ class ADBCReader(DataSourceReader):
                 if new_fields:
                     import pyarrow as pa
 
-                    merge_schema_fields = list()
+                    merge_schema_fields = []
                     dt = delta_path.as_delta_table()
                     if isinstance(dt, Path):
                         from deltalake import DeltaTable
@@ -276,7 +276,7 @@ class ADBCReader(DataSourceReader):
     def source_sql_to_py(self, sql: Union[str, ex.Query]) -> list[dict]:
         if isinstance(sql, ex.Query):
             sql = sql.sql(self.source_dialect)
-        result = list()
+        result = []
         try:
             with self.connection.cursor() as cursor:
                 cursor.execute(sql)

@@ -138,7 +138,7 @@ class ODBCReader(DataSourceReader):
                 if new_fields:
                     import pyarrow as pa
 
-                    merge_schema_fields = list()
+                    merge_schema_fields = []
                     dt = delta_path.as_delta_table()
                     if isinstance(dt, Path):
                         from deltalake import DeltaTable
@@ -225,7 +225,7 @@ class ODBCReader(DataSourceReader):
             sql = sql.sql(self.source_dialect)
         from arrow_odbc import read_arrow_batches_from_odbc
 
-        result = list()
+        result = []
         for batch in read_arrow_batches_from_odbc(sql, self.connection_string, max_text_size=20000):
             result.extend(batch.to_pylist())
         return result

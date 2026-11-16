@@ -450,7 +450,7 @@ def do_delta_load(
 
     existing_col_infos = reader.get_local_delta_ops(destination / "delta").column_infos()
 
-    existing_col_names = set(c.column_name.lower() for c in existing_col_infos)
+    existing_col_names = {c.column_name.lower() for c in existing_col_infos}
     missing_cols = [
         write_config.get_target_name(c)
         for c in infos.col_infos
@@ -480,8 +480,8 @@ def do_delta_load(
 
     elif last_pk_path and not simple:
         cols = reader.get_local_delta_ops(last_pk_path).column_infos()
-        cols = set(c.column_name.lower() for c in cols)
-        pk_set = set(write_config.get_target_name(pk).lower() for pk in infos.pk_cols)
+        cols = {c.column_name.lower() for c in cols}
+        pk_set = {write_config.get_target_name(pk).lower() for pk in infos.pk_cols}
         if not cols.issuperset(pk_set):
             logger.warning(
                 f"Primary keys do not match. Expected: {', '.join(pk_set)}, Found: {', '.join(cols)}. Do a full load"
@@ -831,12 +831,12 @@ T = TypeVar("T")
 
 
 def _list_to_chunks(input: Iterable[T], chunk_size: int):
-    chunk: list[T] = list()
+    chunk: list[T] = []
     for item in input:
         chunk.append(item)
         if len(chunk) >= chunk_size:
             yield chunk
-            chunk = list()
+            chunk = []
     if len(chunk) > 0:
         yield chunk
 

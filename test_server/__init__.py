@@ -18,7 +18,7 @@ server_configs = {
 
 
 def _getenvs(server: Literal["mssql", "postgres"]):
-    envs = dict()
+    envs = {}
     with open(f"test_server/{server}.env") as f:
         lines = f.readlines()
         envs = {

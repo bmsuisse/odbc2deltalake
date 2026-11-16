@@ -93,7 +93,7 @@ class SparkReader(DataSourceReader):
         transformation_hook: Optional[Callable[["DataFrame", str], "DataFrame"]] = None,
     ):
         self.spark = spark
-        self.sql_config = sql_config or dict()
+        self.sql_config = sql_config or {}
         self.linked_server_proxy = linked_server_proxy
         self.spark_format = spark_format
         self.jdbc = jdbc

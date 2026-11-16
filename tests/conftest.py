@@ -49,7 +49,7 @@ class DB_Connection:
         tc = os.getenv("ODBCLAKE_TEST_CONFIGURATION")
         if tc:
             configs = [tc]
-        self.conn_str: dict[str, str] = dict()
+        self.conn_str: dict[str, str] = {}
         if source_server == "mssql":
             from odbc2deltalake.odbc_utils import build_connection_string
 

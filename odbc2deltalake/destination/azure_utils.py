@@ -23,7 +23,7 @@ default_azure_args = [
 ]
 
 
-_token_state: dict = dict()
+_token_state: dict = {}
 
 
 def _get_default_token(**kwargs) -> str:

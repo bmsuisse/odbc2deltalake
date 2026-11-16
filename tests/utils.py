@@ -45,7 +45,7 @@ def create_delta_view(
 
 def _ntz(df_in: pd.DataFrame):
     df = df_in.copy()
-    col_times = [col for col in df.columns if any([isinstance(x, pd.Timestamp) for x in df[col]])]
+    col_times = [col for col in df.columns if any(isinstance(x, pd.Timestamp) for x in df[col])]
     for col in col_times:
         df[col] = pd.to_datetime(df[col])
         df[col] = df[col].dt.tz_localize(None)
