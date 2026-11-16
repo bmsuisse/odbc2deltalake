@@ -1,19 +1,31 @@
-from pathlib import Path
-from odbc2deltalake import WriteConfigAndInfos
-from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
-from odbc2deltalake import DBDeltaPathConfigs
-from typing import TYPE_CHECKING, Final, Literal, Union
-import pandas as pd
-from sqlglot import from_
-import sqlglot.expressions as ex
-from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
-from odbc2deltalake.consistency import check_latest_pk
+import logging
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING, Union
+
+import pandas as pd
+import sqlglot.expressions as ex
+from sqlglot import from_
+
+from odbc2deltalake import (
+    DataSourceReader,
+    DBDeltaPathConfigs,
+    Destination,
+    WriteConfig,
+    WriteConfigAndInfos,
+    make_writer,
+)
+from odbc2deltalake.consistency import check_latest_pk
+from odbc2deltalake.load_result import LoadResult
+from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
-    from pyspark.sql import SparkSession
     import duckdb
+    from pyspark.sql import SparkSession
+
+    from tests.conftest import DBConnection
+
+logger = logging.getLogger(__name__)
 
 
 def create_delta_view(
@@ -22,7 +34,7 @@ def create_delta_view(
     view_name: str,
     *,
     use_delta_ext: bool = False,
-):
+) -> None:
     from deltalake2db import duckdb_create_view_for_delta
 
     path, storage_options = destination.as_path_options("object_store")
@@ -35,18 +47,16 @@ def create_delta_view(
     )
 
 
-def _ntz(df_in: pd.DataFrame):
+def _ntz(df_in: pd.DataFrame) -> pd.DataFrame:
     df = df_in.copy()
-    col_times = [
-        col for col in df.columns if any([isinstance(x, pd.Timestamp) for x in df[col]])
-    ]
+    col_times = [col for col in df.columns if any(isinstance(x, pd.Timestamp) for x in df[col])]
     for col in col_times:
         df[col] = pd.to_datetime(df[col])
         df[col] = df[col].dt.tz_localize(None)
     return df
 
 
-def check_latest_pk_pandas(infos: WriteConfigAndInfos):
+def check_latest_pk_pandas(infos: WriteConfigAndInfos) -> None:
     lpk_path = infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     lpk_df = lpk_path.as_delta_table()
     if isinstance(lpk_df, Path):
@@ -55,7 +65,7 @@ def check_latest_pk_pandas(infos: WriteConfigAndInfos):
         lpk_df = DeltaTable(lpk_df)
     sort_cols = [infos.write_config.get_target_name(pk) for pk in infos.pk_cols]
 
-    def _sort_pd(df: pd.DataFrame):
+    def _sort_pd(df: pd.DataFrame) -> pd.DataFrame:
         if df.shape[0] == 0:
             return df
         return df.sort_values(sort_cols).reset_index(drop=True)
@@ -64,15 +74,13 @@ def check_latest_pk_pandas(infos: WriteConfigAndInfos):
     _, view_name, success = create_last_pk_version_view(infos, view_prefix="v_tester_")
     assert success
     assert view_name is not None
-    latest_pd = _sort_pd(
-        pd.DataFrame(infos.source.local_execute_sql_to_py(from_(view_name).select("*")))
-    )
+    latest_pd = _sort_pd(pd.DataFrame(infos.source.local_execute_sql_to_py(from_(view_name).select("*"))))
     if latest_pd.shape[0] == 0 and lpk_pd.shape[0] == 0:
         return
     latest_pd = _ntz(latest_pd)
     comp = _ntz(lpk_pd).compare(latest_pd)
     if comp.shape[0] > 0:
-        print(comp)
+        logger.warning("%s", comp)
     assert comp.shape[0] == 0
 
 
@@ -81,7 +89,7 @@ def write_db_to_delta_with_check(
     table_or_query: Union[tuple[str, str], ex.Query],
     destination: Union[Destination, Path],
     write_config: Union[WriteConfig, None] = None,
-):
+) -> tuple[WriteConfigAndInfos, LoadResult]:
     w = make_writer(
         source=source,
         table_or_query=table_or_query,
@@ -96,7 +104,7 @@ def write_db_to_delta_with_check(
     try:
         check_latest_pk_pandas(w)
     except ImportError:
-        print(
+        logger.warning(
             "Pandas or deltalake is not installed, skipping check_latest_pk_pandas. "
             "Install pandas to enable this check."
         )
@@ -106,25 +114,22 @@ def write_db_to_delta_with_check(
 if os.getenv("ODBCLAKE_TEST_CONFIGURATION"):
     config_names = [os.getenv("ODBCLAKE_TEST_CONFIGURATION")]
 else:
-    config_names = (
-        ["azure", "spark", "local"]
-        if not os.getenv("NO_SPARK", "0") == "1"
-        else ["azure", "local"]
-    )
+    config_names = ["azure", "spark", "local"] if os.getenv("NO_SPARK", "0") != "1" else ["azure", "local"]
 
 
 def get_test_run_configs(
-    connection: "DB_Connection", spark_session: "SparkSession", tbl_dest_name: str
+    connection: "DBConnection", spark_session: "SparkSession", tbl_dest_name: str
 ) -> dict[str, tuple[DataSourceReader, Destination]]:
     from pathlib import Path
+
     from odbc2deltalake.destination.file_system import FileSystemDestination
 
     sub_path = "/".join(tbl_dest_name.split("/")[0:-1])
-    os.makedirs("tests/_db/_azure/" + sub_path, exist_ok=True)
-    os.makedirs("tests/_db/_local/" + sub_path, exist_ok=True)
+    Path("tests/_db/_azure/" + sub_path).mkdir(parents=True, exist_ok=True)
+    Path("tests/_db/_local/" + sub_path).mkdir(parents=True, exist_ok=True)
     cfg: dict[str, tuple[DataSourceReader, Destination]] = {}
 
-    def _local_reader(connection, config):
+    def _local_reader(connection: "DBConnection", config: str) -> DataSourceReader:
         if connection.source_server in ["tsql", "mssql"]:
             from odbc2deltalake.reader.odbc_reader import ODBCReader
 
@@ -133,15 +138,15 @@ def get_test_run_configs(
                 f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
                 source_dialect=connection.dialect,
             )
-        else:
-            from odbc2deltalake.reader.adbc_reader import ADBCReader
-            import adbc_driver_postgresql.dbapi as adbc_pg
+        import adbc_driver_postgresql.dbapi as adbc_pg
 
-            return ADBCReader(
-                adbc_pg.connect(connection.conn_str[config], autocommit=True),
-                f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
-                source_dialect=connection.dialect,
-            )
+        from odbc2deltalake.reader.adbc_reader import ADBCReader
+
+        return ADBCReader(
+            adbc_pg.connect(connection.conn_str[config], autocommit=True),
+            f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
+            source_dialect=connection.dialect,
+        )
 
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() == "azure":
         from odbc2deltalake.destination.azure import AzureDestination
@@ -163,14 +168,8 @@ def get_test_run_configs(
                 spark_session,
                 connection.get_jdbc_options("spark"),
                 jdbc=True,
-                spark_format=(
-                    "sqlserver"
-                    if connection.source_server in ["tsql", "mssql"]
-                    else "postgres"
-                ),
+                spark_format=("sqlserver" if connection.source_server in ["tsql", "mssql"] else "postgres"),
             ),
-            FileSystemDestination(
-                Path(f"tests/_data/spark/{tbl_dest_name}").absolute()
-            ),
+            FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}").absolute()),
         )
     return cfg

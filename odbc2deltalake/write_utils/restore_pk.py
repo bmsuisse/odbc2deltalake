@@ -1,14 +1,16 @@
+from typing import Optional, Union
+
+import sqlglot as sg
+import sqlglot.expressions as ex
+
+from odbc2deltalake.sql_glot_utils import count_limit_one
 from odbc2deltalake.write_init import (
     IS_DELETED_COL_NAME,
     IS_FULL_LOAD_COL_NAME,
     VALID_FROM_COL_NAME,
     DBDeltaPathConfigs,
+    WriteConfigAndInfos,
 )
-from odbc2deltalake.write_init import WriteConfigAndInfos
-import sqlglot.expressions as ex
-import sqlglot as sg
-from typing import Union
-from odbc2deltalake.sql_glot_utils import count_limit_one
 
 table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 
@@ -16,7 +18,7 @@ table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 def create_last_pk_version_view(
     infos: WriteConfigAndInfos,
     view_prefix: str = "",
-):
+) -> tuple[Optional[ex.Select], Optional[str], bool]:
     assert len(infos.pk_cols) > 0, "must have at least one pk column"
     delta_path = infos.destination / "delta"
     reader = infos.source
@@ -27,11 +29,7 @@ def create_last_pk_version_view(
 
     sq_valid_from = reader.local_execute_sql_to_py(
         sg.from_(ex.to_identifier(temp_table))
-        .select(
-            ex.func("max", ex.column(VALID_FROM_COL_NAME, quoted=True)).as_(
-                VALID_FROM_COL_NAME, quoted=True
-            )
-        )
+        .select(ex.func("max", ex.column(VALID_FROM_COL_NAME, quoted=True)).as_(VALID_FROM_COL_NAME, quoted=True))
         .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True))
     )
     if sq_valid_from is None or len(sq_valid_from) == 0:
@@ -42,14 +40,9 @@ def create_last_pk_version_view(
         sg.from_(ex.table_(ex.to_identifier(temp_table), alias="tr"))
         .select(
             *(
-                [
-                    ex.column(write_config.get_target_name(c), quoted=True)
-                    for c in infos.pk_cols
-                ]
+                [ex.column(write_config.get_target_name(c), quoted=True) for c in infos.pk_cols]
                 + [
-                    ex.column(
-                        write_config.get_target_name(infos.delta_col), quoted=True
-                    ),
+                    ex.column(write_config.get_target_name(infos.delta_col), quoted=True),
                     ex.column(VALID_FROM_COL_NAME, quoted=True),
                 ]
             ),
@@ -60,11 +53,7 @@ def create_last_pk_version_view(
                 ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True),
                 ex.column(VALID_FROM_COL_NAME, quoted=True).eq(
                     ex.Subquery(
-                        this=ex.select(
-                            ex.func(
-                                "MAX", ex.column(VALID_FROM_COL_NAME, "ts", quoted=True)
-                            )
-                        )
+                        this=ex.select(ex.func("MAX", ex.column(VALID_FROM_COL_NAME, "ts", quoted=True)))
                         .from_(ex.table_(ex.to_identifier(temp_table), alias="ts"))
                         .where(ex.column(IS_FULL_LOAD_COL_NAME, quoted=True).eq(True))
                     )
@@ -78,32 +67,19 @@ def create_last_pk_version_view(
         sg.from_(ex.table_(temp_table, alias="tr"))
         .select(
             *(
-                [
-                    ex.column(write_config.get_target_name(c), "tr", quoted=True)
-                    for c in infos.pk_cols
-                ]
-                + [
-                    ex.column(
-                        write_config.get_target_name(infos.delta_col), "tr", quoted=True
-                    )
-                ]
+                [ex.column(write_config.get_target_name(c), "tr", quoted=True) for c in infos.pk_cols]
+                + [ex.column(write_config.get_target_name(infos.delta_col), "tr", quoted=True)]
                 + [ex.column(IS_DELETED_COL_NAME, "tr", quoted=True)]
                 + [ex.column(VALID_FROM_COL_NAME, "tr", quoted=True)]
             )
         )
-        .where(
-            ex.column(VALID_FROM_COL_NAME, quoted=True)
-            > ex.convert(latest_full_load_date)
-        )
+        .where(ex.column(VALID_FROM_COL_NAME, quoted=True) > ex.convert(latest_full_load_date))
     )
     sq = sq.qualify(
         ex.EQ(
             this=ex.Window(
                 this=ex.RowNumber(),
-                partition_by=[
-                    ex.column(write_config.get_target_name(pk), quoted=True)
-                    for pk in infos.pk_cols
-                ],
+                partition_by=[ex.column(write_config.get_target_name(pk), quoted=True) for pk in infos.pk_cols],
                 order=ex.Order(
                     expressions=[
                         ex.Ordered(
@@ -125,16 +101,9 @@ def create_last_pk_version_view(
         .with_(
             "base",
             as_=ex.union(
-                sg.from_(
-                    ex.table_(view_prefix + "delta_after_full_load", alias="df")
-                ).select(
+                sg.from_(ex.table_(view_prefix + "delta_after_full_load", alias="df")).select(
                     *(
-                        [
-                            ex.column(
-                                write_config.get_target_name(c), "df", quoted=True
-                            )
-                            for c in infos.pk_cols
-                        ]
+                        [ex.column(write_config.get_target_name(c), "df", quoted=True) for c in infos.pk_cols]
                         + [
                             ex.column(
                                 write_config.get_target_name(infos.delta_col),
@@ -148,10 +117,7 @@ def create_last_pk_version_view(
                 sg.from_(ex.table_(view_prefix + "last_full_load", alias="f"))
                 .select(
                     *(
-                        [
-                            ex.column(write_config.get_target_name(c), "f", quoted=True)
-                            for c in infos.pk_cols
-                        ]
+                        [ex.column(write_config.get_target_name(c), "f", quoted=True) for c in infos.pk_cols]
                         + [
                             ex.column(
                                 write_config.get_target_name(infos.delta_col),
@@ -167,12 +133,8 @@ def create_last_pk_version_view(
                     join_type="anti",
                     on=ex.and_(
                         *[
-                            ex.column(
-                                write_config.get_target_name(c), "f", quoted=True
-                            ).eq(
-                                ex.column(
-                                    write_config.get_target_name(c), "d", quoted=True
-                                )
+                            ex.column(write_config.get_target_name(c), "f", quoted=True).eq(
+                                ex.column(write_config.get_target_name(c), "d", quoted=True)
                             )
                             for c in infos.pk_cols
                         ]
@@ -183,10 +145,7 @@ def create_last_pk_version_view(
         )
         .select(
             *(
-                [
-                    ex.column(write_config.get_target_name(c), "b", quoted=True)
-                    for c in infos.pk_cols
-                ]
+                [ex.column(write_config.get_target_name(c), "b", quoted=True) for c in infos.pk_cols]
                 + [
                     ex.column(
                         write_config.get_target_name(infos.delta_col),
@@ -205,7 +164,7 @@ def create_last_pk_version_view(
     return last_pk_query, view_prefix + "last_pk_version", True
 
 
-def restore_last_pk(infos: WriteConfigAndInfos):
+def restore_last_pk(infos: WriteConfigAndInfos) -> bool:
     query, view_name, success = create_last_pk_version_view(
         infos=infos,
         view_prefix="v_odbc_load_",
@@ -214,9 +173,7 @@ def restore_last_pk(infos: WriteConfigAndInfos):
         return False
     assert query is not None
     assert view_name is not None
-    infos.logger.info(
-        "Restoring last pk version", sql=query.sql(infos.source.query_dialect)
-    )
+    infos.logger.info("Restoring last pk version", sql=query.sql(infos.source.query_dialect))
 
     cnt = infos.source.local_execute_sql_to_py(count_limit_one(view_name))[0]["cnt"]
     if cnt == 0:

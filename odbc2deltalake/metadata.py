@@ -1,11 +1,13 @@
+from collections.abc import Iterator
 from typing import Literal, Union
 
-from odbc2deltalake.query import sql_quote_name
-from .reader import DataSourceReader
-from pydantic import BaseModel
 import sqlglot
 import sqlglot.expressions as ex
-from .utils import is_pydantic_2
+from pydantic import BaseModel
+
+from odbc2deltalake.query import sql_quote_name
+from odbc2deltalake.reader import DataSourceReader
+from odbc2deltalake.utils import is_pydantic_2
 
 if is_pydantic_2:
     from pydantic import ConfigDict
@@ -13,9 +15,7 @@ if is_pydantic_2:
 table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 
 
-def get_primary_keys(
-    reader: DataSourceReader, table_name: table_name_type, *, dialect: str
-) -> list[str]:
+def get_primary_keys(reader: DataSourceReader, table_name: table_name_type, *, dialect: str) -> list[str]:
     if isinstance(table_name, str):
         table_name = ("dbo", table_name)
     real_table_name = table_name[1] if len(table_name) == 2 else table_name[2]
@@ -26,7 +26,8 @@ def get_primary_keys(
     query = sqlglot.parse_one(
         f"""SELECT ccu.COLUMN_NAME as col_name
     FROM {quoted_db}INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc {no_lock}
-        JOIN {quoted_db}INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu {no_lock} ON tc.CONSTRAINT_NAME = ccu.Constraint_name
+        JOIN {quoted_db}INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu {no_lock}
+            ON tc.CONSTRAINT_NAME = ccu.Constraint_name
     WHERE lower(tc.CONSTRAINT_TYPE) = 'primary key'""",
         dialect=dialect,
     )
@@ -34,11 +35,7 @@ def get_primary_keys(
     query = query.where(
         ex.func("lower", ex.column("TABLE_NAME", "ccu"))
         .eq(ex.convert(real_table_name.lower()))
-        .and_(
-            ex.func("lower", ex.column("TABLE_SCHEMA", "ccu")).eq(
-                ex.convert(real_schema.lower())
-            )
-        )
+        .and_(ex.func("lower", ex.column("TABLE_SCHEMA", "ccu")).eq(ex.convert(real_schema.lower())))
     )
     full_query = query.sql(dialect)
     res = reader.source_sql_to_py(full_query)
@@ -65,15 +62,13 @@ class InformationSchemaColInfo(BaseModel):
     data_type_str: str
     column_default: Union[str, None] = None
     is_nullable: bool = True
-    generated_always_type_desc: Union[
-        Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"], None
-    ] = "NOT_APPLICABLE"
+    generated_always_type_desc: Union[Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"], None] = "NOT_APPLICABLE"
     is_identity: bool = False
 
 
 def _get_table_cols(
     reader: DataSourceReader, table_name: table_name_type, *, dialect: str
-):
+) -> list[InformationSchemaColInfo]:
     if isinstance(table_name, str):
         table_name = ("dbo", table_name)
     real_table_name = table_name[1] if len(table_name) == 2 else table_name[2]
@@ -108,7 +103,9 @@ def _get_table_cols(
             coalesce(ci.is_identity, convert(bit, 0)) as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
             left join (
                 
-    SELECT sc.name as table_schema, t.name as table_name, c.name as col_name, c.generated_always_type_desc, c.is_identity as is_identity FROM {quoted_db}sys.columns c 
+    SELECT sc.name as table_schema, t.name as table_name, c.name as col_name, c.generated_always_type_desc,
+        c.is_identity as is_identity
+    FROM {quoted_db}sys.columns c
         inner join {quoted_db}sys.tables t on t.object_id=c.object_id
         inner join {quoted_db}sys.schemas sc on sc.schema_id=t.schema_id
             ) ci on ci.table_schema=ccu.TABLE_SCHEMA and ci.table_name=ccu.TABLE_NAME and ci.col_name=ccu.COLUMN_NAME
@@ -119,11 +116,7 @@ def _get_table_cols(
     full_query = query.where(
         ex.func("LOWER", ex.column("TABLE_NAME", "ccu"))
         .eq(ex.func("LOWER", ex.convert(real_table_name)))
-        .and_(
-            ex.func("LOWER", ex.column("TABLE_SCHEMA", "ccu")).eq(
-                ex.func("LOWER", ex.convert(real_schema))
-            )
-        )
+        .and_(ex.func("LOWER", ex.column("TABLE_SCHEMA", "ccu")).eq(ex.func("LOWER", ex.convert(real_schema))))
     ).sql(dialect)
     dicts = reader.source_sql_to_py(full_query)
     for d in dicts:
@@ -132,7 +125,7 @@ def _get_table_cols(
         numeric_precision = d.pop("numeric_precision")
         numeric_scale = d.pop("numeric_scale")
         datetime_precision = d.pop("datetime_precision")
-        if dt in ["xml"]:
+        if dt == "xml":
             max_len = None
         if dt.lower() not in ["numeric", "decimal"]:
             numeric_precision = None
@@ -154,12 +147,8 @@ def _get_table_cols(
 
 def _get_query_cols_first_result_set(
     reader: DataSourceReader, query: ex.Query, *, dialect: str
-):
-    sql = (
-        "EXEC sp_describe_first_result_set @tsql=N'"
-        + query.sql(dialect).replace("'", "''")
-        + "'"
-    )
+) -> Iterator[InformationSchemaColInfo]:
+    sql = "EXEC sp_describe_first_result_set @tsql=N'" + query.sql(dialect).replace("'", "''") + "'"
 
     dicts = reader.source_sql_to_py(sql)
 
@@ -188,18 +177,12 @@ def get_columns(
             return reader.source_schema_limit_one(
                 table_or_query
             )  # get result metadata by just executing the query with limit 0
-        else:
-            return list(
-                _get_query_cols_first_result_set(
-                    reader, table_or_query, dialect=dialect
-                )
-            )
+        return list(_get_query_cols_first_result_set(reader, table_or_query, dialect=dialect))
 
-    else:
-        return _get_table_cols(reader, table_or_query, dialect=dialect)
+    return _get_table_cols(reader, table_or_query, dialect=dialect)
 
 
 def get_compatibility_level(reader: DataSourceReader) -> int:
-    return reader.source_sql_to_py(
-        "SELECT compatibility_level FROM sys.databases WHERE name =DB_NAME()"
-    )[0]["compatibility_level"]
+    return reader.source_sql_to_py("SELECT compatibility_level FROM sys.databases WHERE name =DB_NAME()")[0][
+        "compatibility_level"
+    ]

@@ -1,30 +1,30 @@
-from typing import TYPE_CHECKING
-import pytest
-import duckdb
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
 import dataclasses
+from typing import TYPE_CHECKING
+
+import duckdb
+import pytest
 import sqlglot as sg
 
+from tests.utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.parametrize("conf_name", config_names)
-def test_schema_drift(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
-    from odbc2deltalake import WriteConfig
+def test_schema_drift(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     import sqlglot.expressions as ex
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user7")[
-        conf_name
-    ]
+    from odbc2deltalake import WriteConfig
+
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user7")[conf_name]
 
     config = WriteConfig(
         primary_keys=["User_-_iD"],
@@ -32,24 +32,19 @@ def test_schema_drift(
         dialect=reader.source_dialect,
         allow_schema_drift=True,
     )
-    w = write_db_to_delta_with_check(
-        reader, ("dbo", "user7"), dest, write_config=config
-    )
+    write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=config)
 
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute(
-                """ALTER TABLE dbo.user7 add some_date date not null default('2000-01-01');
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute(
+            """ALTER TABLE dbo.user7 add some_date date not null default('2000-01-01');
                   """
-            )
+        )
 
     import time
 
     time.sleep(2)
 
-    _, r = write_db_to_delta_with_check(
-        reader, ("dbo", "user7"), dest, write_config=config
-    )
+    _, r = write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=config)
     assert r.executed_type == "full"
 
     with duckdb.connect() as con:
@@ -72,23 +67,20 @@ def test_schema_drift(
             ("Petra", "wayne", None, False),
             ("Petra", "wayne", date(2000, 1, 1), False),
         ]
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute(
-                sg.parse_one(
-                    """ALTER TABLE dbo.user7 alter column Age decimal(20, 3)
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute(
+            sg.parse_one(
+                """ALTER TABLE dbo.user7 alter column Age decimal(20, 3)
                 """,
-                    dialect="tsql",
-                ).sql(reader.source_dialect)
-            )
+                dialect="tsql",
+            ).sql(reader.source_dialect)
+        )
 
     # we assume we can safely insert double into decimal
-    _, r = write_db_to_delta_with_check(
-        reader, ("dbo", "user7"), dest, write_config=config
-    )
+    _, r = write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=config)
     assert r.executed_type == "delta"
     fields = reader.get_local_delta_ops(dest / "delta").column_infos()
-    age_field = next((f for f in fields if f.column_name.lower() == "age"))
+    age_field = next(f for f in fields if f.column_name.lower() == "age")
     assert age_field.data_type.this == ex.DataType.Type.DECIMAL
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
@@ -101,6 +93,10 @@ def test_schema_drift(
                 """ALTER TABLE dbo.user7 add Age xml not null default('<a></a>');
                 """
             )
-    with pytest.raises(Exception):
-        c2 = dataclasses.replace(config, load_mode="force_full")
+    c2 = dataclasses.replace(config, load_mode="force_full")
+    try:
         write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=c2)
+    except Exception:  # the exception type depends on the configuration (delta-rs / spark) and database
+        pass
+    else:
+        pytest.fail("Expected the force_full load to fail after the incompatible type change")  # ty: ignore[invalid-argument-type]  # ty does not understand pytest's skip/fail wrappers

@@ -1,10 +1,10 @@
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
 import sqlglot as sg
 import sqlglot.expressions as ex
 
-
 if TYPE_CHECKING:
-    from .write_init import WriteConfigAndInfos
+    from odbc2deltalake.write_init import WriteConfigAndInfos
 
 
 def get_local_delta_value_and_count(
@@ -13,9 +13,7 @@ def get_local_delta_value_and_count(
     from odbc2deltalake.write_init import DBDeltaPathConfigs
 
     if (infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS).exists():
-        delta_path = (
-            infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
-        )
+        delta_path = infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
     else:
         delta_path = infos.destination / "delta"
     tmp_view_name = "temp_" + str(abs(hash(str(delta_path))))
@@ -40,10 +38,10 @@ def get_local_delta_value_and_count(
     return mt, cnt
 
 
-def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos"):
+def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos") -> tuple[Any, int]:
     # MAX over the delta column as the load writes it (e.g. a rowversion cast to bigint), so
     # it compares with get_local_delta_value_and_count and the "no updates" check can match
-    from .db_to_delta import _get_type_map, _source_convert
+    from odbc2deltalake.db_to_delta import _get_type_map, _source_convert
 
     delta_col = infos.delta_col
     pk_ts_col_select = infos.from_("t").select(

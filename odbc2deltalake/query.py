@@ -1,14 +1,14 @@
-from typing import Any, Literal, Tuple, Union
-from typing_extensions import TypeAlias
 from datetime import datetime
+from typing import Any, Literal, Union
 
+from typing_extensions import TypeAlias
 
-SQLObjectNameType: TypeAlias = Union[str, Tuple[str, str], Tuple[str, str, str]]
+SQLObjectNameType: TypeAlias = Union[str, tuple[str, str], tuple[str, str, str]]
 
 QuoteMode: TypeAlias = Literal["ansi", "tsql", "postgres"]
 
 
-def sql_quote_name(inp: SQLObjectNameType, *, mode: QuoteMode = "ansi"):
+def sql_quote_name(inp: SQLObjectNameType, *, mode: QuoteMode = "ansi") -> str:
     if isinstance(inp, str):
         if inp.startswith("#"):  # temp tables names must not be quoted
             assert " " not in inp
@@ -28,18 +28,17 @@ def sql_quote_name(inp: SQLObjectNameType, *, mode: QuoteMode = "ansi"):
         if mode == "postgres":
             return "`" + inp + "`"
         return "[" + inp + "]"
-    elif len(inp) == 3:
+    if len(inp) == 3:
         db = sql_quote_name(inp[0], mode=mode)
         schema_name = sql_quote_name(inp[1], mode=mode)
         tbl_name = sql_quote_name(inp[2], mode=mode)
         return db + "." + schema_name + "." + tbl_name
-    else:
-        schema_name = sql_quote_name(inp[0], mode=mode)
-        tbl_name = sql_quote_name(inp[1], mode=mode)
-        return schema_name + "." + tbl_name
+    schema_name = sql_quote_name(inp[0], mode=mode)
+    tbl_name = sql_quote_name(inp[1], mode=mode)
+    return schema_name + "." + tbl_name
 
 
-def sql_quote_value(vl: Any):
+def sql_quote_value(vl: Any) -> str:
     if vl is None:
         return "null"
     if isinstance(vl, str):

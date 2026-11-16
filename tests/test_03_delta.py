@@ -1,31 +1,34 @@
+import logging
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
+import pytest
 import sqlglot as sg
+
 from odbc2deltalake.query import sql_quote_value
+from tests.utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(5)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
-    from odbc2deltalake import DBDeltaPathConfigs
+def test_delta(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     import sqlglot.expressions as ex
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[
-        conf_name
-    ]
+    from odbc2deltalake import DBDeltaPathConfigs
+
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[conf_name]
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
     fields = reader.get_local_delta_ops(dest / "delta").column_infos()
     nbr_field = next(f for f in fields if f.column_name == "nbr")
@@ -53,16 +56,10 @@ def test_delta(
             else:
                 cursor.execute("COMMIT")
         with nc.cursor() as cursor:
-            cursor.execute(
-                sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(
-                    reader.source_dialect
-                )
-            )
+            cursor.execute(sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(reader.source_dialect))
             alls = cursor.fetchall()
             assert cursor.description is not None
-            cols = [c[0] for c in cursor.description]
-            dicts = [dict(zip(cols, row)) for row in alls]
-            print(alls)
+            logger.info("%s", alls)
 
     import time
 
@@ -76,9 +73,7 @@ def test_delta(
             use_delta_ext=conf_name == "spark",
         )
         if reader.source_dialect in ["tsql", "mssql"]:
-            res = con.execute(
-                'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
-            ).fetchone()
+            res = con.execute('select "time_stamp", "User_-_iD" from v_user_2_temp limit 1').fetchone()
             assert res is not None
             assert isinstance(res[0], int), "time_stamp is not an integer"
 
@@ -133,7 +128,8 @@ def test_delta(
         )
         id_tuples = con.execute(
             f"""SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
-                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."{ts_col}"=lf."{ts_col}"
+                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD"
+                                    and s2."{ts_col}"=lf."{ts_col}"
                 qualify row_number() over (partition by s2."User_-_iD" order by lf."{ts_col}" desc)=1
                 order by s2."User_-_iD" 
                 """
@@ -148,14 +144,10 @@ def test_delta(
 
 @pytest.mark.order(5)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_sys(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_delta_sys(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import DBDeltaPathConfigs
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_2")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_2")[conf_name]
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # full load
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
@@ -169,7 +161,7 @@ select 'c300',
             )
             for stmt in stmts:
                 assert stmt is not None
-                print(stmt.sql(reader.source_dialect))
+                logger.info("%s", stmt.sql(reader.source_dialect))
                 cursor.execute(stmt.sql(reader.source_dialect))
             if reader.source_dialect in ["tsql", "mssql"]:
                 cursor.execute("""
@@ -181,7 +173,7 @@ set id='c2 '
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM dbo.company")
             alls = cursor.fetchall()
-            print(alls)
+            logger.info("%s", alls)
     with duckdb.connect() as con:
         create_delta_view(
             con,

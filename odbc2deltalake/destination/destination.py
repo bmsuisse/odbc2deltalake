@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing_extensions import Literal, Self
 from typing import TYPE_CHECKING, Optional
+
+from typing_extensions import Literal, Self
 
 if TYPE_CHECKING:
     from deltalake import DeltaTable
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
 
 class Destination(ABC):
     @abstractmethod
-    def mkdir(self):
+    def mkdir(self) -> None:
         pass
 
     @abstractmethod
@@ -26,7 +27,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def upload_str(self, data: str):
+    def upload_str(self, data: str) -> None:
         pass
 
     @abstractmethod
@@ -34,7 +35,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def remove(self, recurse: bool = False):
+    def remove(self, recurse: bool = False) -> None:
         pass
 
     @property
@@ -43,9 +44,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def as_path_options(
-        self, flavor: Literal["fsspec", "object_store"]
-    ) -> tuple[str, Optional[dict[str, str]]]:
+    def as_path_options(self, flavor: Literal["fsspec", "object_store"]) -> tuple[str, Optional[dict[str, str]]]:
         pass
 
     @abstractmethod

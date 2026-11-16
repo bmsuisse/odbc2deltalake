@@ -1,44 +1,41 @@
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
+import pytest
 
 from odbc2deltalake.reader.spark_reader import SparkReader
-from .utils import (
-    write_db_to_delta_with_check,
+from tests.utils import (
     config_names,
-    get_test_run_configs,
     create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
 )
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(16)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_query(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_delta_query(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user6")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user6")[conf_name]
 
     config = WriteConfig(
         primary_keys=["User_-_iD"],
         delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
         dialect=reader.source_dialect,
     )
-    w, r = write_db_to_delta_with_check(
-        reader, ("dbo", "user6"), dest, write_config=config
-    )
+    w, r = write_db_to_delta_with_check(reader, ("dbo", "user6"), dest, write_config=config)
     assert r.executed_type == "full"
-    dt_or_path = (
-        dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-    ).as_delta_table()
+    dt_or_path = (dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).as_delta_table()
 
     # we're evil and manipulate the latest pk!
     if isinstance(reader, SparkReader) and isinstance(dt_or_path, Path):
@@ -63,7 +60,7 @@ def test_delta_query(
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM dbo.user6")
             alls = cursor.fetchall()
-            print(alls)
+            logger.info("%s", alls)
 
     import time
 

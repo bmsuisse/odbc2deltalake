@@ -1,20 +1,25 @@
+import logging
 from typing import Any
-from .write_init import WriteConfigAndInfos, DBDeltaPathConfigs
-from .write_utils.restore_pk import create_last_pk_version_view
+
 import sqlglot as sg
 import sqlglot.expressions as ex
+
+from odbc2deltalake.write_init import DBDeltaPathConfigs, WriteConfigAndInfos
+from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
+
+logger = logging.getLogger(__name__)
 
 
 class InconsistentPrimaryKeyError(Exception):
     """Exception raised when primary keys are inconsistent."""
 
-    def __init__(self, message, invalid_data: list[dict[str, Any]]):
+    def __init__(self, message: str, invalid_data: list[dict[str, Any]]) -> None:
         self.message = message
         self.invalid_data = invalid_data
         super().__init__(self.message)
 
 
-def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
+def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent: bool = True) -> list[dict]:
     if not infos.delta_col or not infos.pk_cols:
         raise ValueError("Primary keys and delta column must be defined")
     postfix = "_" + str(abs(hash(str(infos.destination))))
@@ -23,10 +28,8 @@ def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
         infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         lpk_view,
     )
-    _, view_name, success = create_last_pk_version_view(
-        infos, view_prefix="v_" + postfix
-    )
-    d_cols = list(infos.pk_cols) + [infos.delta_col]
+    _, view_name, success = create_last_pk_version_view(infos, view_prefix="v_" + postfix)
+    d_cols = [*infos.pk_cols, infos.delta_col]
     col_names = [infos.write_config.get_target_name(p) for p in d_cols]
     assert success
     assert view_name is not None
@@ -46,11 +49,9 @@ def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
         .select(*[ex.column(c, "lpk", quoted=True) for c in col_names])
         .select(ex.convert("missing in persisted data"), append=True),
     )
-    result = infos.source.local_execute_sql_to_py(
-        ex.union(query1, query2, distinct=False)
-    )
+    result = infos.source.local_execute_sql_to_py(ex.union(query1, query2, distinct=False))
     if result:
-        print(result)
+        logger.warning("Inconsistent primary keys: %s", result)
         if raise_if_not_consistent:
             raise InconsistentPrimaryKeyError("Primary keys are not consistent", result)
     return result

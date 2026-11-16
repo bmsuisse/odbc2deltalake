@@ -1,39 +1,41 @@
-from typing import Literal, TYPE_CHECKING, Union
-from .destination import Destination
+from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Literal, Union
+
+from odbc2deltalake.destination.destination import Destination
 
 if TYPE_CHECKING:
     import fsspec
 
 
 class FileSystemDestination(Destination):
-    def __init__(self, path: Union[str, Path]):
+    def __init__(self, path: Union[str, Path]) -> None:
         self.path = Path(path)
         import fsspec
 
         self.fs = fsspec.filesystem("file")
 
-    def mkdir(self):
+    def mkdir(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
 
     def get_fs_path(self) -> "tuple[fsspec.AbstractFileSystem, str]":
         return (self.fs, str(self.path))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.path)
 
-    def exists(self):
+    def exists(self) -> bool:
         return self.path.exists()
 
-    def upload_str(self, data: str):
-        with open(self.path, "w", encoding="utf-8") as f:
+    def upload_str(self, data: str) -> None:
+        with self.path.open("w", encoding="utf-8") as f:
             f.write(data)
 
-    def modified_time(self):
+    def modified_time(self) -> datetime:
         fs, path = self.get_fs_path()
         return fs.modified(path)
 
-    def remove(self, recurse: bool = False):
+    def remove(self, recurse: bool = False) -> None:
         if recurse:
             import shutil
 
@@ -42,14 +44,14 @@ class FileSystemDestination(Destination):
             self.path.unlink()
 
     @property
-    def parent(self):
+    def parent(self) -> "FileSystemDestination":
         return self.__class__(self.path.parent)
 
-    def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
+    def as_path_options(self, flavor: Literal["fsspec", "object_store"]) -> tuple[str, None]:
         return str(self.path), None
 
-    def as_delta_table(self):
+    def as_delta_table(self) -> Path:
         return self.path
 
-    def __truediv__(self, other: str):
+    def __truediv__(self, other: str) -> "FileSystemDestination":
         return FileSystemDestination(self.path / other)

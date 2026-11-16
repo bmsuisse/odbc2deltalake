@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 from odbc2deltalake.destination.databricks import DatabricksDestination
 
 
-def _container_path_account(path: str):
+def _container_path_account(path: str) -> tuple[str, str, str]:
     path = path.removeprefix("abfss://")
     container, account_path = path.split("@")
     account = account_path.split("/")[0]
@@ -11,7 +11,7 @@ def _container_path_account(path: str):
     return container, path, account
 
 
-def test_dbutils():
+def test_dbutils() -> None:
     test_paths = [
         "abfss://raw@somesuperstore1.dfs.core.windows.net/",
         "abfss://raw@somesuperstore1.dfs.core.windows.net/asdfwe",

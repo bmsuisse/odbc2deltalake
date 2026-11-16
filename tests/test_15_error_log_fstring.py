@@ -11,24 +11,23 @@ branch (by making local_delta_table_exists raise once the code is past
 the initial setup) and then reads back the persisted error log entry to
 check that the real exception message made it into the log message.
 """
+
 from pathlib import Path
 
 import pytest
+import sqlglot.expressions as ex
 
+from odbc2deltalake.db_to_delta import exec_write_db_to_delta
+from odbc2deltalake.delta_logger import DeltaLogger
+from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.destination.file_system import FileSystemDestination
+from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
-from odbc2deltalake.metadata import InformationSchemaColInfo
-from odbc2deltalake.delta_logger import DeltaLogger
-from odbc2deltalake.db_to_delta import exec_write_db_to_delta
-from odbc2deltalake.destination.destination import Destination
-import sqlglot.expressions as ex
 
 
 def _col(name: str) -> InformationSchemaColInfo:
-    return InformationSchemaColInfo(
-        column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint"
-    )
+    return InformationSchemaColInfo(column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint")
 
 
 class _BoomOnDeltaPathReader(ODBCReader):
@@ -37,15 +36,13 @@ class _BoomOnDeltaPathReader(ODBCReader):
     simulating a failure deep inside a real load, without needing a real
     ODBC connection."""
 
-    def local_delta_table_exists(
-        self, delta_path: Destination, extended_check: bool = False
-    ) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check: bool = False) -> bool:
         if str(delta_path).rstrip("/").endswith("/delta"):
             raise RuntimeError("boom - simulated failure during load")
         return super().local_delta_table_exists(delta_path, extended_check)
 
 
-def test_error_log_contains_actual_exception_message(tmp_path: Path):
+def test_error_log_contains_actual_exception_message(tmp_path: Path) -> None:
     dest = FileSystemDestination(tmp_path / "dest")
     reader = _BoomOnDeltaPathReader("unused", local_db=":memory:", source_dialect="tsql")
 
@@ -66,15 +63,11 @@ def test_error_log_contains_actual_exception_message(tmp_path: Path):
         exec_write_db_to_delta(infos)
 
     reader.local_register_update_view(dest / "log", "v_log")
-    rows = reader.local_execute_sql_to_py(
-        ex.select("*").from_("v_log").where(ex.column("type").eq("error"))
-    )
+    rows = reader.local_execute_sql_to_py(ex.select("*").from_("v_log").where(ex.column("type").eq("error")))
     assert len(rows) == 1
     message = rows[0]["message"]
 
-    assert "{e}" not in message, (
-        f"error log message was not f-string interpolated: {message!r}"
-    )
+    assert "{e}" not in message, f"error log message was not f-string interpolated: {message!r}"
     assert "boom - simulated failure during load" in message, (
         f"error log message does not contain the actual exception text: {message!r}"
     )

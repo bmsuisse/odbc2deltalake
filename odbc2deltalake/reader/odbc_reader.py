@@ -1,4 +1,10 @@
+import logging
+from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, Literal, Optional, Union
+
+import sqlglot as sg
+import sqlglot.expressions as ex
 
 from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.read_utils.delta_rs import (
@@ -8,17 +14,14 @@ from odbc2deltalake.read_utils.delta_rs import (
     _get_type,
     _to_pyarrow_schema,
 )
-from odbc2deltalake.reader.reader import DeltaOps
-from .reader import DataSourceReader
-from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence, Union
-import sqlglot.expressions as ex
-import sqlglot as sg
+from odbc2deltalake.reader.reader import DataSourceReader, DeltaOps
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import pyarrow as pa
+
     from odbc2deltalake.metadata import InformationSchemaColInfo
-    from deltalake import DeltaTable
-    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
 
 
 class ODBCReader(DataSourceReader):
@@ -37,7 +40,7 @@ class ODBCReader(DataSourceReader):
         self.source_dialect = source_dialect
 
     @property
-    def supports_proc_exec(self):
+    def supports_proc_exec(self) -> bool:
         return True
 
     def local_register_update_view(
@@ -46,15 +49,13 @@ class ODBCReader(DataSourceReader):
         view_name: str,
         *,
         version: Union[int, None] = None,
-    ):
+    ) -> None:
         import duckdb
         from deltalake2db import duckdb_create_view_for_delta
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         dp, do = delta_path.as_path_options("object_store")
-        duckdb_create_view_for_delta(
-            self.duck_con, dp, view_name, storage_options=do, version=version
-        )
+        duckdb_create_view_for_delta(self.duck_con, dp, view_name, storage_options=do, version=version)
 
     def local_execute_sql_to_py(self, sql: ex.Query) -> list[dict]:
         import duckdb
@@ -66,13 +67,11 @@ class ODBCReader(DataSourceReader):
             col_names = [desc[0] for desc in cursor.description]
             return [dict(zip(col_names, row)) for row in cursor.fetchall()]
 
-    def local_register_view(self, sql: ex.Query, view_name: str):
+    def local_register_view(self, sql: ex.Query, view_name: str) -> None:
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
-        self.duck_con.sql(
-            f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql(self.query_dialect)}"
-        )
+        self.duck_con.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql(self.query_dialect)}")
 
     def local_pylist_to_delta(
         self,
@@ -80,13 +79,11 @@ class ODBCReader(DataSourceReader):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         dummy_record: Union[dict, None] = None,
-    ):
-        from deltalake import write_deltalake
+    ) -> None:
         import pyarrow as pa
+        from deltalake import write_deltalake
 
-        schema = (
-            pa.RecordBatch.from_pylist([dummy_record]).schema if dummy_record else None
-        )
+        schema = pa.RecordBatch.from_pylist([dummy_record]).schema if dummy_record else None
         batch = pa.RecordBatch.from_pylist(pylist, schema=schema)
         dp, do = delta_path.as_path_options("object_store")
 
@@ -99,9 +96,7 @@ class ODBCReader(DataSourceReader):
             writer_properties=self.writer_properties,
         )
 
-    def local_delta_table_exists(
-        self, delta_path: Destination, extended_check=False
-    ) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check: bool = False) -> bool:
         if delta_path.exists():
             from deltalake import DeltaTable
             from deltalake.exceptions import TableNotFoundError
@@ -125,11 +120,11 @@ class ODBCReader(DataSourceReader):
         delta_path: Destination,
         allow_schema_drift: Union[bool, Literal["new_only"]],
         mode: Literal["overwrite", "append"],
-        input_schema,
-    ):
+        input_schema: "pa.Schema",
+    ) -> tuple[Optional["pa.Schema"], Optional[Literal["merge", "overwrite"]]]:
         from deltalake.exceptions import TableNotFoundError
 
-        dp, do = delta_path.as_path_options("object_store")
+        delta_path.as_path_options("object_store")
         schema_mode = None
         if allow_schema_drift == "new_only":
             try:
@@ -141,16 +136,12 @@ class ODBCReader(DataSourceReader):
                 existing_schema = dt.schema().fields
                 existing_field_names = [f.name for f in existing_schema]
                 new_schema = _all_nullable(input_schema)
-                new_fields = [
-                    new_schema.field(n)
-                    for n in new_schema.names
-                    if n not in existing_field_names
-                ]
+                new_fields = [new_schema.field(n) for n in new_schema.names if n not in existing_field_names]
 
                 if new_fields:
                     import pyarrow as pa
 
-                    merge_schema_fields = list()
+                    merge_schema_fields = []
                     dt = delta_path.as_delta_table()
                     if isinstance(dt, Path):
                         from deltalake import DeltaTable
@@ -177,7 +168,7 @@ class ODBCReader(DataSourceReader):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         import duckdb
         from deltalake import write_deltalake
         from deltalake.exceptions import DeltaError
@@ -189,9 +180,7 @@ class ODBCReader(DataSourceReader):
             dp, do = delta_path.as_path_options("object_store")
             batch_reader = cur.fetch_record_batch()
             schema = batch_reader.schema
-            cast_schema, schema_mode = self._handle_schema_drift(
-                delta_path, allow_schema_drift, mode, schema
-            )
+            cast_schema, schema_mode = self._handle_schema_drift(delta_path, allow_schema_drift, mode, schema)
             if cast_schema:
                 schema = cast_schema
                 batch_reader = pa.RecordBatchReader.from_batches(
@@ -217,17 +206,13 @@ class ODBCReader(DataSourceReader):
     def query_dialect(self) -> str:
         return "duckdb"
 
-    def source_schema_limit_one(
-        self, sql: ex.Query
-    ) -> "list[InformationSchemaColInfo]":
-        from ..metadata import InformationSchemaColInfo
+    def source_schema_limit_one(self, sql: ex.Query) -> "list[InformationSchemaColInfo]":
+        from odbc2deltalake.metadata import InformationSchemaColInfo
 
         limit_sql = sql.limit(0).sql(self.source_dialect)
         from arrow_odbc import read_arrow_batches_from_odbc
 
-        sc = read_arrow_batches_from_odbc(
-            limit_sql, self.connection_string, max_text_size=20000
-        ).schema
+        sc = read_arrow_batches_from_odbc(limit_sql, self.connection_string, max_text_size=20000).schema
         return [
             InformationSchemaColInfo(
                 column_name=n,
@@ -243,10 +228,8 @@ class ODBCReader(DataSourceReader):
             sql = sql.sql(self.source_dialect)
         from arrow_odbc import read_arrow_batches_from_odbc
 
-        result = list()
-        for batch in read_arrow_batches_from_odbc(
-            sql, self.connection_string, max_text_size=20000
-        ):
+        result = []
+        for batch in read_arrow_batches_from_odbc(sql, self.connection_string, max_text_size=20000):
             result.extend(batch.to_pylist())
         return result
 
@@ -257,7 +240,7 @@ class ODBCReader(DataSourceReader):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         import pyarrow as pa
         from arrow_odbc import read_arrow_batches_from_odbc
         from deltalake import write_deltalake
@@ -270,13 +253,9 @@ class ODBCReader(DataSourceReader):
             max_text_size=20000,
         )
         dp, do = delta_path.as_path_options(flavor="object_store")
-        cast_schema, schema_mode = self._handle_schema_drift(
-            delta_path, allow_schema_drift, mode, reader.schema
-        )
+        cast_schema, schema_mode = self._handle_schema_drift(delta_path, allow_schema_drift, mode, reader.schema)
         schema = _all_nullable(cast_schema or reader.schema)
-        reader = pa.RecordBatchReader.from_batches(
-            schema, (b.cast(schema) for b in reader)
-        )
+        reader = pa.RecordBatchReader.from_batches(schema, (b.cast(schema) for b in reader))
         try:
             write_deltalake(
                 dp,
@@ -298,7 +277,7 @@ class ODBCReader(DataSourceReader):
         schema: "pa.Schema",
         path: Union[str, Path],
         storage_options: Optional[dict[str, str]],
-    ):
+    ) -> None:
         from deltalake import DeltaTable
 
         DeltaTable.create(
@@ -321,7 +300,7 @@ class ODBCReader(DataSourceReader):
         local_sql_source: ex.Query,
         target_delta: Destination,
         merge_cols: Sequence[str],
-    ):
+    ) -> None:
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
@@ -338,12 +317,7 @@ class ODBCReader(DataSourceReader):
                 dt.merge(
                     cursor.fetch_record_batch(),
                     sg.and_(
-                        *[
-                            sg.column(mc, "tgt", quoted=True).eq(
-                                sg.column(mc, "src", quoted=True)
-                            )
-                            for mc in merge_cols
-                        ]
+                        *[sg.column(mc, "tgt", quoted=True).eq(sg.column(mc, "src", quoted=True)) for mc in merge_cols]
                     ).sql(self.query_dialect),
                     "src",
                     "tgt",
@@ -353,4 +327,4 @@ class ODBCReader(DataSourceReader):
                 .when_not_matched_insert_all()
                 .execute()
             )
-            print(res)
+            logger.info("Merge result: %s", res)

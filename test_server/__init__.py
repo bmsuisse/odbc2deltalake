@@ -1,10 +1,17 @@
-from pathlib import Path
-import docker
-from docker.models.containers import Container
-from time import sleep
-from typing import Union, cast, Literal
-import docker.errors
+import logging
 import os
+from pathlib import Path
+from time import sleep
+from typing import TYPE_CHECKING, Literal, Union, cast
+
+import docker
+import docker.errors
+from docker.models.containers import Container
+
+if TYPE_CHECKING:
+    from azure.storage.blob import ContainerClient
+
+logger = logging.getLogger(__name__)
 
 server_configs = {
     "mssql": {
@@ -16,19 +23,13 @@ server_configs = {
 }
 
 
-def _getenvs(server: Literal["mssql", "postgres"]):
-    envs = dict()
-    with open(f"test_server/{server}.env", "r") as f:
+def _getenvs(server: Literal["mssql", "postgres"]) -> dict[str, str]:
+    with Path(f"test_server/{server}.env").open() as f:
         lines = f.readlines()
-        envs = {
+        return {
             item[0].strip(): item[1].strip()
-            for item in [
-                line.split("=")
-                for line in lines
-                if len(line.strip()) > 0 and not line.startswith("#")
-            ]
+            for item in [line.split("=") for line in lines if len(line.strip()) > 0 and not line.startswith("#")]
         }
-    return envs
 
 
 def start_server(server: Literal["mssql", "postgres"]) -> Container:
@@ -38,36 +39,32 @@ def start_server(server: Literal["mssql", "postgres"]) -> Container:
         m = cast(Container, client.containers.get(f"test4{server}_odbc2deltalake"))
         if m.status == "running":
             return m
-        else:
-            sql_server = m
+        sql_server = m
     except docker.errors.NotFound:
         pass
 
     envs = _getenvs(server)
 
     if sql_server is None:
-        # using podman:  podman run  --env-file=TESTS/SQL_DOCKER.ENV --publish=1439:1433 --name=mssql1 chriseaton/adventureworks:light
+        # using podman:
+        #   podman run --env-file=TESTS/SQL_DOCKER.ENV --publish=1439:1433 --name=mssql1 chriseaton/adventureworks:light
         #                podman kill mssql1
         sql_server = client.containers.run(
             server_configs[server]["image"],
             environment=envs,
             detach=True,
             name=f"test4{server}_odbc2deltalake",
-            ports={
-                f"{server_configs[server]['container_port']}/tcp": server_configs[
-                    server
-                ]["local_port"]
-            },
-        )  # type: ignore
+            ports={f"{server_configs[server]['container_port']}/tcp": server_configs[server]["local_port"]},
+        )
     assert sql_server is not None
     sql_server.start()
-    print(sql_server.status)
+    logger.info("%s", sql_server.status)
     sleep(20)
-    print(f"Successfully created {server} container...")
+    logger.info("Successfully created %s container...", server)
     return sql_server
 
 
-def create_test_blobstorage():
+def create_test_blobstorage() -> "ContainerClient":
     constr = os.getenv(
         "TEST_BLOB_CONSTR",
         "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;",
@@ -91,8 +88,7 @@ def start_azurite() -> Container:
         if m.status == "running":
             create_test_blobstorage()
             return m
-        else:
-            azurite_server = m
+        azurite_server = m
     except docker.errors.NotFound:
         pass
 
@@ -102,11 +98,11 @@ def start_azurite() -> Container:
             detach=True,
             name="test4azurite",
             ports={"10000/tcp": 10000, "10001/tcp": 10001, "10002/tcp": 10002},
-        )  # type: ignore
+        )
     assert azurite_server is not None
     azurite_server.start()
-    print(azurite_server.status)
+    logger.info("%s", azurite_server.status)
     sleep(20)
     create_test_blobstorage()
-    print("Successfully created azurite container...")
+    logger.info("Successfully created azurite container...")
     return azurite_server

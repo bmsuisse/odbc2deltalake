@@ -1,8 +1,11 @@
-from odbc2deltalake.destination.destination import Destination
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal, Mapping, Protocol, Any, Sequence, Union
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
+
 from sqlglot.expressions import Query
+
+from odbc2deltalake.destination.destination import Destination
 
 if TYPE_CHECKING:
     from odbc2deltalake.metadata import InformationSchemaColInfo
@@ -19,17 +22,16 @@ class DeltaOps(Protocol):
 
     def restore(self, target: int) -> Any: ...
 
-    def set_properties(self, props: dict[str, str]): ...
+    def set_properties(self, props: dict[str, str]) -> None: ...
 
     def get_property(self, key: str) -> Union[str, None]: ...
 
     def column_infos(self) -> "Sequence[InformationSchemaColInfo]": ...
 
-    def set_nullable(self, cols: Mapping[str, bool]): ...
+    def set_nullable(self, cols: Mapping[str, bool]) -> None: ...
 
-    def update_incremental(self):
+    def update_incremental(self) -> None:
         """Update the incremental state of the Delta table."""
-        pass
 
 
 class DataSourceReader(ABC):
@@ -46,9 +48,7 @@ class DataSourceReader(ABC):
         pass
 
     @abstractmethod
-    def local_delta_table_exists(
-        self, delta_path: Destination, extended_check=False
-    ) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check: bool = False) -> bool:
         pass
 
     @abstractmethod
@@ -59,7 +59,7 @@ class DataSourceReader(ABC):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
@@ -86,7 +86,7 @@ class DataSourceReader(ABC):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
@@ -96,11 +96,11 @@ class DataSourceReader(ABC):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         dummy_record: Union[dict, None] = None,
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
-    def local_register_view(self, sql: Query, view_name: str):
+    def local_register_view(self, sql: Query, view_name: str) -> None:
         pass
 
     @abstractmethod
@@ -110,7 +110,7 @@ class DataSourceReader(ABC):
         view_name: str,
         *,
         version: Union[int, None] = None,
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
@@ -119,5 +119,5 @@ class DataSourceReader(ABC):
         local_sql_source: Query,
         target_delta: Destination,
         merge_cols: Sequence[str],
-    ):
+    ) -> None:
         pass

@@ -1,9 +1,7 @@
-import odbc2deltalake
-from odbc2deltalake.reader.spark_reader import SparkReader
-from deltalake2db import duckdb_create_view_for_delta
+import importlib
 
 try:
-    import deltalake
+    importlib.import_module("deltalake")
 
     raise ImportError("I should not be able to import deltalake")
     exit(-1)

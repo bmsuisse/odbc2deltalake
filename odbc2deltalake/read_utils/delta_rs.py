@@ -1,4 +1,6 @@
-from typing import Union, Mapping, Sequence, TYPE_CHECKING
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Union
+
 import sqlglot.expressions as ex
 
 from odbc2deltalake.metadata import InformationSchemaColInfo
@@ -6,8 +8,8 @@ from odbc2deltalake.reader.reader import DeltaOps
 
 if TYPE_CHECKING:
     import pyarrow as pa
-    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
     from deltalake import DeltaTable
+    from deltalake.schema import ArrayType, MapType, PrimitiveType, StructType
 
 
 def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
@@ -19,7 +21,7 @@ def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
     return sc
 
 
-def _to_pyarrow_schema(delta_schema) -> "pa.Schema":
+def _to_pyarrow_schema(delta_schema: Any) -> "pa.Schema":
     import pyarrow as pa
 
     if hasattr(delta_schema, "to_pyarrow"):  # deltalake < 1.0
@@ -27,7 +29,7 @@ def _to_pyarrow_schema(delta_schema) -> "pa.Schema":
     return pa.schema(delta_schema)
 
 
-def _get_type(tp: "pa.DataType"):
+def _get_type(tp: "pa.DataType") -> Union[ex.DataType, ex.DataType.Type]:
     import pyarrow.types as pat
 
     if pat.is_string(tp):
@@ -65,7 +67,7 @@ def _get_type(tp: "pa.DataType"):
     raise ValueError(f"Type {tp} not supported")
 
 
-def _build_type(t: Union[ex.DataType, ex.DataType.Type]):
+def _build_type(t: Union[ex.DataType, ex.DataType.Type]) -> ex.DataType:
     if isinstance(t, ex.DataType):
         return t
     return ex.DataType(this=t)
@@ -74,7 +76,7 @@ def _build_type(t: Union[ex.DataType, ex.DataType.Type]):
 def _delta_to_sq_type(
     delta_type: "PrimitiveType | MapType | ArrayType | StructType",
 ) -> ex.DataType:
-    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
+    from deltalake.schema import ArrayType, MapType, PrimitiveType, StructType
 
     if isinstance(delta_type, PrimitiveType):
         type_map = {
@@ -93,21 +95,16 @@ def _delta_to_sq_type(
         }
         if delta_type.type in type_map:
             return ex.DataType.build(type_map[delta_type.type], dialect="spark")
-        else:
-            return ex.DataType.build(delta_type.type, dialect="spark")
-    elif isinstance(delta_type, MapType):
+        return ex.DataType.build(delta_type.type, dialect="spark")
+    if isinstance(delta_type, MapType):
         key_type = _delta_to_sq_type(delta_type.key_type)
         value_type = _delta_to_sq_type(delta_type.value_type)
 
-        return ex.DataType(
-            this=ex.DataType.Type.MAP, expressions=[key_type, value_type], nested=True
-        )
-    elif isinstance(delta_type, ArrayType):
+        return ex.DataType(this=ex.DataType.Type.MAP, expressions=[key_type, value_type], nested=True)
+    if isinstance(delta_type, ArrayType):
         item_type = _delta_to_sq_type(delta_type.element_type)
-        return ex.DataType(
-            this=ex.DataType.Type.ARRAY, expressions=[item_type], nested=True
-        )
-    elif isinstance(delta_type, StructType):
+        return ex.DataType(this=ex.DataType.Type.ARRAY, expressions=[item_type], nested=True)
+    if isinstance(delta_type, StructType):
         fields = [
             ex.DataType(
                 this=ex.DataType.Type.STRUCT,
@@ -121,41 +118,36 @@ def _delta_to_sq_type(
             )
             for f in delta_type.fields
         ]
-        return ex.DataType(
-            this=ex.DataType.Type.STRUCT, expressions=fields, nested=True
-        )
-    else:
-        raise ValueError(f"Unsupported Delta type: {type(delta_type)}")
+        return ex.DataType(this=ex.DataType.Type.STRUCT, expressions=fields, nested=True)
+    raise ValueError(f"Unsupported Delta type: {type(delta_type)}")
 
 
 class DeltaRSDeltaOps(DeltaOps):
-    def __init__(self, delta_table: "DeltaTable"):
+    def __init__(self, delta_table: "DeltaTable") -> None:
         self.delta_table = delta_table
 
     def version(self) -> int:
         return self.delta_table.version()
 
-    def vacuum(self, retention_hours: Union[int, None] = None):
+    def vacuum(self, retention_hours: Union[int, None] = None) -> None:
         self.delta_table.vacuum(retention_hours)
 
-    def restore(self, target: int):
+    def restore(self, target: int) -> None:
         self.delta_table.restore(target)
 
-    def set_properties(self, props: dict[str, str]):
+    def set_properties(self, props: dict[str, str]) -> None:
         self.delta_table.alter.set_table_properties(props, raise_if_not_exists=False)
 
-    def get_property(self, key: str):
+    def get_property(self, key: str) -> Union[str, None]:
         return self.delta_table.metadata().configuration.get(key, None)
 
-    def set_nullable(self, cols: Mapping[str, bool]):
+    def set_nullable(self, cols: Mapping[str, bool]) -> None:
         # not implemented properly for delta-rs
         for k, v in cols.items():
             if v:
                 self.delta_table.alter.add_constraint({f"null_{k}": f"{k} IS NOT NULL"})
             else:
-                self.delta_table.alter.drop_constraint(
-                    f"null_{k}", raise_if_not_exists=False
-                )
+                self.delta_table.alter.drop_constraint(f"null_{k}", raise_if_not_exists=False)
 
     def column_infos(self) -> "Sequence[InformationSchemaColInfo]":
         from odbc2deltalake.metadata import InformationSchemaColInfo
@@ -171,5 +163,5 @@ class DeltaRSDeltaOps(DeltaOps):
             for f in fields
         ]
 
-    def update_incremental(self):
+    def update_incremental(self) -> None:
         self.delta_table.update_incremental()

@@ -1,28 +1,25 @@
+from datetime import date
 from time import sleep
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
-from datetime import date
+import pytest
 
 from odbc2deltalake.query import sql_quote_value
-from .utils import config_names, get_test_run_configs, create_delta_view
-
+from tests.utils import config_names, create_delta_view, get_test_run_configs
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(4)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_always_full(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_first_load_always_full(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import write_db_to_delta
 
-    reader, dest = get_test_run_configs(
-        connection, spark_session, "long_schema/long_table_name2"
-    )[conf_name]
+    reader, dest = get_test_run_configs(connection, spark_session, "long_schema/long_table_name2")[conf_name]
 
     write_db_to_delta(
         reader,
@@ -39,31 +36,28 @@ def test_first_load_always_full(
             "v_long_table_name_temp",
             use_delta_ext=conf_name == "spark",
         )
-        res = con.execute(
-            "select max(__timestamp) from v_long_table_name_temp s"
-        ).fetchone()
+        res = con.execute("select max(__timestamp) from v_long_table_name_temp s").fetchone()
 
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            if reader.source_dialect in ["tsql", "mssql"]:
-                cursor.execute(
-                    """INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        if reader.source_dialect in ["tsql", "mssql"]:
+            cursor.execute(
+                """INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
         SELECT 5,
             '<root><child>text</child></root>',
             '2025-01-01'"""
-                )
-            else:
-                cursor.execute(
-                    """INSERT INTO "long schema"."long table name" ("long column name", dt, "date")
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO "long schema"."long table name" ("long column name", dt, "date")
                     select 5,
                         '<root><child>text</child></root>'::xml,
                         '2025-01-01'::date"""
-                )
+            )
     sleep(2)  # wait for the database to update
-    dbi = write_db_to_delta(
+    write_db_to_delta(
         reader,
         ("long schema", "long table name_as_view"),
         dest,
@@ -78,7 +72,8 @@ def test_first_load_always_full(
         )
 
         name_tuples = con.execute(
-            f'SELECT date from v_long_table_name where __timestamp>{sql_quote_value(max_valid_from)} order by "long_column_name"'
+            f"SELECT date from v_long_table_name where __timestamp>{sql_quote_value(max_valid_from)} "
+            'order by "long_column_name"'
         ).fetchall()
         assert name_tuples == [
             (

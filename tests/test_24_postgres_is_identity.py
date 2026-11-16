@@ -16,21 +16,24 @@ this to auto-select an identity primary key as the delta column for
 append_inserts mode when no delta_col is configured; that auto-detection
 silently never fired for postgres.
 """
+
 from typing import TYPE_CHECKING
+
 import pytest
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(24)
-def test_postgres_identity_column_detected(connection: "DB_Connection"):
+def test_postgres_identity_column_detected(connection: "DBConnection") -> None:
     if connection.source_server != "postgres":
-        pytest.skip("is_identity casing bug is specific to the postgres query")
+        pytest.skip("is_identity casing bug is specific to the postgres query")  # ty: ignore[too-many-positional-arguments]  # ty does not understand pytest's skip/fail wrappers
+
+    import adbc_driver_postgresql.dbapi as adbc_pg
 
     from odbc2deltalake.metadata import _get_table_cols
     from odbc2deltalake.reader.adbc_reader import ADBCReader
-    import adbc_driver_postgresql.dbapi as adbc_pg
 
     connstr = next(iter(connection.conn_str.values()))
     conn = adbc_pg.connect(connstr, autocommit=True)
@@ -38,9 +41,7 @@ def test_postgres_identity_column_detected(connection: "DB_Connection"):
         with conn.cursor() as c:
             c.execute("drop table if exists dbo.identity_probe")
             c.execute(
-                "create table dbo.identity_probe ("
-                "id integer generated always as identity primary key, "
-                "name text)"
+                "create table dbo.identity_probe (id integer generated always as identity primary key, name text)"
             )
 
         reader = ADBCReader(conn, local_db=":memory:", source_dialect="postgres")

@@ -1,12 +1,15 @@
-from .destination import Destination
-from typing import Literal
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, Optional
+
+from odbc2deltalake.destination.destination import Destination
+
+if TYPE_CHECKING:
+    from deltalake import DeltaTable
 
 
 class DatabricksDestination(Destination):
-    def __init__(
-        self, dbutils, container: str, path: str, account: str, scheme: str = "abfss"
-    ):
+    def __init__(self, dbutils: Any, container: str, path: str, account: str, scheme: str = "abfss") -> None:
         self.path = path.removeprefix("/")
         if "." not in account:
             account = account + ".dfs.core.windows.net"
@@ -16,7 +19,7 @@ class DatabricksDestination(Destination):
         self.scheme = scheme
         self.fs = None
 
-    def __truediv__(self, other: str):
+    def __truediv__(self, other: str) -> "DatabricksDestination":
         return DatabricksDestination(
             self.dbutils,
             container=self.container,
@@ -25,35 +28,35 @@ class DatabricksDestination(Destination):
             scheme=self.scheme,
         )
 
-    def to_az_path(self):
+    def to_az_path(self) -> str:
         return f"{self.scheme}://{self.container}@{self.account}/{self.path}"
 
-    def mkdir(self):
+    def mkdir(self) -> None:
         self.dbutils.fs.mkdirs(self.to_az_path())
 
-    def upload_str(self, data: str):
+    def upload_str(self, data: str) -> None:
         self.dbutils.fs.put(self.to_az_path(), data, overwrite=True)
 
-    def modified_time(self):
+    def modified_time(self) -> datetime:
         res = self.dbutils.fs.ls(self.to_az_path())
         assert len(res) == 1
         mod_time: int = res[0].modificationTime
         return datetime.fromtimestamp(mod_time / 1000, tz=timezone.utc)
 
-    def remove(self, recurse: bool = False):
+    def remove(self, recurse: bool = False) -> None:
         self.dbutils.fs.rm(self.to_az_path(), recurse=recurse)
 
-    def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
+    def as_path_options(self, flavor: Literal["fsspec", "object_store"]) -> tuple[str, Optional[dict[str, str]]]:
         raise NotImplementedError("not an option for databricks")
 
-    def as_delta_table(self):
+    def as_delta_table(self) -> "DeltaTable | Path":
         raise NotImplementedError("not an option for databricks")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_az_path()
 
     @property
-    def parent(self):
+    def parent(self) -> "DatabricksDestination":
         new_path = "/".join(self.path.removesuffix("/").split("/")[:-1])
 
         return DatabricksDestination(
@@ -64,7 +67,7 @@ class DatabricksDestination(Destination):
             scheme=self.scheme,
         )
 
-    def exists(self):
+    def exists(self) -> bool:
         try:
             self.dbutils.fs.ls(self.to_az_path())
             return True

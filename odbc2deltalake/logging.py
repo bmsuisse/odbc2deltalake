@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Optional, Protocol, Union
+
 from pydantic import BaseModel
-from typing import Optional, Union, Protocol
 
 
 class LogMessage(BaseModel):
@@ -16,6 +17,6 @@ class LogMessage(BaseModel):
 
 
 class StorageBackend(Protocol):
-    def log(self, msg: LogMessage): ...
+    def log(self, msg: LogMessage) -> None: ...
 
-    def flush(self): ...
+    def flush(self) -> None: ...

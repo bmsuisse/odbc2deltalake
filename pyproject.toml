@@ -14,7 +14,7 @@ requires-python = "~=3.9"
 
 [project.optional-dependencies]
 local = [
-    "deltalake2db >=1.0.0",
+    "deltalake2db >=1.2",
     "arrow-odbc",
     "deltalake",
     "duckdb",
@@ -26,7 +26,7 @@ local = [
 local_azure = [
     "azure-identity",
     "adlfs",
-    "deltalake2db >=1.0.0",
+    "deltalake2db >=1.2",
     "arrow-odbc >=5.0.0",
     "azure-storage-file-datalake",
     "pyarrow >=16.1",
@@ -61,6 +61,8 @@ exclude_lines = [
 [tool.uv]
 native-tls = true
 keyring-provider = "subprocess"
+exclude-newer = "5 days"
+exclude-newer-package = { deltalake2db = false }
 
 [[tool.uv.index]]
 name = "BMSAzureDevOps"
@@ -69,7 +71,7 @@ explicit = true
 publish-url = "https://pkgs.dev.azure.com/bmeurope/_packaging/BMS/pypi/upload/"
 
 [dependency-groups]
-dev = ["pyright >=1.1.352,<2", "ruff >=0.4.3"]
+dev = ["pyright >=1.1.352,<2", "ruff >=0.17", "ty >=0.0.100"]
 test = [
     "pytest >=8.0.2,<9",
     "pytest-asyncio >=0.23.5",
@@ -82,8 +84,56 @@ test = [
     "delta-spark >=3.2.0,<4",
     "pyarrow >=16.1",
     "duckdb",
-    "deltalake2db >=1.0.0",
+    "deltalake2db >=1.2",
     "deltalake >=0.22.3",
     "fsspec",
 ]
 spark = ["delta-spark >=3.2.0,<4", "pyspark >=3.5.1,<4"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py39"
+extend-exclude = ["*.md", ".worktrees", ".claude"]
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I",   # pycodestyle, pyflakes, isort
+    "UP",            # pyupgrade - X | None, modern syntax
+    "B",             # bugbear - mutable defaults etc.
+    "ANN",           # full type annotations
+    "SIM", "C4",     # simplifiable code, needless comprehensions/casts
+    "PERF", "FURB",  # needless loops, manual list/dict building
+    "ASYNC",         # blocking calls inside async def
+    "RUF",
+    "N",             # PEP 8 naming
+    "PTH",           # pathlib instead of os.path
+    "TID",           # absolute imports only, banned APIs
+    "RET", "PIE",    # consistent returns, misc simplifications
+    "A",             # no shadowing builtins
+    "T20",           # no print()
+    "LOG",           # logging API misuse
+    "DTZ",           # timezone-aware datetimes
+    "FLY",           # f-string instead of str.join on literals
+    "PLE", "PLW",    # pylint errors + warnings
+]
+ignore = ["ANN401"]  # `Any` is a warning via the ruff-warn-any prek hook, not an error
+
+[tool.ruff.lint.per-file-ignores]
+"tester.py" = ["T20"]  # dev script, its output is stdout
+"test_spark_import.py" = ["T20"]  # CI smoke script, its output is stdout
+"odbc2deltalake/sql_schema.py" = ["A002"]  # `type` is a keyword of the published is_string_type API
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ty.src]
+exclude = [".worktrees", ".claude"]

@@ -1,28 +1,27 @@
-from typing import TYPE_CHECKING
-import pytest
+from typing import TYPE_CHECKING, Optional
+
 import duckdb
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
+import pytest
 import sqlglot as sg
 
+from tests.utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.parametrize("conf_name", config_names)
-def test_insert_while_load(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_insert_while_load(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import WriteConfig, make_writer
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user8")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user8")[conf_name]
 
     config = WriteConfig(
         primary_keys=["User_-_iD"],
@@ -30,34 +29,35 @@ def test_insert_while_load(
         dialect=reader.source_dialect,
     )
 
-    w = write_db_to_delta_with_check(
-        reader, ("dbo", "user8"), dest, write_config=config
-    )
+    write_db_to_delta_with_check(reader, ("dbo", "user8"), dest, write_config=config)
 
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            sql = sg.parse_one(
-                """ INSERT into dbo.user8(FirstName, LastName, [User - iD], companyid) 
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        sql = sg.parse_one(
+            """ INSERT into dbo.user8(FirstName, LastName, [User - iD], companyid) 
                 SELECT 'Francis', 'Peterson', 98, 'c1'""",
-                dialect="tsql",
-            ).sql(reader.source_dialect)
-            if reader.source_dialect in ["tsql", "mssql"]:
-                sql = " set identity_insert dbo.user8 on;" + sql
-            cursor.execute(sql)
+            dialect="tsql",
+        ).sql(reader.source_dialect)
+        if reader.source_dialect in ["tsql", "mssql"]:
+            sql = " set identity_insert dbo.user8 on;" + sql
+        cursor.execute(sql)
     writer = make_writer(reader, ("dbo", "user8"), dest, write_config=config)
 
     orig_info = writer.logger.info
 
-    def info(*args, **kwargs):
-        msg = args[0]
-        if msg.startswith("Start delta step 2"):
-            with connection.new_connection(conf_name) as nc:
-                with nc.cursor() as cursor:
-                    cursor.execute(
-                        """delete from dbo.user8 where "User - iD"=98
+    def info(
+        message: str,
+        *,
+        load: Optional[str] = None,
+        sql: Optional[str] = None,
+        sub_load: Optional[str] = None,
+    ) -> None:
+        if message.startswith("Start delta step 2"):
+            with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+                cursor.execute(
+                    """delete from dbo.user8 where "User - iD"=98
                         """
-                    )
-        orig_info(*args, **kwargs)
+                )
+        orig_info(message, load=load, sql=sql, sub_load=sub_load)
 
     writer.logger.info = info
     writer.execute()
@@ -74,9 +74,7 @@ def test_insert_while_load(
             use_delta_ext=conf_name == "spark",
         )
 
-        name_tuples = con.execute(
-            'SELECT * from v_user_scd2 where "User_-_iD"=98'
-        ).fetchall()
+        name_tuples = con.execute('SELECT * from v_user_scd2 where "User_-_iD"=98').fetchall()
         assert len(name_tuples) == 0
         create_delta_view(
             con,
@@ -85,7 +83,5 @@ def test_insert_while_load(
             use_delta_ext=conf_name == "spark",
         )
 
-        name_tuples = con.execute(
-            'SELECT * from v_user_lpk where "User_-_iD"=98'
-        ).fetchall()
+        name_tuples = con.execute('SELECT * from v_user_lpk where "User_-_iD"=98').fetchall()
         assert len(name_tuples) == 0

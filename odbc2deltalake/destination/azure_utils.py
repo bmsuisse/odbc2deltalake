@@ -1,5 +1,4 @@
-from typing import Callable, Literal, Optional, Union
-
+from typing import Any, Callable, Literal, Optional, Union
 
 default_azure_args = [
     "authority",
@@ -24,16 +23,15 @@ default_azure_args = [
 ]
 
 
-_token_state: dict = dict()
+_token_state: dict = {}
 
 
-def _get_default_token(**kwargs) -> str:
-    global _token_state
+def _get_default_token(**kwargs: object) -> str:
     from azure.identity import DefaultAzureCredential
 
     # one credential per identity: destinations can use different managed_identity_client_id
     cache_key = tuple(sorted(kwargs.items()))
-    cred: Union[DefaultAzureCredential, None] = _token_state.get(cache_key, None)
+    cred: Union[DefaultAzureCredential, None] = _token_state.get(cache_key)
     if not cred:
         cred = DefaultAzureCredential(**kwargs)
         _token_state[cache_key] = cred
@@ -44,14 +42,14 @@ def convert_options(
     options: Union[dict, None],
     flavor: Literal["fsspec", "object_store"],
     token_retrieval_func: Optional[Callable[[], str]] = None,
-):
+) -> Union[dict[str, Any], None]:
     if options is None:
         return None
     use_emulator: bool = options.get("use_emulator", "0").lower() in ["1", "true"]
     if flavor == "fsspec" and "connection_string" not in options and use_emulator:
         constr = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;"
         return {"connection_string": constr}
-    elif (
+    if (
         flavor == "fsspec"
         and "account_key" not in options
         and "anon" not in options

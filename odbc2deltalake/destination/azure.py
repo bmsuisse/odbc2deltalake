@@ -1,13 +1,16 @@
-from .destination import Destination
-from typing import Literal, cast, TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, Literal, Optional, cast
+
+from odbc2deltalake.destination.destination import Destination
 
 if TYPE_CHECKING:
     import adlfs
+    from deltalake import DeltaTable
 
 
 class AzureDestination(Destination):
-    def __init__(self, container: str, path: str, storage_options: dict):
-        from .azure_utils import convert_options
+    def __init__(self, container: str, path: str, storage_options: dict) -> None:
+        from odbc2deltalake.destination.azure_utils import convert_options
 
         self.path = path
 
@@ -19,61 +22,60 @@ class AzureDestination(Destination):
         opts = cast(dict[str, str], convert_options(self.storage_options, "fsspec"))
         self.fs = cast(adlfs.AzureBlobFileSystem, fsspec.filesystem("az", **opts))
 
-    def __truediv__(self, other: str):
+    def __truediv__(self, other: str) -> "AzureDestination":
         return AzureDestination(
             self.container,
             self.path.removesuffix("/") + "/" + other,
             self.storage_options,
         )
 
-    def to_az_path(self):
+    def to_az_path(self) -> str:
         return f"az://{self.container}/{self.path}"
 
-    def mkdir(self):
+    def mkdir(self) -> None:
         pass
 
     def get_fs_path(self) -> "tuple[adlfs.AzureBlobFileSystem, str]":
         return (self.fs, self.to_az_path())
 
-    def upload_str(self, data: str):
+    def upload_str(self, data: str) -> None:
         with self.fs.open(self.to_az_path(), "w", encoding="utf-8") as f:
-            f.write(data)  # type: ignore
+            f.write(data)
 
-    def modified_time(self):
+    def modified_time(self) -> datetime:
         fs, path = self.get_fs_path()
         return fs.modified(path)
 
-    def remove(self, recurse: bool = False):
+    def remove(self, recurse: bool = False) -> None:
         fs, path = self.get_fs_path()
         fs.rm(path, recursive=recurse)
 
-    def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
-        from .azure_utils import convert_options
+    def as_path_options(self, flavor: Literal["fsspec", "object_store"]) -> tuple[str, Optional[dict[str, str]]]:
+        from odbc2deltalake.destination.azure_utils import convert_options
 
-        return self.to_az_path(), cast(
-            dict[str, str], convert_options(self.storage_options, flavor)
-        )
+        return self.to_az_path(), cast(dict[str, str], convert_options(self.storage_options, flavor))
 
-    def as_delta_table(self):
-        from .azure_utils import convert_options
+    def as_delta_table(self) -> "DeltaTable":
         from deltalake import DeltaTable
+
+        from odbc2deltalake.destination.azure_utils import convert_options
 
         return DeltaTable(
             self.to_az_path(),
-            storage_options=convert_options(self.storage_options, "object_store"),  # type: ignore
+            storage_options=convert_options(self.storage_options, "object_store"),
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_az_path()
 
     @property
-    def parent(self):
+    def parent(self) -> "AzureDestination":
         return self.__class__(
             self.container,
             "/".join(self.path.removesuffix("/").split("/")[:-1]),
             self.storage_options,
         )
 
-    def exists(self):
+    def exists(self) -> bool:
         fs, path = self.get_fs_path()
         return cast(bool, fs.exists(path))

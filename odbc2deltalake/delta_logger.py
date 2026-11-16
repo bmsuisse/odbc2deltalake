@@ -1,27 +1,31 @@
-from datetime import datetime, timezone
-from odbc2deltalake.destination.destination import Destination
-import pydantic
 import logging
-from uuid import uuid4
+import sys
+from datetime import datetime, timezone
 from typing import Literal, Optional, Union
-from .logging import LogMessage, StorageBackend
+from uuid import uuid4
+
+import pydantic
+
+from odbc2deltalake.destination.destination import Destination
+from odbc2deltalake.logging import LogMessage, StorageBackend
 from odbc2deltalake.reader.reader import DataSourceReader
+from odbc2deltalake.utils import model_to_dict
 
 is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
 
 
 class DeltaStorageBackend(StorageBackend):
-    def __init__(self, log_file_path: Destination, source: DataSourceReader):
+    def __init__(self, log_file_path: Destination, source: DataSourceReader) -> None:
         self.log_file_path = log_file_path
         self.source = source
         self._pending_logs: list[LogMessage] = []
 
-    def log(self, msg: LogMessage):
+    def log(self, msg: LogMessage) -> None:
         self._pending_logs.append(msg)
         if len(self._pending_logs) > 10:
             self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         if not self._pending_logs:
             return
         dummy = LogMessage(
@@ -36,10 +40,10 @@ class DeltaStorageBackend(StorageBackend):
             logger_name="dummy",
         )
         self.source.local_pylist_to_delta(
-            [p.model_dump() if is_pydantic_2 else p.dict() for p in self._pending_logs],
+            [model_to_dict(p) for p in self._pending_logs],
             self.log_file_path,
             "append",
-            dummy_record=dummy.model_dump() if is_pydantic_2 else dummy.dict(),
+            dummy_record=model_to_dict(dummy),
         )
         self._pending_logs.clear()
 
@@ -52,10 +56,8 @@ class DeltaLogger:
         base_logger: Union[logging.Logger, None] = None,
         print_to_console: bool = False,
         log_name: Optional[str] = None,
-        storage_backend: Optional[
-            Union[StorageBackend, Literal["default"]]
-        ] = "default",
-    ):
+        storage_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
+    ) -> None:
         self.log_file_path = log_file_path
         self.base_logger = base_logger
         self.source = source
@@ -67,7 +69,7 @@ class DeltaLogger:
         else:
             self.storage_backend = storage_backend
 
-    def _log(self, msg: LogMessage):
+    def _log(self, msg: LogMessage) -> None:
         if self.storage_backend:
             self.storage_backend.log(msg)
         if self.base_logger or self.print_to_console:
@@ -77,9 +79,7 @@ class DeltaLogger:
             if msg.error_trackback:
                 msg_str += f" | Error: {msg.error_trackback}"
             if msg.load:
-                msg_str += (
-                    f" | Load: {msg.load}{', ' + msg.sub_load if msg.sub_load else ''}"
-                )
+                msg_str += f" | Load: {msg.load}{', ' + msg.sub_load if msg.sub_load else ''}"
 
             if self.base_logger and msg.type == "info":
                 self.base_logger.info(msg_str)
@@ -89,7 +89,7 @@ class DeltaLogger:
                 self.base_logger.error(msg_str)
 
             if self.print_to_console:
-                print(msg.type + ": " + msg_str)
+                sys.stdout.write(msg.type + ": " + msg_str + "\n")
 
     def info(
         self,
@@ -98,7 +98,7 @@ class DeltaLogger:
         load: Union[str, None] = None,
         sql: Union[str, None] = None,
         sub_load: Union[str, None] = None,
-    ):
+    ) -> None:
         self._log(
             LogMessage(
                 message=message,
@@ -120,7 +120,7 @@ class DeltaLogger:
         sql: Union[str, None] = None,
         sub_load: Union[str, None] = None,
         error_trackback: Union[str, None] = None,
-    ):
+    ) -> None:
         self._log(
             LogMessage(
                 message=message,
@@ -143,7 +143,7 @@ class DeltaLogger:
         sql: Union[str, None] = None,
         sub_load: Union[str, None] = None,
         error_trackback: Union[str, None] = None,
-    ):
+    ) -> None:
         self._log(
             LogMessage(
                 message=message,
@@ -158,6 +158,6 @@ class DeltaLogger:
             )
         )
 
-    def flush(self):
+    def flush(self) -> None:
         if self.storage_backend:
             self.storage_backend.flush()

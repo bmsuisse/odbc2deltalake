@@ -1,22 +1,21 @@
-from typing import Sequence, Union
-import sqlglot.expressions as ex
+from collections.abc import Sequence
+from typing import Union
+
 import sqlglot as sg
+import sqlglot.expressions as ex
 
 
 def union(selects: Sequence[ex.Query], *, distinct: bool) -> ex.Query:
     if len(selects) == 0:
         raise ValueError("No selects to union")
-    elif len(selects) == 1:
+    if len(selects) == 1:
         return selects[0]
-    elif len(selects) == 2:
+    if len(selects) == 2:
         return ex.union(selects[0], selects[1], distinct=distinct)
-    else:
-        return ex.union(
-            selects[0], union(selects[1:], distinct=distinct), distinct=distinct
-        )
+    return ex.union(selects[0], union(selects[1:], distinct=distinct), distinct=distinct)
 
 
-def count_limit_one(table_name: Union[ex.Expression, str]):
+def count_limit_one(table_name: Union[ex.Expression, str]) -> ex.Select:
     return sg.from_(sg.from_(table_name).select(ex.Star()).limit(1).subquery()).select(
         ex.Count(this=ex.Star()).as_("cnt")
     )

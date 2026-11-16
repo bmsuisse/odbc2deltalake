@@ -16,32 +16,34 @@ source_write_sql_to_delta - the point where the query would otherwise
 be executed over a real ODBC connection) to assert whether a `> 0`
 filter made it into the WHERE clause.
 """
-from pathlib import Path
-from datetime import datetime, timezone
 
-from odbc2deltalake.destination.file_system import FileSystemDestination
+import contextlib
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Literal, NoReturn, Union
+
+import sqlglot.expressions as ex
+
+from odbc2deltalake.db_to_delta import do_append_inserts_load
+from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.destination.destination import Destination
+from odbc2deltalake.destination.file_system import FileSystemDestination
+from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
-from odbc2deltalake.metadata import InformationSchemaColInfo
-from odbc2deltalake.delta_logger import DeltaLogger
-from odbc2deltalake.db_to_delta import do_append_inserts_load
-import sqlglot.expressions as ex
 
 
 def _col(name: str) -> InformationSchemaColInfo:
-    return InformationSchemaColInfo(
-        column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint"
-    )
+    return InformationSchemaColInfo(column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint")
 
 
-class _StopForTest(Exception):
+class _StopForTestError(Exception):
     """Raised to stop do_append_inserts_load right after it built the SQL,
     before it would try to hit a real (non-existent) ODBC connection."""
 
 
 class _CapturingReader(ODBCReader):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.captured_sql = None
 
@@ -49,15 +51,15 @@ class _CapturingReader(ODBCReader):
         self,
         sql: str,
         delta_path: Destination,
-        mode,
+        mode: Literal["overwrite", "append"],
         *,
-        allow_schema_drift,
-    ):
+        allow_schema_drift: Union[bool, Literal["new_only"]],
+    ) -> NoReturn:
         self.captured_sql = sql
-        raise _StopForTest()
+        raise _StopForTestError()
 
 
-def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path):
+def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path) -> None:
     dest = FileSystemDestination(tmp_path / "dest")
     reader = _CapturingReader("unused", local_db=":memory:", source_dialect="tsql")
 
@@ -87,10 +89,8 @@ def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path):
         logger=DeltaLogger(dest / "log", reader),
     )
 
-    try:
+    with contextlib.suppress(_StopForTestError):
         do_append_inserts_load(infos)
-    except _StopForTest:
-        pass
 
     assert reader.captured_sql is not None, "source_write_sql_to_delta was never called"
     assert "WHERE" in reader.captured_sql.upper(), (
