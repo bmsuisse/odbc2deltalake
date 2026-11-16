@@ -1,5 +1,5 @@
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Union
 
 import sqlglot.expressions as ex
 
@@ -21,7 +21,7 @@ def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
     return sc
 
 
-def _to_pyarrow_schema(delta_schema) -> "pa.Schema":
+def _to_pyarrow_schema(delta_schema: Any) -> "pa.Schema":
     import pyarrow as pa
 
     if hasattr(delta_schema, "to_pyarrow"):  # deltalake < 1.0
@@ -29,7 +29,7 @@ def _to_pyarrow_schema(delta_schema) -> "pa.Schema":
     return pa.schema(delta_schema)
 
 
-def _get_type(tp: "pa.DataType"):
+def _get_type(tp: "pa.DataType") -> Union[ex.DataType, ex.DataType.Type]:
     import pyarrow.types as pat
 
     if pat.is_string(tp):
@@ -67,7 +67,7 @@ def _get_type(tp: "pa.DataType"):
     raise ValueError(f"Type {tp} not supported")
 
 
-def _build_type(t: Union[ex.DataType, ex.DataType.Type]):
+def _build_type(t: Union[ex.DataType, ex.DataType.Type]) -> ex.DataType:
     if isinstance(t, ex.DataType):
         return t
     return ex.DataType(this=t)
@@ -138,7 +138,7 @@ class DeltaRSDeltaOps(DeltaOps):
     def set_properties(self, props: dict[str, str]) -> None:
         self.delta_table.alter.set_table_properties(props, raise_if_not_exists=False)
 
-    def get_property(self, key: str):
+    def get_property(self, key: str) -> Union[str, None]:
         return self.delta_table.metadata().configuration.get(key, None)
 
     def set_nullable(self, cols: Mapping[str, bool]) -> None:

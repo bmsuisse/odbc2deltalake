@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Optional, Union
 
 import sqlglot as sg
 import sqlglot.expressions as ex
@@ -18,7 +18,7 @@ table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 def create_last_pk_version_view(
     infos: WriteConfigAndInfos,
     view_prefix: str = "",
-):
+) -> tuple[Optional[ex.Select], Optional[str], bool]:
     assert len(infos.pk_cols) > 0, "must have at least one pk column"
     delta_path = infos.destination / "delta"
     reader = infos.source

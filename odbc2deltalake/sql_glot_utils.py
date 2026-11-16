@@ -15,7 +15,7 @@ def union(selects: Sequence[ex.Query], *, distinct: bool) -> ex.Query:
     return ex.union(selects[0], union(selects[1:], distinct=distinct), distinct=distinct)
 
 
-def count_limit_one(table_name: Union[ex.Expression, str]):
+def count_limit_one(table_name: Union[ex.Expression, str]) -> ex.Select:
     return sg.from_(sg.from_(table_name).select(ex.Star()).limit(1).subquery()).select(
         ex.Count(this=ex.Star()).as_("cnt")
     )

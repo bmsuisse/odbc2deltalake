@@ -1,8 +1,9 @@
 import dataclasses
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from datetime import datetime, timezone
 from typing import (
+    Any,
     Callable,
     Literal,
     Optional,
@@ -36,7 +37,7 @@ from odbc2deltalake.query import sql_quote_name
 from odbc2deltalake.reader import DataSourceReader
 from odbc2deltalake.sql_glot_utils import count_limit_one, table_from_tuple, union
 from odbc2deltalake.sql_schema import is_string_type
-from odbc2deltalake.utils import concat_seq, is_pydantic_2
+from odbc2deltalake.utils import concat_seq, model_to_dict
 from odbc2deltalake.write_init import (
     IS_DELETED_COL_NAME,
     IS_FULL_LOAD_COL_NAME,
@@ -49,16 +50,20 @@ from odbc2deltalake.write_init import (
 T = TypeVar("T")
 
 
+def _source_column_name(c: InformationSchemaColInfo) -> str:
+    return c.column_name
+
+
 def _source_convert(
     name: str,
     data_type: ex.DataType,
     orig_data_type_str: Union[str, None],
     *,
     table_alias: Union[str, None] = None,
-    type_map: Optional[Mapping[str, ex.DataType]] = None,
+    type_map: Optional[Mapping[str, Union[ex.DataType, ex.DataType.Type]]] = None,
     no_trim: bool,
     dialect: str = "tsql",
-):
+) -> ex.Expression:
     expr = ex.column(name, table_alias, quoted=True)
 
     data_type_str = data_type if isinstance(data_type, str) else ex.DataType(this=data_type.this).sql(dialect).lower()
@@ -98,15 +103,13 @@ def _get_cols_select(
     with_valid_from: bool = False,
     table_alias: Union[str, None] = None,
     system: Literal["source", "target"],
-    data_type_map: Optional[Mapping[str, ex.DataType]] = None,
+    data_type_map: Optional[Mapping[str, Union[ex.DataType, ex.DataType.Type]]] = None,
     get_target_name: Optional[Callable[[InformationSchemaColInfo], str]],
     no_trim: bool,
     source_dialect: str = "tsql",
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
-
-        def get_target_name(c: InformationSchemaColInfo) -> str:
-            return c.column_name
+        get_target_name = _source_column_name
 
     return (
         [
@@ -152,7 +155,7 @@ def _vacuum(source: DataSourceReader, dest: Destination) -> None:
         source.get_local_delta_ops(dest).vacuum()
 
 
-def _transform_dt(dt: dict, dialect_src: str, dialect_trg: str):
+def _transform_dt(dt: dict, dialect_src: str, dialect_trg: str) -> dict:
     dt["data_type_src"] = dt["data_type"].sql(dialect_src)
     dt["data_type"] = dt["data_type"].sql(dialect_trg)
     return dt
@@ -172,7 +175,7 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
         json.dumps(
             [
                 _transform_dt(
-                    c.model_dump() if is_pydantic_2 else c.dict(),
+                    model_to_dict(c),
                     infos.write_config.dialect,
                     source.query_dialect,
                 )
@@ -256,9 +259,9 @@ def _get_latest_pk_query(
     pks: Sequence[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
-    merge_delta=False,
-    delta_load_value=None,
-):
+    merge_delta: bool = False,
+    delta_load_value: Any = None,
+) -> ex.Query:
     reader.local_register_update_view(
         destination / f"delta_load/{DBDeltaPathConfigs.DELTA_1_NAME}",
         DBDeltaPathConfigs.DELTA_1_NAME,
@@ -274,7 +277,7 @@ def _get_latest_pk_query(
             "primary_keys_ts_for_write",
         )
 
-    def _nn(ls):
+    def _nn(ls: Iterable[Optional[ex.Query]]) -> list[ex.Query]:
         return [item for item in ls if item is not None]
 
     return union(
@@ -390,8 +393,8 @@ def write_latest_pk(
     pks: Sequence[InformationSchemaColInfo],
     delta_col: InformationSchemaColInfo,
     write_config: WriteConfig,
-    merge_delta=False,
-    delta_load_value=None,
+    merge_delta: bool = False,
+    delta_load_value: Any = None,
 ) -> None:
     latest_pk_query = _get_latest_pk_query(
         reader,
@@ -417,11 +420,11 @@ def write_latest_pk(
         )
 
 
-def _temp_table(table: Union[table_name_type, ex.Query]):
+def _temp_table(table: Union[table_name_type, ex.Query]) -> str:
     if isinstance(table, ex.Query):
         return "temp_" + str(abs(hash(table.sql("duckdb"))))
 
-    def _clean(input_str: str):
+    def _clean(input_str: str) -> str:
         return "".join(ch for ch in input_str if ch.isalnum() and ch.isascii())
 
     if isinstance(table, str):
@@ -429,7 +432,7 @@ def _temp_table(table: Union[table_name_type, ex.Query]):
     return "temp_" + "_".join(_clean(s) for s in table)
 
 
-def _get_type_map(write_config: WriteConfig) -> Mapping[str, ex.DataType]:
+def _get_type_map(write_config: WriteConfig) -> Mapping[str, Union[ex.DataType, ex.DataType.Type]]:
     if write_config.data_type_map == "default":
         from odbc2deltalake.write_init import DEFAULT_DATA_TYPE_MAP
 
@@ -441,9 +444,9 @@ def do_delta_load(
     infos: WriteConfigAndInfos,
     # a simple delta load assumes that there are no deletes and no additional updates
     # (eg, when soft-delete is implemented in source properly)
-    simple=False,
+    simple: bool = False,
     # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
-    simple_check=False,
+    simple_check: bool = False,
 ) -> LoadResult:
     delta_result = DeltaLoadResult()
     destination = infos.destination
@@ -653,7 +656,7 @@ def do_delta_load(
     return delta_result
 
 
-def _get_local_pk_count(infos: WriteConfigAndInfos):
+def _get_local_pk_count(infos: WriteConfigAndInfos) -> int:
     reader = infos.source
 
     reader.local_register_update_view(
@@ -810,7 +813,7 @@ def do_deletes(
 
 def _retrieve_primary_key_data(
     infos: WriteConfigAndInfos,
-):
+) -> Destination:
     pk_ts_col_select = infos.from_("t").select(
         *_get_cols_select(
             is_full=None,
@@ -837,10 +840,7 @@ def _retrieve_primary_key_data(
     return pk_path
 
 
-T = TypeVar("T")
-
-
-def _list_to_chunks(items: Iterable[T], chunk_size: int):
+def _list_to_chunks(items: Iterable[T], chunk_size: int) -> Iterator[list[T]]:
     chunk: list[T] = []
     for item in items:
         chunk.append(item)
@@ -943,7 +943,7 @@ def _write_delta2(infos: WriteConfigAndInfos, data: list[dict], mode: Literal["o
 def _handle_additional_updates(
     infos: WriteConfigAndInfos,
     old_pk_version: int,
-):
+) -> Any:
     """Handles updates that are not logical by their timestamp.
 
     This can happen on a restore from backup, for example.
@@ -1129,7 +1129,7 @@ def _get_update_sql(
     criterion: Union[Sequence[ex.Expression], ex.Expression, None],
     query: ex.Select,
     write_config: WriteConfig,
-):
+) -> str:
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
     return (

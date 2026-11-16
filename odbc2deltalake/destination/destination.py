@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 class Destination(ABC):
     @abstractmethod
-    def mkdir(self):
+    def mkdir(self) -> None:
         pass
 
     @abstractmethod
@@ -27,7 +27,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def upload_str(self, data: str):
+    def upload_str(self, data: str) -> None:
         pass
 
     @abstractmethod
@@ -35,7 +35,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def remove(self, recurse: bool = False):
+    def remove(self, recurse: bool = False) -> None:
         pass
 
     @property

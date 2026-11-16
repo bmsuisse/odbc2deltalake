@@ -38,7 +38,7 @@ def get_local_delta_value_and_count(
     return mt, cnt
 
 
-def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos"):
+def retrieve_source_ts_cnt(infos: "WriteConfigAndInfos") -> tuple[Any, int]:
     # MAX over the delta column as the load writes it (e.g. a rowversion cast to bigint), so
     # it compares with get_local_delta_value_and_count and the "no updates" check can match
     from odbc2deltalake.db_to_delta import _get_type_map, _source_convert

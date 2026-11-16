@@ -12,6 +12,7 @@ from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.destination.destination import (
     Destination,
 )
+from odbc2deltalake.load_result import LoadResult
 from odbc2deltalake.logging import StorageBackend
 from odbc2deltalake.metadata import (
     InformationSchemaColInfo,
@@ -28,7 +29,7 @@ IS_FULL_LOAD_COL_NAME = "__is_full_load"
 
 T = TypeVar("T")
 
-_default_type_map = {
+_default_type_map: dict[str, dict[str, Union[ex.DataType, ex.DataType.Type]]] = {
     "tsql": {
         "datetime": ex.DataType(this="datetime2(6)"),
         "datetime2": ex.DataType(this="datetime2(6)"),
@@ -37,7 +38,7 @@ _default_type_map = {
         "tinyint": ex.DataType.Type.SMALLINT,  # tinyint is unsigned in T-SQL, therefore we map it to smallint in spark
     }
 }
-DEFAULT_DATA_TYPE_MAP: Mapping[str, Mapping[str, ex.DataType]] = _default_type_map
+DEFAULT_DATA_TYPE_MAP: Mapping[str, Mapping[str, Union[ex.DataType, ex.DataType.Type]]] = _default_type_map
 
 
 def compat_name(inf: InformationSchemaColInfo) -> str:
@@ -124,12 +125,12 @@ class WriteConfigAndInfos:
     table_or_query: Union[ex.Query, tuple[str, str], str]
     logger: DeltaLogger
 
-    def execute(self):
+    def execute(self) -> LoadResult:
         from odbc2deltalake.db_to_delta import exec_write_db_to_delta
 
         return exec_write_db_to_delta(self)
 
-    def check_delta_consistency(self, auto_fix=False):
+    def check_delta_consistency(self, auto_fix: bool = False) -> tuple[list[dict], bool]:
         from odbc2deltalake.consistency import check_latest_pk
 
         res = check_latest_pk(self, raise_if_not_consistent=not auto_fix)
@@ -139,7 +140,7 @@ class WriteConfigAndInfos:
             return res, True
         return res, False
 
-    def exec_source_query(self, query: Union[ex.Query, str]):
+    def exec_source_query(self, query: Union[ex.Query, str]) -> list[dict]:
         return self.source.source_sql_to_py(query)
 
     def from_(self, alias: str) -> ex.Select:
@@ -179,7 +180,7 @@ def make_writer(
     *,
     log_file_path: Optional[Destination] = None,
     log_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
-):
+) -> WriteConfigAndInfos:
     if write_config is None:
         write_config = WriteConfig(dialect=source.source_dialect if isinstance(source, DataSourceReader) else "tsql")
     if isinstance(destination, Path):

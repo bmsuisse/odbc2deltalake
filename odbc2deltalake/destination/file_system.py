@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Union
 
@@ -23,14 +24,14 @@ class FileSystemDestination(Destination):
     def __str__(self) -> str:
         return str(self.path)
 
-    def exists(self):
+    def exists(self) -> bool:
         return self.path.exists()
 
     def upload_str(self, data: str) -> None:
         with self.path.open("w", encoding="utf-8") as f:
             f.write(data)
 
-    def modified_time(self):
+    def modified_time(self) -> datetime:
         fs, path = self.get_fs_path()
         return fs.modified(path)
 
@@ -43,14 +44,14 @@ class FileSystemDestination(Destination):
             self.path.unlink()
 
     @property
-    def parent(self):
+    def parent(self) -> "FileSystemDestination":
         return self.__class__(self.path.parent)
 
-    def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
+    def as_path_options(self, flavor: Literal["fsspec", "object_store"]) -> tuple[str, None]:
         return str(self.path), None
 
-    def as_delta_table(self):
+    def as_delta_table(self) -> Path:
         return self.path
 
-    def __truediv__(self, other: str):
+    def __truediv__(self, other: str) -> "FileSystemDestination":
         return FileSystemDestination(self.path / other)

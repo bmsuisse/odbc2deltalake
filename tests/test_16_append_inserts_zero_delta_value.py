@@ -20,6 +20,7 @@ filter made it into the WHERE clause.
 import contextlib
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import NoReturn
 
 import sqlglot.expressions as ex
 
@@ -30,7 +31,6 @@ from odbc2deltalake.destination.file_system import FileSystemDestination
 from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
-from typing import NoReturn
 
 
 def _col(name: str) -> InformationSchemaColInfo:

@@ -1,5 +1,8 @@
 from collections.abc import Sequence
-from typing import TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
+
+if TYPE_CHECKING:
+    from pydantic import BaseModel
 
 T = TypeVar("T")
 
@@ -31,3 +34,10 @@ def _is_pydantic_2() -> bool:
 
 
 is_pydantic_2 = _is_pydantic_2()
+
+
+def model_to_dict(model: "BaseModel") -> dict[str, Any]:
+    """`model_dump` on pydantic 2, `dict` on pydantic 1 (we support both)."""
+    if is_pydantic_2:
+        return model.model_dump()
+    return model.dict()  # ty: ignore[deprecated]  # pydantic 1 API, still needed when pydantic < 2 is installed

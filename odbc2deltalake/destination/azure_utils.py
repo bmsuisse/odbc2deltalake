@@ -1,4 +1,4 @@
-from typing import Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union
 
 default_azure_args = [
     "authority",
@@ -26,7 +26,7 @@ default_azure_args = [
 _token_state: dict = {}
 
 
-def _get_default_token(**kwargs) -> str:
+def _get_default_token(**kwargs: object) -> str:
     from azure.identity import DefaultAzureCredential
 
     # one credential per identity: destinations can use different managed_identity_client_id
@@ -42,7 +42,7 @@ def convert_options(
     options: Union[dict, None],
     flavor: Literal["fsspec", "object_store"],
     token_retrieval_func: Optional[Callable[[], str]] = None,
-):
+) -> Union[dict[str, Any], None]:
     if options is None:
         return None
     use_emulator: bool = options.get("use_emulator", "0").lower() in ["1", "true"]

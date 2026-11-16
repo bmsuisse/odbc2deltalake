@@ -48,7 +48,7 @@ class DataSourceReader(ABC):
         pass
 
     @abstractmethod
-    def local_delta_table_exists(self, delta_path: Destination, extended_check=False) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check: bool = False) -> bool:
         pass
 
     @abstractmethod
@@ -59,7 +59,7 @@ class DataSourceReader(ABC):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
@@ -86,7 +86,7 @@ class DataSourceReader(ABC):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
@@ -96,11 +96,11 @@ class DataSourceReader(ABC):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         dummy_record: Union[dict, None] = None,
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
-    def local_register_view(self, sql: Query, view_name: str):
+    def local_register_view(self, sql: Query, view_name: str) -> None:
         pass
 
     @abstractmethod
@@ -110,7 +110,7 @@ class DataSourceReader(ABC):
         view_name: str,
         *,
         version: Union[int, None] = None,
-    ):
+    ) -> None:
         pass
 
     @abstractmethod
@@ -119,5 +119,5 @@ class DataSourceReader(ABC):
         local_sql_source: Query,
         target_delta: Destination,
         merge_cols: Sequence[str],
-    ):
+    ) -> None:
         pass

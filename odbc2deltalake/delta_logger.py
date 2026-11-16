@@ -9,6 +9,7 @@ import pydantic
 from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.logging import LogMessage, StorageBackend
 from odbc2deltalake.reader.reader import DataSourceReader
+from odbc2deltalake.utils import model_to_dict
 
 is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
 
@@ -39,10 +40,10 @@ class DeltaStorageBackend(StorageBackend):
             logger_name="dummy",
         )
         self.source.local_pylist_to_delta(
-            [p.model_dump() if is_pydantic_2 else p.dict() for p in self._pending_logs],
+            [model_to_dict(p) for p in self._pending_logs],
             self.log_file_path,
             "append",
-            dummy_record=dummy.model_dump() if is_pydantic_2 else dummy.dict(),
+            dummy_record=model_to_dict(dummy),
         )
         self._pending_logs.clear()
 

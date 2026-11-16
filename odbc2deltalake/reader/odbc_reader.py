@@ -96,7 +96,7 @@ class ODBCReader(DataSourceReader):
             writer_properties=self.writer_properties,
         )
 
-    def local_delta_table_exists(self, delta_path: Destination, extended_check=False) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check: bool = False) -> bool:
         if delta_path.exists():
             from deltalake import DeltaTable
             from deltalake.exceptions import TableNotFoundError
@@ -120,8 +120,8 @@ class ODBCReader(DataSourceReader):
         delta_path: Destination,
         allow_schema_drift: Union[bool, Literal["new_only"]],
         mode: Literal["overwrite", "append"],
-        input_schema,
-    ):
+        input_schema: "pa.Schema",
+    ) -> tuple[Optional["pa.Schema"], Optional[Literal["merge", "overwrite"]]]:
         from deltalake.exceptions import TableNotFoundError
 
         delta_path.as_path_options("object_store")

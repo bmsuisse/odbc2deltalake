@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Literal, Union
 
 import sqlglot
@@ -65,7 +66,9 @@ class InformationSchemaColInfo(BaseModel):
     is_identity: bool = False
 
 
-def _get_table_cols(reader: DataSourceReader, table_name: table_name_type, *, dialect: str):
+def _get_table_cols(
+    reader: DataSourceReader, table_name: table_name_type, *, dialect: str
+) -> list[InformationSchemaColInfo]:
     if isinstance(table_name, str):
         table_name = ("dbo", table_name)
     real_table_name = table_name[1] if len(table_name) == 2 else table_name[2]
@@ -142,7 +145,9 @@ def _get_table_cols(reader: DataSourceReader, table_name: table_name_type, *, di
     return [InformationSchemaColInfo(**d) for d in dicts]
 
 
-def _get_query_cols_first_result_set(reader: DataSourceReader, query: ex.Query, *, dialect: str):
+def _get_query_cols_first_result_set(
+    reader: DataSourceReader, query: ex.Query, *, dialect: str
+) -> Iterator[InformationSchemaColInfo]:
     sql = "EXEC sp_describe_first_result_set @tsql=N'" + query.sql(dialect).replace("'", "''") + "'"
 
     dicts = reader.source_sql_to_py(sql)

@@ -10,7 +10,7 @@ def build_connection_string(
     *,
     odbc: bool = False,
     odbc_driver: Union[str, list[str], None] = None,
-):
+) -> str:
     if isinstance(dict_dt, str) and not odbc:
         return dict_dt
     selected_odbc_driver = None if not odbc else odbc_driver if isinstance(odbc_driver, str) else None

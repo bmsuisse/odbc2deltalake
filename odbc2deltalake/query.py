@@ -8,7 +8,7 @@ SQLObjectNameType: TypeAlias = Union[str, tuple[str, str], tuple[str, str, str]]
 QuoteMode: TypeAlias = Literal["ansi", "tsql", "postgres"]
 
 
-def sql_quote_name(inp: SQLObjectNameType, *, mode: QuoteMode = "ansi"):
+def sql_quote_name(inp: SQLObjectNameType, *, mode: QuoteMode = "ansi") -> str:
     if isinstance(inp, str):
         if inp.startswith("#"):  # temp tables names must not be quoted
             assert " " not in inp
@@ -38,7 +38,7 @@ def sql_quote_name(inp: SQLObjectNameType, *, mode: QuoteMode = "ansi"):
     return schema_name + "." + tbl_name
 
 
-def sql_quote_value(vl: Any):
+def sql_quote_value(vl: Any) -> str:
     if vl is None:
         return "null"
     if isinstance(vl, str):

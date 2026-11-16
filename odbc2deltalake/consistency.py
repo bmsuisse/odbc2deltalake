@@ -13,13 +13,13 @@ logger = logging.getLogger(__name__)
 class InconsistentPrimaryKeyError(Exception):
     """Exception raised when primary keys are inconsistent."""
 
-    def __init__(self, message, invalid_data: list[dict[str, Any]]) -> None:
+    def __init__(self, message: str, invalid_data: list[dict[str, Any]]) -> None:
         self.message = message
         self.invalid_data = invalid_data
         super().__init__(self.message)
 
 
-def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
+def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent: bool = True) -> list[dict]:
     if not infos.delta_col or not infos.pk_cols:
         raise ValueError("Primary keys and delta column must be defined")
     postfix = "_" + str(abs(hash(str(infos.destination))))

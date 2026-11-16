@@ -10,13 +10,15 @@ from odbc2deltalake.reader.reader import DataSourceReader, DeltaOps
 
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame, SparkSession
+    from pyspark.sql.readwriter import DataFrameReader
+    from pyspark.sql.types import DataType as SparkDataType
     from pyspark.sql.types import StructType
 
     from odbc2deltalake.metadata import InformationSchemaColInfo
 
 
 class SparkDeltaOps(DeltaOps):
-    def __init__(self, dest: Destination, spark) -> None:
+    def __init__(self, dest: Destination, spark: "SparkSession") -> None:
         from delta.tables import DeltaTable
 
         self.dest = dest
@@ -33,7 +35,7 @@ class SparkDeltaOps(DeltaOps):
         self.table.restoreToVersion(target)
 
     def set_properties(self, props: dict[str, str]) -> None:
-        def _escape(s: str):
+        def _escape(s: str) -> str:
             return s.replace("'", "''")
 
         prop_str = ", ".join([f"'{_escape(k)}' = '{_escape(v)}'" for k, v in props.items()])
@@ -52,7 +54,7 @@ class SparkDeltaOps(DeltaOps):
             return res[0].value
         return None
 
-    def columns(self):
+    def columns(self) -> list[str]:
         return self.spark.read.format("delta").load(str(self.dest)).columns
 
     def column_infos(self) -> "Sequence[InformationSchemaColInfo]":
@@ -89,7 +91,7 @@ class SparkReader(DataSourceReader):
         sql_config: Optional[dict[str, str]] = None,
         linked_server_proxy: Union[str, None] = None,
         spark_format: str = "sqlserver",
-        jdbc=False,
+        jdbc: bool = False,
         transformation_hook: Optional[Callable[["DataFrame", str], "DataFrame"]] = None,
     ) -> None:
         self.spark = spark
@@ -184,7 +186,7 @@ class SparkReader(DataSourceReader):
     def supports_proc_exec(self) -> bool:
         return False
 
-    def _query(self, sql: Union[str, Query]):
+    def _query(self, sql: Union[str, Query]) -> str:
         if isinstance(sql, Query):
             sql = sql.sql(self.source_dialect)
         if self.linked_server_proxy:
@@ -216,7 +218,7 @@ class SparkReader(DataSourceReader):
         rows = self.transformation_hook(reader.load(), "source2py").collect()
         return [row.asDict() for row in rows]
 
-    def local_delta_table_exists(self, delta_path: Destination, extended_check=False) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check: bool = False) -> bool:
         from delta import DeltaTable
 
         if delta_path.exists() and DeltaTable.isDeltaTable(self.spark, str(delta_path)):
@@ -225,7 +227,7 @@ class SparkReader(DataSourceReader):
             return True
         return False
 
-    def _reader(self, sql: Union[str, Query]):
+    def _reader(self, sql: Union[str, Query]) -> "DataFrameReader":
         if self.jdbc:
             options = {}
             if self.spark_format in ["postgres", "postgresql"]:
@@ -298,7 +300,7 @@ class SparkReader(DataSourceReader):
     _MIGRATION_TMP_SUFFIX = "__odbc2delta_tmp"
 
     @staticmethod
-    def _type_needs_migration(existing, new) -> bool:
+    def _type_needs_migration(existing: "SparkDataType", new: "SparkDataType") -> bool:
         from pyspark.sql.types import StringType
 
         # strings can hold anything we would append
@@ -327,7 +329,7 @@ class SparkReader(DataSourceReader):
                 self._migrate_column(delta_path, ef.name, sf.dataType.simpleString())
 
     def _migrate_column(self, delta_path: Destination, name: str, new_type: Optional[str]) -> None:
-        def q(n: str):
+        def q(n: str) -> str:
             return "`" + n.replace("`", "``") + "`"
 
         table = f"delta.`{delta_path!s}`"
