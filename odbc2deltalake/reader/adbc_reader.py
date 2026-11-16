@@ -148,7 +148,7 @@ class ADBCReader(DataSourceReader):
     ):
         from deltalake.exceptions import TableNotFoundError
 
-        dp, do = delta_path.as_path_options("object_store")
+        delta_path.as_path_options("object_store")
         schema_mode = None
         if allow_schema_drift == "new_only":
             try:
@@ -282,8 +282,7 @@ class ADBCReader(DataSourceReader):
                 cursor.execute(sql)
                 assert cursor.description is not None
                 col_names = [desc[0] for desc in cursor.description]
-                for row in cursor.fetchall():
-                    result.append(dict(zip(col_names, row)))
+                result.extend(dict(zip(col_names, row)) for row in cursor.fetchall())
         finally:
             self.connection.commit()
         return result

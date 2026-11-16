@@ -27,7 +27,7 @@ class FileSystemDestination(Destination):
         return self.path.exists()
 
     def upload_str(self, data: str):
-        with open(self.path, "w", encoding="utf-8") as f:
+        with self.path.open("w", encoding="utf-8") as f:
             f.write(data)
 
     def modified_time(self):

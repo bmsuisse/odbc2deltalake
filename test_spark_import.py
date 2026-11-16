@@ -1,5 +1,7 @@
+import importlib
+
 try:
-    import deltalake
+    importlib.import_module("deltalake")
 
     raise ImportError("I should not be able to import deltalake")
     exit(-1)

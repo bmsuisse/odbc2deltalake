@@ -104,7 +104,9 @@ def _get_cols_select(
     source_dialect: str = "tsql",
 ) -> Sequence[ex.Expression]:
     if get_target_name is None:
-        get_target_name = lambda c: c.column_name
+
+        def get_target_name(c: InformationSchemaColInfo) -> str:
+            return c.column_name
 
     return (
         [
@@ -273,7 +275,7 @@ def _get_latest_pk_query(
         )
 
     def _nn(ls):
-        return [l for l in ls if l is not None]
+        return [item for item in ls if item is not None]
 
     return union(
         _nn(
@@ -830,9 +832,9 @@ def _retrieve_primary_key_data(
 T = TypeVar("T")
 
 
-def _list_to_chunks(input: Iterable[T], chunk_size: int):
+def _list_to_chunks(items: Iterable[T], chunk_size: int):
     chunk: list[T] = []
-    for item in input:
+    for item in items:
         chunk.append(item)
         if len(chunk) >= chunk_size:
             yield chunk

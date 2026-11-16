@@ -121,7 +121,7 @@ class ODBCReader(DataSourceReader):
     ):
         from deltalake.exceptions import TableNotFoundError
 
-        dp, do = delta_path.as_path_options("object_store")
+        delta_path.as_path_options("object_store")
         schema_mode = None
         if allow_schema_drift == "new_only":
             try:

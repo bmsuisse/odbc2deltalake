@@ -57,7 +57,7 @@ def test_first_load_always_full(connection: "DB_Connection", spark_session: "Spa
                         '2025-01-01'::date"""
             )
     sleep(2)  # wait for the database to update
-    dbi = write_db_to_delta(
+    write_db_to_delta(
         reader,
         ("long schema", "long table name_as_view"),
         dest,

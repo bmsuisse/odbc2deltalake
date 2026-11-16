@@ -1,6 +1,6 @@
 from typing import Union
 
-drivers: Union[list[str], None] = None
+drivers: list[str] = []
 
 POSTGRES_ODBC_DRIVERS = ["PostgreSQL Unicode(x64)", "PostgreSQL Unicode"]
 
@@ -13,8 +13,6 @@ def build_connection_string(
 ):
     if isinstance(dict_dt, str) and not odbc:
         return dict_dt
-    global drivers
-    global ODBC_DRIVER
     selected_odbc_driver = None if not odbc else odbc_driver if isinstance(odbc_driver, str) else None
     if isinstance(odbc_driver, list) and len(odbc_driver) == 1:
         selected_odbc_driver = odbc_driver[0]
@@ -28,7 +26,8 @@ def build_connection_string(
         candidate_drivers = odbc_driver if isinstance(odbc_driver, list) else [odbc_driver or "SQL Server"]
         import pyodbc
 
-        drivers = drivers or pyodbc.drivers()
+        if not drivers:
+            drivers.extend(pyodbc.drivers())
 
         for p in candidate_drivers:
             if p in drivers:

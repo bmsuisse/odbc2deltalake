@@ -32,7 +32,7 @@ def test_schema_drift(connection: "DB_Connection", spark_session: "SparkSession"
         dialect=reader.source_dialect,
         allow_schema_drift=True,
     )
-    w = write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=config)
+    write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=config)
 
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
         cursor.execute(
@@ -93,6 +93,10 @@ def test_schema_drift(connection: "DB_Connection", spark_session: "SparkSession"
                 """ALTER TABLE dbo.user7 add Age xml not null default('<a></a>');
                 """
             )
-    with pytest.raises(Exception):
-        c2 = dataclasses.replace(config, load_mode="force_full")
+    c2 = dataclasses.replace(config, load_mode="force_full")
+    try:
         write_db_to_delta_with_check(reader, ("dbo", "user7"), dest, write_config=c2)
+    except Exception:  # the exception type depends on the configuration (delta-rs / spark) and database
+        pass
+    else:
+        pytest.fail("Expected the force_full load to fail after the incompatible type change")

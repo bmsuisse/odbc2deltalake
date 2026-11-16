@@ -121,8 +121,8 @@ def get_test_run_configs(
     from odbc2deltalake.destination.file_system import FileSystemDestination
 
     sub_path = "/".join(tbl_dest_name.split("/")[0:-1])
-    os.makedirs("tests/_db/_azure/" + sub_path, exist_ok=True)
-    os.makedirs("tests/_db/_local/" + sub_path, exist_ok=True)
+    Path("tests/_db/_azure/" + sub_path).mkdir(parents=True, exist_ok=True)
+    Path("tests/_db/_local/" + sub_path).mkdir(parents=True, exist_ok=True)
     cfg: dict[str, tuple[DataSourceReader, Destination]] = {}
 
     def _local_reader(connection, config):

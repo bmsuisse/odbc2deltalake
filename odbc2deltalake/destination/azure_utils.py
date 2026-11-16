@@ -27,7 +27,6 @@ _token_state: dict = {}
 
 
 def _get_default_token(**kwargs) -> str:
-    global _token_state
     from azure.identity import DefaultAzureCredential
 
     # one credential per identity: destinations can use different managed_identity_client_id

@@ -29,7 +29,7 @@ def test_insert_while_load(connection: "DB_Connection", spark_session: "SparkSes
         dialect=reader.source_dialect,
     )
 
-    w = write_db_to_delta_with_check(reader, ("dbo", "user8"), dest, write_config=config)
+    write_db_to_delta_with_check(reader, ("dbo", "user8"), dest, write_config=config)
 
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
         sql = sg.parse_one(

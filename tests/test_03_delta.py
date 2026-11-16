@@ -56,8 +56,6 @@ def test_delta(connection: "DB_Connection", spark_session: "SparkSession", conf_
             cursor.execute(sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(reader.source_dialect))
             alls = cursor.fetchall()
             assert cursor.description is not None
-            cols = [c[0] for c in cursor.description]
-            dicts = [dict(zip(cols, row)) for row in alls]
             print(alls)
 
     import time

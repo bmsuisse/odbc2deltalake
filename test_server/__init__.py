@@ -18,7 +18,7 @@ server_configs = {
 
 
 def _getenvs(server: Literal["mssql", "postgres"]):
-    with open(f"test_server/{server}.env") as f:
+    with Path(f"test_server/{server}.env").open() as f:
         lines = f.readlines()
         return {
             item[0].strip(): item[1].strip()

@@ -42,9 +42,9 @@ class DB_Connection:
 
         self.source_server = source_server
         self.dialect = "tsql" if source_server == "mssql" else source_server
-        if os.path.exists("tests/_data"):
+        if Path("tests/_data").exists():
             shutil.rmtree("tests/_data")
-        os.makedirs("tests/_data", exist_ok=True)
+        Path("tests/_data").mkdir(parents=True, exist_ok=True)
         configs = ["azure", "spark", "local"]
         tc = os.getenv("ODBCLAKE_TEST_CONFIGURATION")
         if tc:
@@ -93,7 +93,7 @@ class DB_Connection:
 
             with (
                 get_conn(self.conn_str[cfg], autocommit=True) as con,
-                open(f"tests/sqls/init_{source_server}.sql", encoding="utf-8-sig") as f,
+                Path(f"tests/sqls/init_{source_server}.sql").open(encoding="utf-8-sig") as f,
             ):
                 sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
                 for sql in sqls:

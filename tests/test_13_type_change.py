@@ -63,7 +63,7 @@ def test_source_type_widening_does_not_fail_on_stale_staging(
 def test_source_type_change_int_to_string_spark(connection: "DB_Connection", spark_session: "SparkSession"):
     if spark_session is None or "spark" not in config_names:
         pytest.skip("Column migration is only implemented for spark")
-    reader, dest, ops = _run_type_change(connection, spark_session, "spark", "text", append_only=True)
+    _, dest, ops = _run_type_change(connection, spark_session, "spark", "text", append_only=True)
     df = spark_session.read.format("delta").load(str(dest / "delta"))
     assert dict(df.dtypes)["name_len"] == "string"
     assert df.columns.index("name_len") == 2  # keeps its position
