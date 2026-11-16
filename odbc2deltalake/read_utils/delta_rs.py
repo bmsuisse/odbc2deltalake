@@ -1,4 +1,6 @@
-from typing import Union, Mapping, Sequence, TYPE_CHECKING
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Union
+
 import sqlglot.expressions as ex
 
 from odbc2deltalake.metadata import InformationSchemaColInfo
@@ -6,8 +8,8 @@ from odbc2deltalake.reader.reader import DeltaOps
 
 if TYPE_CHECKING:
     import pyarrow as pa
-    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
     from deltalake import DeltaTable
+    from deltalake.schema import ArrayType, MapType, PrimitiveType, StructType
 
 
 def _all_nullable(schema: "pa.Schema") -> "pa.Schema":
@@ -74,7 +76,7 @@ def _build_type(t: Union[ex.DataType, ex.DataType.Type]):
 def _delta_to_sq_type(
     delta_type: "PrimitiveType | MapType | ArrayType | StructType",
 ) -> ex.DataType:
-    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
+    from deltalake.schema import ArrayType, MapType, PrimitiveType, StructType
 
     if isinstance(delta_type, PrimitiveType):
         type_map = {
@@ -93,21 +95,20 @@ def _delta_to_sq_type(
         }
         if delta_type.type in type_map:
             return ex.DataType.build(type_map[delta_type.type], dialect="spark")
-        else:
-            return ex.DataType.build(delta_type.type, dialect="spark")
-    elif isinstance(delta_type, MapType):
+        return ex.DataType.build(delta_type.type, dialect="spark")
+    if isinstance(delta_type, MapType):
         key_type = _delta_to_sq_type(delta_type.key_type)
         value_type = _delta_to_sq_type(delta_type.value_type)
 
         return ex.DataType(
             this=ex.DataType.Type.MAP, expressions=[key_type, value_type], nested=True
         )
-    elif isinstance(delta_type, ArrayType):
+    if isinstance(delta_type, ArrayType):
         item_type = _delta_to_sq_type(delta_type.element_type)
         return ex.DataType(
             this=ex.DataType.Type.ARRAY, expressions=[item_type], nested=True
         )
-    elif isinstance(delta_type, StructType):
+    if isinstance(delta_type, StructType):
         fields = [
             ex.DataType(
                 this=ex.DataType.Type.STRUCT,
@@ -124,8 +125,7 @@ def _delta_to_sq_type(
         return ex.DataType(
             this=ex.DataType.Type.STRUCT, expressions=fields, nested=True
         )
-    else:
-        raise ValueError(f"Unsupported Delta type: {type(delta_type)}")
+    raise ValueError(f"Unsupported Delta type: {type(delta_type)}")
 
 
 class DeltaRSDeltaOps(DeltaOps):

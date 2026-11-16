@@ -1,13 +1,16 @@
 import time
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
-from .utils import config_names, get_test_run_configs, create_delta_view
+import pytest
 import sqlglot as sg
 
+from .utils import config_names, create_delta_view, get_test_run_configs
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(11)
@@ -16,8 +19,8 @@ def test_append_inserts(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
     from odbc2deltalake import (
-        write_db_to_delta,
         WriteConfig,
+        write_db_to_delta,
     )
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/log")[conf_name]
@@ -46,15 +49,14 @@ def test_append_inserts(
         assert id_tuples == [(1, "The first log message")]
 
     time.sleep(1)
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute(
-                sg.parse_one(
-                    """INSERT INTO [dbo].[log] ([message])
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute(
+            sg.parse_one(
+                """INSERT INTO [dbo].[log] ([message])
                    SELECT 'The second log message'""",
-                    dialect="tsql",
-                ).sql(reader.source_dialect)
-            )
+                dialect="tsql",
+            ).sql(reader.source_dialect)
+        )
     write_db_to_delta(  # some delta load
         reader,
         ("dbo", "log"),

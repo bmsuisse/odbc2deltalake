@@ -1,14 +1,16 @@
+from typing import Union
+
+import sqlglot as sg
+import sqlglot.expressions as ex
+
+from odbc2deltalake.sql_glot_utils import count_limit_one
 from odbc2deltalake.write_init import (
     IS_DELETED_COL_NAME,
     IS_FULL_LOAD_COL_NAME,
     VALID_FROM_COL_NAME,
     DBDeltaPathConfigs,
+    WriteConfigAndInfos,
 )
-from odbc2deltalake.write_init import WriteConfigAndInfos
-import sqlglot.expressions as ex
-import sqlglot as sg
-from typing import Union
-from odbc2deltalake.sql_glot_utils import count_limit_one
 
 table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 

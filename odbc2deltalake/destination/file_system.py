@@ -1,6 +1,7 @@
-from typing import Literal, TYPE_CHECKING, Union
-from .destination import Destination
 from pathlib import Path
+from typing import TYPE_CHECKING, Literal, Union
+
+from .destination import Destination
 
 if TYPE_CHECKING:
     import fsspec

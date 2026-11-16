@@ -1,6 +1,5 @@
 from typing import Callable, Literal, Optional, Union
 
-
 default_azure_args = [
     "authority",
     "exclude_workload_identity_credential",
@@ -33,7 +32,7 @@ def _get_default_token(**kwargs) -> str:
 
     # one credential per identity: destinations can use different managed_identity_client_id
     cache_key = tuple(sorted(kwargs.items()))
-    cred: Union[DefaultAzureCredential, None] = _token_state.get(cache_key, None)
+    cred: Union[DefaultAzureCredential, None] = _token_state.get(cache_key)
     if not cred:
         cred = DefaultAzureCredential(**kwargs)
         _token_state[cache_key] = cred
@@ -51,7 +50,7 @@ def convert_options(
     if flavor == "fsspec" and "connection_string" not in options and use_emulator:
         constr = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;"
         return {"connection_string": constr}
-    elif (
+    if (
         flavor == "fsspec"
         and "account_key" not in options
         and "anon" not in options

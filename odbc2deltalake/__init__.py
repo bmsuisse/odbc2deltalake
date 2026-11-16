@@ -1,14 +1,15 @@
-from .write_init import (
-    make_writer,
-    DBDeltaPathConfigs,
-    WriteConfig,
-    DEFAULT_DATA_TYPE_MAP,
-    WriteConfigAndInfos,
-)
-from .reader.reader import DataSourceReader
-from .destination.destination import Destination
 from pathlib import Path
 from typing import Union
+
+from .destination.destination import Destination
+from .reader.reader import DataSourceReader
+from .write_init import (
+    DEFAULT_DATA_TYPE_MAP,
+    DBDeltaPathConfigs,
+    WriteConfig,
+    WriteConfigAndInfos,
+    make_writer,
+)
 
 
 def write_db_to_delta(

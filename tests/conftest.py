@@ -1,10 +1,11 @@
-from time import sleep
-import pytest
-import os
 import logging
-from dotenv import load_dotenv
+import os
 from pathlib import Path
+from time import sleep
 from typing import TYPE_CHECKING, Final, Literal, cast
+
+import pytest
+from dotenv import load_dotenv
 from typing_extensions import LiteralString
 
 if TYPE_CHECKING:
@@ -26,10 +27,9 @@ def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
             import pyodbc
 
             return pyodbc.connect(conn_str, autocommit=autocommit)
-        else:
-            import adbc_driver_postgresql.dbapi
+        import adbc_driver_postgresql.dbapi
 
-            return adbc_driver_postgresql.dbapi.connect(conn_str, autocommit=autocommit)
+        return adbc_driver_postgresql.dbapi.connect(conn_str, autocommit=autocommit)
     except Exception as e:
         if attempt < 3:
             sleep(3)  # wait a bit before retrying
@@ -37,10 +37,9 @@ def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
                 "Connection failed, retrying... Attempt %d: %s", attempt + 1, e
             )
             return get_conn(conn_str, autocommit=autocommit, attempt=attempt + 1)
-        else:
-            raise RuntimeError(
-                f"Failed to connect after 3 attempts: {conn_str}\r\n {e}"
-            ) from e
+        raise RuntimeError(
+            f"Failed to connect after 3 attempts: {conn_str}\r\n {e}"
+        ) from e
 
 
 class DB_Connection:
@@ -100,18 +99,17 @@ class DB_Connection:
                 except Exception as e:
                     logger.error("Error drop creating db", exc_info=e)
 
-            with get_conn(self.conn_str[cfg], autocommit=True) as con:
-                with open(
-                    f"tests/sqls/init_{source_server}.sql", encoding="utf-8-sig"
-                ) as f:
-                    sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
-                    for sql in sqls:
-                        with con.cursor() as cursor:
-                            if hasattr(cursor, "executescript"):  # type: ignore
-                                # for postgres
-                                cursor.executescript(sql)
-                            else:
-                                cursor.execute(cast(LiteralString, sql))
+            with get_conn(self.conn_str[cfg], autocommit=True) as con, open(
+                f"tests/sqls/init_{source_server}.sql", encoding="utf-8-sig"
+            ) as f:
+                sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
+                for sql in sqls:
+                    with con.cursor() as cursor:
+                        if hasattr(cursor, "executescript"):  # type: ignore
+                            # for postgres
+                            cursor.executescript(sql)
+                        else:
+                            cursor.execute(cast(LiteralString, sql))
 
             if db_name not in self.conn_str[cfg]:
                 raise ValueError("Database not created correctly")
@@ -153,8 +151,9 @@ class DB_Connection:
 
 @pytest.fixture(scope="session")
 def spawn_sql():
-    import test_server
     import os
+
+    import test_server
 
     if os.getenv("NO_SQL_SERVER", "0") == "1":
         yield None
@@ -174,8 +173,9 @@ def connection(spawn_sql):
 
 @pytest.fixture(scope="session", autouse=True)
 def spawn_azurite():
-    import test_server
     import os
+
+    import test_server
 
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() != "azure":
         yield None
@@ -199,8 +199,8 @@ def spark_session():
         return None
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "spark").lower() != "spark":
         return None
-    from pyspark.sql import SparkSession
     from delta import configure_spark_with_delta_pip
+    from pyspark.sql import SparkSession
 
     jar = str(Path("tests/jar").absolute())
     builder = (

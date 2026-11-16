@@ -1,19 +1,22 @@
 from pathlib import Path
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
+import pytest
 
 from odbc2deltalake.reader.spark_reader import SparkReader
+
 from .utils import (
-    write_db_to_delta_with_check,
     config_names,
-    get_test_run_configs,
     create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
 )
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(16)

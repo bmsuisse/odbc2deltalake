@@ -1,10 +1,13 @@
 from typing import TYPE_CHECKING
+
 import pytest
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
+
+from .utils import config_names, get_test_run_configs, write_db_to_delta_with_check
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(17)

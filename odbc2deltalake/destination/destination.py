@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing_extensions import Literal, Self
 from typing import TYPE_CHECKING, Optional
+
+from typing_extensions import Literal, Self
 
 if TYPE_CHECKING:
     from deltalake import DeltaTable

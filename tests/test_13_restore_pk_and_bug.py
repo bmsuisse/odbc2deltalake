@@ -10,17 +10,18 @@ full load, as long as their __timestamp matches the last full load's
 timestamp exactly - which produces two rows for the same primary key in the
 supposedly-single-row-per-pk "last pk version" output.
 """
-from pathlib import Path
-from datetime import datetime, timezone
 import shutil
+from datetime import datetime, timezone
+from pathlib import Path
 
+import sqlglot.expressions as ex
+
+from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.destination.file_system import FileSystemDestination
+from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
-from odbc2deltalake.metadata import InformationSchemaColInfo
-from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
-import sqlglot.expressions as ex
 
 
 def _col(name: str) -> InformationSchemaColInfo:

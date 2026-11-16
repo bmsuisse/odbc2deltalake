@@ -1,6 +1,7 @@
-from .destination import Destination
-from typing import Literal
 from datetime import datetime, timezone
+from typing import Literal
+
+from .destination import Destination
 
 
 class DatabricksDestination(Destination):

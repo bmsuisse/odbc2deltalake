@@ -1,19 +1,23 @@
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
+import pytest
 import sqlglot as sg
 import sqlglot.expressions as ex
+
 from odbc2deltalake.query import sql_quote_value
 
+from .utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(15)

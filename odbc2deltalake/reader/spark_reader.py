@@ -1,13 +1,17 @@
 import os
-from .reader import DataSourceReader, DeltaOps
-from ..destination import Destination
-from sqlglot.expressions import Query, DataType
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Callable, Literal, Optional, Union
+
 import sqlglot as sg
-from typing import Literal, TYPE_CHECKING, Callable, Mapping, Optional, Sequence, Union
+from sqlglot.expressions import DataType, Query
+
+from ..destination import Destination
+from .reader import DataSourceReader, DeltaOps
 
 if TYPE_CHECKING:
-    from pyspark.sql import SparkSession, DataFrame
+    from pyspark.sql import DataFrame, SparkSession
     from pyspark.sql.types import StructType
+
     from odbc2deltalake.metadata import InformationSchemaColInfo
 
 
@@ -36,14 +40,14 @@ class SparkDeltaOps(DeltaOps):
             [f"'{_escape(k)}' = '{_escape(v)}'" for k, v in props.items()]
         )
         self.spark.sql(
-            f"ALTER TABLE delta.`{str(self.dest)}` SET TBLPROPERTIES ({prop_str})"
+            f"ALTER TABLE delta.`{self.dest!s}` SET TBLPROPERTIES ({prop_str})"
         )
 
     def get_property(self, key: str) -> Optional[str]:
         from pyspark.sql.functions import col, lit
 
         res = (
-            self.spark.sql(f"show tblproperties delta.`{str(self.dest)}`")
+            self.spark.sql(f"show tblproperties delta.`{self.dest!s}`")
             .where(col("key") == lit(key))
             .select("value")
             .collect()
@@ -74,17 +78,16 @@ class SparkDeltaOps(DeltaOps):
         for c, n in cols.items():
             if n:
                 self.spark.sql(
-                    f"ALTER TABLE delta.`{str(self.dest)}` CHANGE COLUMN `{c}` DROP NOT NULL"
+                    f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` DROP NOT NULL"
                 )
             else:
                 self.spark.sql(
-                    f"ALTER TABLE delta.`{str(self.dest)}` CHANGE COLUMN `{c}` SET NOT NULL"
+                    f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` SET NOT NULL"
                 )
 
     def update_incremental(self):
         """Update the incremental state of the Delta table."""
         # This is a no-op for Spark, as it does not maintain an incremental state like some other systems.
-        pass
 
 
 class SparkReader(DataSourceReader):
@@ -109,7 +112,7 @@ class SparkReader(DataSourceReader):
         else:
             self.source_dialect = spark_format
 
-        self.transformation_hook: Callable[["DataFrame", str], "DataFrame"] = (
+        self.transformation_hook: Callable[[DataFrame, str], DataFrame] = (
             transformation_hook or (lambda d, _: d)
         )
         # spark.conf.get(key) with no default raises if the key isn't set
@@ -237,14 +240,13 @@ class SparkReader(DataSourceReader):
                 return (
                     len(
                         self.spark.sql(
-                            f"select * from delta.`{str(delta_path)}` limit 0"
+                            f"select * from delta.`{delta_path!s}` limit 0"
                         ).columns
                     )
                     > 0
                 )
             return True
-        else:
-            return False
+        return False
 
     def _reader(self, sql: Union[str, Query]):
         if self.jdbc:
@@ -363,7 +365,7 @@ class SparkReader(DataSourceReader):
         def q(n: str):
             return "`" + n.replace("`", "``") + "`"
 
-        table = f"delta.`{str(delta_path)}`"
+        table = f"delta.`{delta_path!s}`"
         tmp = name + self._MIGRATION_TMP_SUFFIX
         ops = SparkDeltaOps(delta_path, self.spark)
         fields = [

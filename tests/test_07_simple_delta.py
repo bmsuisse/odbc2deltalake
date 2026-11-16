@@ -1,17 +1,20 @@
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
+import pytest
 import sqlglot as sg
 
+from .utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(13)
@@ -19,7 +22,7 @@ if TYPE_CHECKING:
 def test_delta_sys(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import write_db_to_delta, WriteConfig
+    from odbc2deltalake import WriteConfig, write_db_to_delta
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company3")[
         conf_name
@@ -30,30 +33,28 @@ def test_delta_sys(
     t = reader.get_local_delta_ops(dest / "delta")
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            stmts = sg.parse(
-                """
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        stmts = sg.parse(
+            """
 insert into dbo.[company3](id, name)
 select 'c300',
     'The 300 company';
     UPDATE dbo.[company3] SET name='Die zwooti firma' where id='c2'
                    """,
-                dialect="tsql",
-            )
-            for stmt in stmts:
-                assert stmt is not None
-                cursor.execute(stmt.sql(reader.source_dialect))
+            dialect="tsql",
+        )
+        for stmt in stmts:
+            assert stmt is not None
+            cursor.execute(stmt.sql(reader.source_dialect))
 
     write_db_to_delta(reader, ("dbo", "company3"), dest, cfg)  # delta load
     t.update_incremental()
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM dbo.company3")
-            alls = cursor.fetchall()
-            print(alls)
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute("SELECT * FROM dbo.company3")
+        alls = cursor.fetchall()
+        print(alls)
     ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     with duckdb.connect() as con:
         create_delta_view(

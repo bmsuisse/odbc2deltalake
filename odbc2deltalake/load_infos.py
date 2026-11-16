@@ -1,7 +1,7 @@
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
 import sqlglot as sg
 import sqlglot.expressions as ex
-
 
 if TYPE_CHECKING:
     from .write_init import WriteConfigAndInfos

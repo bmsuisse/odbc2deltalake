@@ -20,12 +20,15 @@ path's `_retrieve_primary_key_data`.
 
 import dataclasses
 from typing import TYPE_CHECKING
+
 import pytest
+
 from .utils import config_names, get_test_run_configs
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(21)
@@ -56,16 +59,15 @@ def test_simple_delta_after_delta_col_less_init(
     # Change the source so there actually is something to sync - otherwise
     # do_delta_load short-circuits on "No updates, done" before ever
     # reaching write_latest_pk, and the bug wouldn't be exercised.
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute(
-                "insert into dbo.company3(id, name) values "
-                "('c301', 'company3_bootstrap_test') "
-                "on conflict do nothing"
-                if reader.source_dialect == "postgres"
-                else "if not exists (select 1 from dbo.company3 where id = 'c301') "
-                "insert into dbo.company3(id, name) values ('c301', 'company3_bootstrap_test')"
-            )
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute(
+            "insert into dbo.company3(id, name) values "
+            "('c301', 'company3_bootstrap_test') "
+            "on conflict do nothing"
+            if reader.source_dialect == "postgres"
+            else "if not exists (select 1 from dbo.company3 where id = 'c301') "
+            "insert into dbo.company3(id, name) values ('c301', 'company3_bootstrap_test')"
+        )
 
     # Step 2: a normal simple_delta load against the same destination, now
     # with a properly detected delta_col. Since destination/delta already

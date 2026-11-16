@@ -1,4 +1,9 @@
+from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, Literal, Optional, Union
+
+import sqlglot as sg
+import sqlglot.expressions as ex
 
 from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.read_utils.delta_rs import (
@@ -9,16 +14,13 @@ from odbc2deltalake.read_utils.delta_rs import (
     _to_pyarrow_schema,
 )
 from odbc2deltalake.reader.reader import DeltaOps
+
 from .reader import DataSourceReader
-from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence, Union
-import sqlglot.expressions as ex
-import sqlglot as sg
 
 if TYPE_CHECKING:
     import pyarrow as pa
+
     from odbc2deltalake.metadata import InformationSchemaColInfo
-    from deltalake import DeltaTable
-    from deltalake.schema import PrimitiveType, MapType, ArrayType, StructType
 
 
 class ODBCReader(DataSourceReader):
@@ -81,8 +83,8 @@ class ODBCReader(DataSourceReader):
         mode: Literal["overwrite", "append"],
         dummy_record: Union[dict, None] = None,
     ):
-        from deltalake import write_deltalake
         import pyarrow as pa
+        from deltalake import write_deltalake
 
         schema = (
             pa.RecordBatch.from_pylist([dummy_record]).schema if dummy_record else None

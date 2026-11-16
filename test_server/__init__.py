@@ -1,10 +1,11 @@
-from pathlib import Path
-import docker
-from docker.models.containers import Container
-from time import sleep
-from typing import Union, cast, Literal
-import docker.errors
 import os
+from pathlib import Path
+from time import sleep
+from typing import Literal, Union, cast
+
+import docker
+import docker.errors
+from docker.models.containers import Container
 
 server_configs = {
     "mssql": {
@@ -18,7 +19,7 @@ server_configs = {
 
 def _getenvs(server: Literal["mssql", "postgres"]):
     envs = dict()
-    with open(f"test_server/{server}.env", "r") as f:
+    with open(f"test_server/{server}.env") as f:
         lines = f.readlines()
         envs = {
             item[0].strip(): item[1].strip()
@@ -38,8 +39,7 @@ def start_server(server: Literal["mssql", "postgres"]) -> Container:
         m = cast(Container, client.containers.get(f"test4{server}_odbc2deltalake"))
         if m.status == "running":
             return m
-        else:
-            sql_server = m
+        sql_server = m
     except docker.errors.NotFound:
         pass
 
@@ -91,8 +91,7 @@ def start_azurite() -> Container:
         if m.status == "running":
             create_test_blobstorage()
             return m
-        else:
-            azurite_server = m
+        azurite_server = m
     except docker.errors.NotFound:
         pass
 

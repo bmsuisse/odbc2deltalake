@@ -12,6 +12,7 @@ real production schema migration) blocks forever on that stale lock.
 """
 
 from typing import TYPE_CHECKING
+
 import pytest
 
 if TYPE_CHECKING:
@@ -24,6 +25,7 @@ def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DB_Connection
         pytest.skip("this bug is specific to the ADBC/postgres reader")
 
     import adbc_driver_postgresql.dbapi as adbc_pg
+
     from odbc2deltalake.reader.adbc_reader import ADBCReader
 
     connstr = next(iter(connection.conn_str.values()))

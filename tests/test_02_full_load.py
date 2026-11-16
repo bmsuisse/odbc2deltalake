@@ -1,16 +1,18 @@
+from datetime import date
 from time import sleep
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
-from datetime import date
+import pytest
 
 from odbc2deltalake.query import sql_quote_value
-from .utils import config_names, get_test_run_configs, create_delta_view
 
+from .utils import config_names, create_delta_view, get_test_run_configs
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(4)
@@ -46,22 +48,21 @@ def test_first_load_always_full(
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            if reader.source_dialect in ["tsql", "mssql"]:
-                cursor.execute(
-                    """INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        if reader.source_dialect in ["tsql", "mssql"]:
+            cursor.execute(
+                """INSERT INTO [long schema].[long table name] ([long column name], dt, [date])
         SELECT 5,
             '<root><child>text</child></root>',
             '2025-01-01'"""
-                )
-            else:
-                cursor.execute(
-                    """INSERT INTO "long schema"."long table name" ("long column name", dt, "date")
+            )
+        else:
+            cursor.execute(
+                """INSERT INTO "long schema"."long table name" ("long column name", dt, "date")
                     select 5,
                         '<root><child>text</child></root>'::xml,
                         '2025-01-01'::date"""
-                )
+            )
     sleep(2)  # wait for the database to update
     dbi = write_db_to_delta(
         reader,

@@ -17,6 +17,7 @@ append_inserts mode when no delta_col is configured; that auto-detection
 silently never fired for postgres.
 """
 from typing import TYPE_CHECKING
+
 import pytest
 
 if TYPE_CHECKING:
@@ -28,9 +29,10 @@ def test_postgres_identity_column_detected(connection: "DB_Connection"):
     if connection.source_server != "postgres":
         pytest.skip("is_identity casing bug is specific to the postgres query")
 
+    import adbc_driver_postgresql.dbapi as adbc_pg
+
     from odbc2deltalake.metadata import _get_table_cols
     from odbc2deltalake.reader.adbc_reader import ADBCReader
-    import adbc_driver_postgresql.dbapi as adbc_pg
 
     connstr = next(iter(connection.conn_str.values()))
     conn = adbc_pg.connect(connstr, autocommit=True)

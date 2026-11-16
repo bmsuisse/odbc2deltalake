@@ -1,7 +1,7 @@
-from typing import Any, Literal, Tuple, Union
-from typing_extensions import TypeAlias
 from datetime import datetime
+from typing import Any, Literal, Tuple, Union
 
+from typing_extensions import TypeAlias
 
 SQLObjectNameType: TypeAlias = Union[str, Tuple[str, str], Tuple[str, str, str]]
 
@@ -28,15 +28,14 @@ def sql_quote_name(inp: SQLObjectNameType, *, mode: QuoteMode = "ansi"):
         if mode == "postgres":
             return "`" + inp + "`"
         return "[" + inp + "]"
-    elif len(inp) == 3:
+    if len(inp) == 3:
         db = sql_quote_name(inp[0], mode=mode)
         schema_name = sql_quote_name(inp[1], mode=mode)
         tbl_name = sql_quote_name(inp[2], mode=mode)
         return db + "." + schema_name + "." + tbl_name
-    else:
-        schema_name = sql_quote_name(inp[0], mode=mode)
-        tbl_name = sql_quote_name(inp[1], mode=mode)
-        return schema_name + "." + tbl_name
+    schema_name = sql_quote_name(inp[0], mode=mode)
+    tbl_name = sql_quote_name(inp[1], mode=mode)
+    return schema_name + "." + tbl_name
 
 
 def sql_quote_value(vl: Any):

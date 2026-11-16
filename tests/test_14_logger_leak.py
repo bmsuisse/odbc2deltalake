@@ -13,8 +13,8 @@ different table's logger) to its own log_file_path.
 from datetime import datetime, timezone
 from pathlib import Path
 
-from odbc2deltalake.destination.file_system import FileSystemDestination
 from odbc2deltalake.delta_logger import DeltaStorageBackend
+from odbc2deltalake.destination.file_system import FileSystemDestination
 from odbc2deltalake.logging import LogMessage
 
 

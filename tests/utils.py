@@ -1,19 +1,27 @@
-from pathlib import Path
-from odbc2deltalake import WriteConfigAndInfos
-from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
-from odbc2deltalake import DBDeltaPathConfigs
-from typing import TYPE_CHECKING, Final, Literal, Union
-import pandas as pd
-from sqlglot import from_
-import sqlglot.expressions as ex
-from odbc2deltalake import make_writer, DataSourceReader, WriteConfig, Destination
-from odbc2deltalake.consistency import check_latest_pk
 import os
+from pathlib import Path
+from typing import TYPE_CHECKING, Union
+
+import pandas as pd
+import sqlglot.expressions as ex
+from sqlglot import from_
+
+from odbc2deltalake import (
+    DataSourceReader,
+    DBDeltaPathConfigs,
+    Destination,
+    WriteConfig,
+    WriteConfigAndInfos,
+    make_writer,
+)
+from odbc2deltalake.consistency import check_latest_pk
+from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
-    from pyspark.sql import SparkSession
     import duckdb
+    from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 def create_delta_view(
@@ -117,6 +125,7 @@ def get_test_run_configs(
     connection: "DB_Connection", spark_session: "SparkSession", tbl_dest_name: str
 ) -> dict[str, tuple[DataSourceReader, Destination]]:
     from pathlib import Path
+
     from odbc2deltalake.destination.file_system import FileSystemDestination
 
     sub_path = "/".join(tbl_dest_name.split("/")[0:-1])
@@ -133,15 +142,15 @@ def get_test_run_configs(
                 f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
                 source_dialect=connection.dialect,
             )
-        else:
-            from odbc2deltalake.reader.adbc_reader import ADBCReader
-            import adbc_driver_postgresql.dbapi as adbc_pg
+        import adbc_driver_postgresql.dbapi as adbc_pg
 
-            return ADBCReader(
-                adbc_pg.connect(connection.conn_str[config], autocommit=True),
-                f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
-                source_dialect=connection.dialect,
-            )
+        from odbc2deltalake.reader.adbc_reader import ADBCReader
+
+        return ADBCReader(
+            adbc_pg.connect(connection.conn_str[config], autocommit=True),
+            f"tests/_db/_{config}/{tbl_dest_name}.duckdb",
+            source_dialect=connection.dialect,
+        )
 
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "azure").lower() == "azure":
         from odbc2deltalake.destination.azure import AzureDestination

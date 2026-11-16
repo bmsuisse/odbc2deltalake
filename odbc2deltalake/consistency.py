@@ -1,8 +1,10 @@
 from typing import Any
-from .write_init import WriteConfigAndInfos, DBDeltaPathConfigs
-from .write_utils.restore_pk import create_last_pk_version_view
+
 import sqlglot as sg
 import sqlglot.expressions as ex
+
+from .write_init import DBDeltaPathConfigs, WriteConfigAndInfos
+from .write_utils.restore_pk import create_last_pk_version_view
 
 
 class InconsistentPrimaryKeyError(Exception):

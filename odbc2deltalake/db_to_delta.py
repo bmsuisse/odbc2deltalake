@@ -1,16 +1,21 @@
 import dataclasses
+import json
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timezone
 from typing import (
     Callable,
-    Iterable,
     Literal,
-    Mapping,
     Optional,
-    Sequence,
     TypeVar,
+    Union,
 )
-import sqlglot as sg
 
+import sqlglot as sg
+import sqlglot.expressions as ex
+
+from odbc2deltalake.destination.destination import (
+    Destination,
+)
 from odbc2deltalake.load_infos import (
     get_local_delta_value_and_count,
     retrieve_source_ts_cnt,
@@ -22,31 +27,25 @@ from odbc2deltalake.load_result import (
     LoadResult,
     NoLoadResult,
 )
-from .utils import is_pydantic_2
-from odbc2deltalake.sql_schema import is_string_type
-from .utils import concat_seq
-from odbc2deltalake.destination.destination import (
-    Destination,
-)
 from odbc2deltalake.reader import DataSourceReader
-from .query import sql_quote_name
-from .metadata import (
-    table_name_type,
-    InformationSchemaColInfo,
-)
-import json
-import sqlglot.expressions as ex
-from .sql_glot_utils import table_from_tuple, union, count_limit_one
+from odbc2deltalake.sql_schema import is_string_type
+
 from .delta_logger import DeltaLogger
+from .metadata import (
+    InformationSchemaColInfo,
+    table_name_type,
+)
+from .query import sql_quote_name
+from .sql_glot_utils import count_limit_one, table_from_tuple, union
+from .utils import concat_seq, is_pydantic_2
 from .write_init import (
-    WriteConfig,
-    WriteConfigAndInfos,
     IS_DELETED_COL_NAME,
     IS_FULL_LOAD_COL_NAME,
     VALID_FROM_COL_NAME,
     DBDeltaPathConfigs,
+    WriteConfig,
+    WriteConfigAndInfos,
 )
-from typing import Union
 
 T = TypeVar("T")
 
@@ -471,7 +470,7 @@ def _temp_table(table: Union[table_name_type, ex.Query]):
 
     if isinstance(table, str):
         return "temp_" + _clean(table)
-    return "temp_" + "_".join((_clean(s) for s in table))
+    return "temp_" + "_".join(_clean(s) for s in table)
 
 
 def _get_type_map(write_config: WriteConfig) -> Mapping[str, ex.DataType]:
@@ -499,7 +498,7 @@ def do_delta_load(
         destination / "delta"
     ).column_infos()
 
-    existing_col_names = set((c.column_name.lower() for c in existing_col_infos))
+    existing_col_names = set(c.column_name.lower() for c in existing_col_infos)
     missing_cols = [
         write_config.get_target_name(c)
         for c in infos.col_infos
@@ -515,7 +514,7 @@ def do_delta_load(
         else None
     )
     logger.info(
-        f"Start {'SIMPLE ' if simple else ''}Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join((c.column_name for c in infos.pk_cols))}"
+        f"Start {'SIMPLE ' if simple else ''}Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join(c.column_name for c in infos.pk_cols)}"
     )
 
     if last_pk_path and not reader.local_delta_table_exists(
@@ -535,8 +534,8 @@ def do_delta_load(
 
     elif last_pk_path and not simple:
         cols = reader.get_local_delta_ops(last_pk_path).column_infos()
-        cols = set((c.column_name.lower() for c in cols))
-        pk_set = set((write_config.get_target_name(pk).lower() for pk in infos.pk_cols))
+        cols = set(c.column_name.lower() for c in cols)
+        pk_set = set(write_config.get_target_name(pk).lower() for pk in infos.pk_cols)
         if not cols.issuperset(pk_set):
             logger.warning(
                 f"Primary keys do not match. Expected: {', '.join(pk_set)}, Found: {', '.join(cols)}. Do a full load"
@@ -665,43 +664,39 @@ def do_delta_load(
                 )
             return delta_result
 
-        else:
-            logger.info(f"Source and target count match: {source_count}")
-            return delta_result
-    else:
-        _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
-        pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
-        if pk_ts.exists():
-            pk_ts.remove(True)
+        logger.info(f"Source and target count match: {source_count}")
+        return delta_result
+    _write_delta2(infos, [], mode="overwrite")  # just to create the delta_2 table
+    pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
+    if pk_ts.exists():
+        pk_ts.remove(True)
 
-        latest_pk_path = destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-        write_latest_pk(
-            reader,
-            destination,
-            infos.pk_cols,
-            delta_col,
-            write_config=write_config,
-            merge_delta=latest_pk_path.exists(),
+    latest_pk_path = destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
+    write_latest_pk(
+        reader,
+        destination,
+        infos.pk_cols,
+        delta_col,
+        write_config=write_config,
+        merge_delta=latest_pk_path.exists(),
+    )
+    target_count = _get_local_pk_count(infos)
+    delta_result.dirty = source_count != target_count
+    if source_count != target_count:
+        logger.warning(
+            f"Source and target count do not match. Source: {source_count}, Target: {target_count}. {'Do a normal delta' if simple_check else ''}"
         )
-        target_count = _get_local_pk_count(infos)
-        delta_result.dirty = source_count != target_count
-        if source_count != target_count:
+        if simple_check:
+            return do_delta_load(infos, simple=False)
+        source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
+        delta_result.end_source_state = source_delta, source_count
+        if delta_result.end_source_state != delta_result.starting_source_state:
             logger.warning(
-                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. {'Do a normal delta' if simple_check else ''}"
+                f"Source state changed during load: {delta_result.starting_source_state} -> {delta_result.end_source_state}"
             )
-            if simple_check:
-                return do_delta_load(infos, simple=False)
-            else:
-                source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
-                delta_result.end_source_state = source_delta, source_count
-                if delta_result.end_source_state != delta_result.starting_source_state:
-                    logger.warning(
-                        f"Source state changed during load: {delta_result.starting_source_state} -> {delta_result.end_source_state}"
-                    )
-                return delta_result
-        else:
-            logger.info(f"Source and target count match: {source_count}")
-            return delta_result
+        return delta_result
+    logger.info(f"Source and target count match: {source_count}")
+    return delta_result
 
 
 def _get_local_pk_count(infos: WriteConfigAndInfos):
@@ -964,8 +959,7 @@ def _write_delta2(
             inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
                 on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
             """
-        else:
-            return f"""{sql}
+        return f"""{sql}
             inner join (SELECT {pk_map} FROM JSON_TABLE({sql_quote_value(js)}, '$[*]' COLUMNS ({col_defs}))) ttt
                 on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
             """
@@ -1074,8 +1068,7 @@ def _handle_additional_updates(
         if not restore_success:
             logger.warning("No primary keys found, do a full load")
             return do_full_load(infos=infos, mode="append")
-        else:
-            _local_view_for_updates()
+        _local_view_for_updates()
     sql_query = ex.except_(
         ex.select(
             *_get_cols_select(

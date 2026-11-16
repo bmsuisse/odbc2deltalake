@@ -1,8 +1,11 @@
-from odbc2deltalake.destination.destination import Destination
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal, Mapping, Protocol, Any, Sequence, Union
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Union
+
 from sqlglot.expressions import Query
+
+from odbc2deltalake.destination.destination import Destination
 
 if TYPE_CHECKING:
     from odbc2deltalake.metadata import InformationSchemaColInfo
@@ -29,7 +32,6 @@ class DeltaOps(Protocol):
 
     def update_incremental(self):
         """Update the incremental state of the Delta table."""
-        pass
 
 
 class DataSourceReader(ABC):

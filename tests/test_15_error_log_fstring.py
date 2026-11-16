@@ -14,15 +14,15 @@ check that the real exception message made it into the log message.
 from pathlib import Path
 
 import pytest
+import sqlglot.expressions as ex
 
+from odbc2deltalake.db_to_delta import exec_write_db_to_delta
+from odbc2deltalake.delta_logger import DeltaLogger
+from odbc2deltalake.destination.destination import Destination
 from odbc2deltalake.destination.file_system import FileSystemDestination
+from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
-from odbc2deltalake.metadata import InformationSchemaColInfo
-from odbc2deltalake.delta_logger import DeltaLogger
-from odbc2deltalake.db_to_delta import exec_write_db_to_delta
-from odbc2deltalake.destination.destination import Destination
-import sqlglot.expressions as ex
 
 
 def _col(name: str) -> InformationSchemaColInfo:

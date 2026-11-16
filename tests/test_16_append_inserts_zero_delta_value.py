@@ -16,17 +16,18 @@ source_write_sql_to_delta - the point where the query would otherwise
 be executed over a real ODBC connection) to assert whether a `> 0`
 filter made it into the WHERE clause.
 """
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
-from odbc2deltalake.destination.file_system import FileSystemDestination
+import sqlglot.expressions as ex
+
+from odbc2deltalake.db_to_delta import do_append_inserts_load
+from odbc2deltalake.delta_logger import DeltaLogger
 from odbc2deltalake.destination.destination import Destination
+from odbc2deltalake.destination.file_system import FileSystemDestination
+from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
-from odbc2deltalake.metadata import InformationSchemaColInfo
-from odbc2deltalake.delta_logger import DeltaLogger
-from odbc2deltalake.db_to_delta import do_append_inserts_load
-import sqlglot.expressions as ex
 
 
 def _col(name: str) -> InformationSchemaColInfo:

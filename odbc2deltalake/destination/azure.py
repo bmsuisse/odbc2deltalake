@@ -1,5 +1,6 @@
+from typing import TYPE_CHECKING, Literal, cast
+
 from .destination import Destination
-from typing import Literal, cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import adlfs
@@ -55,8 +56,9 @@ class AzureDestination(Destination):
         )
 
     def as_delta_table(self):
-        from .azure_utils import convert_options
         from deltalake import DeltaTable
+
+        from .azure_utils import convert_options
 
         return DeltaTable(
             self.to_az_path(),

@@ -1,19 +1,22 @@
 import time
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
+import pytest
 import sqlglot as sg
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
 import sqlglot.expressions as ex
 
+from .utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(10)
@@ -22,9 +25,9 @@ def test_first_load_timestamp(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
     from odbc2deltalake import (
+        DEFAULT_DATA_TYPE_MAP,
         DBDeltaPathConfigs,
         WriteConfig,
-        DEFAULT_DATA_TYPE_MAP,
     )
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user_double")[
@@ -103,10 +106,9 @@ def test_first_load_timestamp(
         assert id_tuples == [(1,), (2,), (3,)]
 
     time.sleep(1)
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            stmts = sg.parse(
-                """
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        stmts = sg.parse(
+            """
                 INSERT INTO [dbo].[user_double] (FirstName, LastName, Age, companyid)
                    SELECT 'Markus', 'Müller', 27, 'c2'
                    union all 
@@ -114,11 +116,11 @@ def test_first_load_timestamp(
                    DELETE FROM dbo.[user_double] where LastName='Anders';
                      UPDATE [dbo].[user_double] SET LastName='wayne-hösch' where LastName='wayne' -- Petra
                 """,
-                dialect="tsql",
-            )
-            for stmt in stmts:
-                assert stmt is not None
-                cursor.execute(stmt.sql(reader.source_dialect))
+            dialect="tsql",
+        )
+        for stmt in stmts:
+            assert stmt is not None
+            cursor.execute(stmt.sql(reader.source_dialect))
     write_db_to_delta_with_check(  # some delta load
         reader,
         ("dbo", "user_double"),

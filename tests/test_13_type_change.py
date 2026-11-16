@@ -1,13 +1,16 @@
 import time
 from typing import TYPE_CHECKING
+
 import pytest
-from .utils import write_db_to_delta_with_check, config_names, get_test_run_configs
 import sqlglot as sg
 import sqlglot.expressions as ex
 
+from .utils import config_names, get_test_run_configs, write_db_to_delta_with_check
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 def _run_type_change(
@@ -44,9 +47,8 @@ def _run_type_change(
     if append_only:
         ops.set_properties({"delta.appendOnly": "true"})
 
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute("UPDATE dbo.user6 SET FirstName='Changed' where Age < 20")
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute("UPDATE dbo.user6 SET FirstName='Changed' where Age < 20")
     time.sleep(2)
 
     write_db_to_delta_with_check(reader, _query(new_type), dest, write_config=config)

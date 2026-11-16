@@ -1,10 +1,12 @@
 from typing import Literal, Union
 
-from odbc2deltalake.query import sql_quote_name
-from .reader import DataSourceReader
-from pydantic import BaseModel
 import sqlglot
 import sqlglot.expressions as ex
+from pydantic import BaseModel
+
+from odbc2deltalake.query import sql_quote_name
+
+from .reader import DataSourceReader
 from .utils import is_pydantic_2
 
 if is_pydantic_2:
@@ -188,15 +190,13 @@ def get_columns(
             return reader.source_schema_limit_one(
                 table_or_query
             )  # get result metadata by just executing the query with limit 0
-        else:
-            return list(
-                _get_query_cols_first_result_set(
-                    reader, table_or_query, dialect=dialect
-                )
+        return list(
+            _get_query_cols_first_result_set(
+                reader, table_or_query, dialect=dialect
             )
+        )
 
-    else:
-        return _get_table_cols(reader, table_or_query, dialect=dialect)
+    return _get_table_cols(reader, table_or_query, dialect=dialect)
 
 
 def get_compatibility_level(reader: DataSourceReader) -> int:

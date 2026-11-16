@@ -1,18 +1,21 @@
 import os
 from typing import TYPE_CHECKING
-import pytest
+
 import duckdb
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
+import pytest
 import sqlglot as sg
 
+from .utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(6)
@@ -58,17 +61,16 @@ def test_strange_delta(
     write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
     # so far we have no strange data yet. But we make it happen ;)
     # we rename user4 to user3, which will through around timestamps especially for record Johniingham
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            if reader.source_dialect == "postgres":
-                cursor.execute("""ALTER TABLE dbo.user3 RENAME TO user3_;""")
-                cursor.execute("""ALTER TABLE dbo.user4 RENAME TO user3;""")
-            else:
-                cursor.execute(
-                    """exec sp_rename 'dbo.user3', 'user3_';
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        if reader.source_dialect == "postgres":
+            cursor.execute("""ALTER TABLE dbo.user3 RENAME TO user3_;""")
+            cursor.execute("""ALTER TABLE dbo.user4 RENAME TO user3;""")
+        else:
+            cursor.execute(
+                """exec sp_rename 'dbo.user3', 'user3_';
                     exec sp_rename 'dbo.user4', 'user3';
                     """
-                )
+            )
 
     with duckdb.connect() as con:
         create_delta_view(
@@ -81,14 +83,13 @@ def test_strange_delta(
         assert res is not None
         max_valid_from = res[0]
         assert max_valid_from is not None
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute("""select * from dbo.user3""")
-            alls = cursor.fetchall()
-            assert cursor.description is not None
-            cols = [c[0] for c in cursor.description]
-            dicts = [dict(zip(cols, row)) for row in alls]
-            print(dicts)
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute("""select * from dbo.user3""")
+        alls = cursor.fetchall()
+        assert cursor.description is not None
+        cols = [c[0] for c in cursor.description]
+        dicts = [dict(zip(cols, row)) for row in alls]
+        print(dicts)
     write_db_to_delta_with_check(
         reader,
         ("dbo", "user3"),
@@ -136,9 +137,9 @@ def test_strange_delta(
 def test_strange_delta_sys(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import write_db_to_delta, DBDeltaPathConfigs
-
     import time
+
+    from odbc2deltalake import DBDeltaPathConfigs, write_db_to_delta
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company2_1")[
         conf_name
@@ -146,11 +147,10 @@ def test_strange_delta_sys(
     if reader.source_dialect == "postgres":
         return
     write_db_to_delta(reader, ("dbo", "company2"), dest)  # empty
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute(
-                """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
-            )
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute(
+            """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
+        )
     write_db_to_delta_with_check(  # normal full load
         reader, ("dbo", "company2"), dest
     )

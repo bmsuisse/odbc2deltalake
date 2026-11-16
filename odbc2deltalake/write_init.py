@@ -1,23 +1,26 @@
-from dataclasses import dataclass
 import dataclasses
+import logging
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal, Mapping, Optional, Sequence, TypeVar, Union, cast
+from typing import Callable, Literal, Optional, TypeVar, Union, cast
+
 import sqlglot as sg
+import sqlglot.expressions as ex
+
 from odbc2deltalake.destination.destination import (
     Destination,
 )
 from odbc2deltalake.logging import StorageBackend
 from odbc2deltalake.reader import DataSourceReader
-from .metadata import (
-    get_primary_keys,
-    get_columns,
-    InformationSchemaColInfo,
-)
-import sqlglot.expressions as ex
-from .sql_glot_utils import table_from_tuple
-import logging
-from .delta_logger import DeltaLogger
 
+from .delta_logger import DeltaLogger
+from .metadata import (
+    InformationSchemaColInfo,
+    get_columns,
+    get_primary_keys,
+)
+from .sql_glot_utils import table_from_tuple
 
 IS_DELETED_COL_NAME = "__is_deleted"
 VALID_FROM_COL_NAME = "__timestamp"

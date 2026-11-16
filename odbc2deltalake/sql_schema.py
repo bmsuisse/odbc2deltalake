@@ -1,4 +1,5 @@
 from typing import Union
+
 import sqlglot.expressions as ex
 
 table_name_type = Union[str, tuple[str, str]]

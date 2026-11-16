@@ -1,18 +1,21 @@
-from typing import TYPE_CHECKING
-import pytest
-import duckdb
-from .utils import (
-    write_db_to_delta_with_check,
-    config_names,
-    get_test_run_configs,
-    create_delta_view,
-)
 import time
+from typing import TYPE_CHECKING
+
+import duckdb
+import pytest
 import sqlglot as sg
 
+from .utils import (
+    config_names,
+    create_delta_view,
+    get_test_run_configs,
+    write_db_to_delta_with_check,
+)
+
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
     from pyspark.sql import SparkSession
+
+    from tests.conftest import DB_Connection
 
 
 @pytest.mark.order(14)
@@ -20,7 +23,7 @@ if TYPE_CHECKING:
 def test_delta_sys(
     connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
 ):
-    from odbc2deltalake import write_db_to_delta, WriteConfig
+    from odbc2deltalake import WriteConfig, write_db_to_delta
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_3_dc")[
         conf_name
@@ -28,14 +31,13 @@ def test_delta_sys(
     cfg = WriteConfig(load_mode="simple_delta_check", dialect=reader.source_dialect)
     ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load
-    t = reader.get_local_delta_ops((dest / "delta"))
+    t = reader.get_local_delta_ops(dest / "delta")
 
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            stmts = sg.parse(
-                """
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        stmts = sg.parse(
+            """
 insert into dbo.[company3](id, name)
 select 'c400',
     'The 400 company';
@@ -45,21 +47,20 @@ insert into dbo.[company3](id, name)
 select 'c500',
     'The 500 company'
                    """,
-                dialect="tsql",
-            )
-            for stmt in stmts:
-                assert stmt is not None
-                cursor.execute(stmt.sql(reader.source_dialect))
+            dialect="tsql",
+        )
+        for stmt in stmts:
+            assert stmt is not None
+            cursor.execute(stmt.sql(reader.source_dialect))
 
     write_db_to_delta(reader, ("dbo", "company3"), dest, cfg)  # delta load
     t.update_incremental()
     col_names = [f.column_name for f in t.column_infos()]
     assert "__timestamp" in col_names
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute("SELECT * FROM dbo.company3")
-            alls = cursor.fetchall()
-            print(alls)
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute("SELECT * FROM dbo.company3")
+        alls = cursor.fetchall()
+        print(alls)
     with duckdb.connect() as con:
         create_delta_view(
             con,
@@ -82,13 +83,12 @@ select 'c500',
         ]
 
     time.sleep(1)
-    with connection.new_connection(conf_name) as nc:
-        with nc.cursor() as cursor:
-            cursor.execute(
-                """
+    with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
+        cursor.execute(
+            """
 delete from dbo.company3 where id='c400'
                    """
-            )
+        )
     time.sleep(1)
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, write_config=cfg)
 

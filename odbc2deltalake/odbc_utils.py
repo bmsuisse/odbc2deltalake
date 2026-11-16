@@ -1,6 +1,5 @@
 from typing import Union
 
-
 drivers: Union[list[str], None] = None
 
 POSTGRES_ODBC_DRIVERS = ["PostgreSQL Unicode(x64)", "PostgreSQL Unicode"]

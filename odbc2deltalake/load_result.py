@@ -1,4 +1,4 @@
-from typing import Literal, Union, Any, Optional
+from typing import Any, Literal, Optional, Union
 
 
 class FullLoadResult:
