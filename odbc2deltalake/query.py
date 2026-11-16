@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import Any, Literal, Tuple, Union
+from typing import Any, Literal, Union
 
 from typing_extensions import TypeAlias
 
-SQLObjectNameType: TypeAlias = Union[str, Tuple[str, str], Tuple[str, str, str]]
+SQLObjectNameType: TypeAlias = Union[str, tuple[str, str], tuple[str, str, str]]
 
 QuoteMode: TypeAlias = Literal["ansi", "tsql", "postgres"]
 

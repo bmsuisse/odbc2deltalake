@@ -18,14 +18,12 @@ server_configs = {
 
 
 def _getenvs(server: Literal["mssql", "postgres"]):
-    envs = {}
     with open(f"test_server/{server}.env") as f:
         lines = f.readlines()
-        envs = {
+        return {
             item[0].strip(): item[1].strip()
             for item in [line.split("=") for line in lines if len(line.strip()) > 0 and not line.startswith("#")]
         }
-    return envs
 
 
 def start_server(server: Literal["mssql", "postgres"]) -> Container:

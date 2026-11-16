@@ -110,7 +110,7 @@ def write_db_to_delta_with_check(
 if os.getenv("ODBCLAKE_TEST_CONFIGURATION"):
     config_names = [os.getenv("ODBCLAKE_TEST_CONFIGURATION")]
 else:
-    config_names = ["azure", "spark", "local"] if not os.getenv("NO_SPARK", "0") == "1" else ["azure", "local"]
+    config_names = ["azure", "spark", "local"] if os.getenv("NO_SPARK", "0") != "1" else ["azure", "local"]
 
 
 def get_test_run_configs(

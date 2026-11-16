@@ -146,9 +146,7 @@ def get_delta_col(
 ) -> Union[InformationSchemaColInfo, None]:
     row_start_col: Union[InformationSchemaColInfo, None] = None
     for c in cols:
-        if dialect == "tsql" and c.data_type.this in [
-            ex.DataType.Type.ROWVERSION,
-        ]:
+        if dialect == "tsql" and c.data_type.this == ex.DataType.Type.ROWVERSION:
             return c
         if c.generated_always_type_desc == "AS_ROW_START":
             row_start_col = c
@@ -229,7 +227,7 @@ def make_writer(
     if delta_col and delta_col.column_name.lower() not in (c.column_name.lower() for c in cols):
         cols.append(delta_col)  # we assume it's a hidden column, so we add it to the cols (eg, xmin in postgres)
     _pks = write_config.primary_keys
-    if _pks is None and (isinstance(table_or_query, str) or isinstance(table_or_query, tuple)):
+    if _pks is None and isinstance(table_or_query, (str, tuple)):
         _pks = get_primary_keys(source, table_or_query, dialect=write_config.dialect)
     elif _pks is None:
         _pks = []

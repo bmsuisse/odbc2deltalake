@@ -26,7 +26,7 @@ def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
         lpk_view,
     )
     _, view_name, success = create_last_pk_version_view(infos, view_prefix="v_" + postfix)
-    d_cols = list(infos.pk_cols) + [infos.delta_col]
+    d_cols = [*infos.pk_cols, infos.delta_col]
     col_names = [infos.write_config.get_target_name(p) for p in d_cols]
     assert success
     assert view_name is not None

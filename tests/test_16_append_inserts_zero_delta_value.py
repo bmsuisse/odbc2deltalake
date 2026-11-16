@@ -17,6 +17,7 @@ be executed over a real ODBC connection) to assert whether a `> 0`
 filter made it into the WHERE clause.
 """
 
+import contextlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -87,10 +88,8 @@ def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path):
         logger=DeltaLogger(dest / "log", reader),
     )
 
-    try:
+    with contextlib.suppress(_StopForTest):
         do_append_inserts_load(infos)
-    except _StopForTest:
-        pass
 
     assert reader.captured_sql is not None, "source_write_sql_to_delta was never called"
     assert "WHERE" in reader.captured_sql.upper(), (

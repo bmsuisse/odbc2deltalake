@@ -210,9 +210,7 @@ def spark_session():
     else:
         builder = builder.config("spark.jars", str(Path("tests/jar/postgresql-42.7.7.jar").absolute()))
 
-    spark = configure_spark_with_delta_pip(builder).getOrCreate()
-
-    return spark
+    return configure_spark_with_delta_pip(builder).getOrCreate()
 
 
 @pytest.fixture(autouse=True)

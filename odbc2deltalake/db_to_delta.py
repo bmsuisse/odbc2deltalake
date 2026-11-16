@@ -1100,6 +1100,7 @@ def _handle_additional_updates(
             allow_schema_drift=True,
         )
         return None
+    return None
 
 
 def _get_update_sql(
@@ -1110,7 +1111,7 @@ def _get_update_sql(
 ):
     if isinstance(criterion, ex.Expression):
         criterion = [criterion]
-    delta_sql = (
+    return (
         query.select(
             *_get_cols_select(
                 cols,
@@ -1131,7 +1132,6 @@ def _get_update_sql(
         )
         .sql(write_config.dialect)
     )
-    return delta_sql
 
 
 def _load_updates_to_delta(

@@ -119,7 +119,7 @@ def _get_table_cols(reader: DataSourceReader, table_name: table_name_type, *, di
         numeric_precision = d.pop("numeric_precision")
         numeric_scale = d.pop("numeric_scale")
         datetime_precision = d.pop("datetime_precision")
-        if dt in ["xml"]:
+        if dt == "xml":
             max_len = None
         if dt.lower() not in ["numeric", "decimal"]:
             numeric_precision = None
