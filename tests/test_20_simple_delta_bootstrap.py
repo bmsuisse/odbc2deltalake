@@ -28,13 +28,13 @@ from tests.utils import config_names, get_test_run_configs
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(21)
 @pytest.mark.parametrize("conf_name", config_names)
 def test_simple_delta_after_delta_col_less_init(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+    connection: "DBConnection", spark_session: "SparkSession", conf_name: str
 ):
     from odbc2deltalake import WriteConfig, make_writer
     from odbc2deltalake.db_to_delta import do_full_load

@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(16)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_query(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
+def test_delta_query(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user6")[conf_name]

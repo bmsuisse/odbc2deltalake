@@ -36,7 +36,7 @@ def _col(name: str) -> InformationSchemaColInfo:
     return InformationSchemaColInfo(column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint")
 
 
-class _StopForTest(Exception):
+class _StopForTestError(Exception):
     """Raised to stop do_append_inserts_load right after it built the SQL,
     before it would try to hit a real (non-existent) ODBC connection."""
 
@@ -55,7 +55,7 @@ class _CapturingReader(ODBCReader):
         allow_schema_drift,
     ):
         self.captured_sql = sql
-        raise _StopForTest()
+        raise _StopForTestError()
 
 
 def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path):
@@ -88,7 +88,7 @@ def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path):
         logger=DeltaLogger(dest / "log", reader),
     )
 
-    with contextlib.suppress(_StopForTest):
+    with contextlib.suppress(_StopForTestError):
         do_append_inserts_load(infos)
 
     assert reader.captured_sql is not None, "source_write_sql_to_delta was never called"

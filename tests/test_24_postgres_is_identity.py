@@ -22,11 +22,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(24)
-def test_postgres_identity_column_detected(connection: "DB_Connection"):
+def test_postgres_identity_column_detected(connection: "DBConnection"):
     if connection.source_server != "postgres":
         pytest.skip("is_identity casing bug is specific to the postgres query")
 

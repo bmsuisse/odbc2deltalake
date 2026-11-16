@@ -722,10 +722,10 @@ def do_deletes(
         write_config=write_config,
         merge_delta=False,
     )
-    LAST_PK_VERSION = "LAST_PK_VERSION"
+    last_pk_version = "LAST_PK_VERSION"
     reader.local_register_update_view(
         destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
-        LAST_PK_VERSION,
+        last_pk_version,
         version=old_pk_version,
     )
     delete_query = ex.except_(
@@ -737,7 +737,7 @@ def do_deletes(
                 get_target_name=write_config.get_target_name,
                 no_trim=write_config.no_trim,
             )
-        ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
+        ).from_(table_from_tuple(last_pk_version, alias="lpk")),
         ex.select(
             *_get_cols_select(
                 pk_cols,
@@ -961,10 +961,10 @@ def _handle_additional_updates(
         folder / f"delta_load/{DBDeltaPathConfigs.PRIMARY_KEYS_TS}",
         DBDeltaPathConfigs.PRIMARY_KEYS_TS,
     )
-    LAST_PK_VERSION = "LAST_PK_VERSION"
+    last_pk_version = "LAST_PK_VERSION"
     reader.local_register_update_view(
         folder / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}",
-        LAST_PK_VERSION,
+        last_pk_version,
         version=old_pk_version,
     )
 
@@ -988,7 +988,7 @@ def _handle_additional_updates(
                         get_target_name=write_config.get_target_name,
                         no_trim=write_config.no_trim,
                     )
-                ).from_(table_from_tuple(LAST_PK_VERSION, alias="lpk")),
+                ).from_(table_from_tuple(last_pk_version, alias="lpk")),
             ),
             "additional_updates",
         )

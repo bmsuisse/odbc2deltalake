@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     import duckdb
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,8 @@ def write_db_to_delta_with_check(
         check_latest_pk_pandas(w)
     except ImportError:
         logger.warning(
-            "Pandas or deltalake is not installed, skipping check_latest_pk_pandas. Install pandas to enable this check."
+            "Pandas or deltalake is not installed, skipping check_latest_pk_pandas. "
+            "Install pandas to enable this check."
         )
     return w, r
 
@@ -116,7 +117,7 @@ else:
 
 
 def get_test_run_configs(
-    connection: "DB_Connection", spark_session: "SparkSession", tbl_dest_name: str
+    connection: "DBConnection", spark_session: "SparkSession", tbl_dest_name: str
 ) -> dict[str, tuple[DataSourceReader, Destination]]:
     from pathlib import Path
 

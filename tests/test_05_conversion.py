@@ -16,12 +16,12 @@ from tests.utils import (
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(10)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_timestamp(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
+def test_first_load_timestamp(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import (
         DEFAULT_DATA_TYPE_MAP,
         DBDeltaPathConfigs,

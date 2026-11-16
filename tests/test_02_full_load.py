@@ -11,12 +11,12 @@ from tests.utils import config_names, create_delta_view, get_test_run_configs
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(4)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_always_full(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
+def test_first_load_always_full(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import write_db_to_delta
 
     reader, dest = get_test_run_configs(connection, spark_session, "long_schema/long_table_name2")[conf_name]

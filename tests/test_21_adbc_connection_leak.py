@@ -16,11 +16,11 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(22)
-def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DB_Connection"):
+def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DBConnection"):
     if connection.source_server != "postgres":
         pytest.skip("this bug is specific to the ADBC/postgres reader")
 

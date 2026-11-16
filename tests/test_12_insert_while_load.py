@@ -14,11 +14,11 @@ from tests.utils import (
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.parametrize("conf_name", config_names)
-def test_insert_while_load(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
+def test_insert_while_load(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import WriteConfig, make_writer
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user8")[conf_name]

@@ -10,12 +10,12 @@ from tests.utils import config_names, create_delta_view, get_test_run_configs
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(11)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_append_inserts(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
+def test_append_inserts(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import (
         WriteConfig,
         write_db_to_delta,

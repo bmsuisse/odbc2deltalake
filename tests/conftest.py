@@ -36,7 +36,7 @@ def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
         raise RuntimeError(f"Failed to connect after 3 attempts: {conn_str}\r\n {e}") from e
 
 
-class DB_Connection:
+class DBConnection:
     def __init__(self):
         import shutil
 
@@ -159,7 +159,7 @@ def spawn_sql():
 
 @pytest.fixture(scope="session")
 def connection(spawn_sql):
-    c = DB_Connection()
+    c = DBConnection()
     yield c
     c.close()
 

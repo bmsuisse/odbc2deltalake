@@ -43,13 +43,13 @@ from tests.utils import config_names, get_test_run_configs, write_db_to_delta_wi
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(25)
 @pytest.mark.parametrize("conf_name", config_names)
 def test_stale_write_after_full_load_fallback(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+    connection: "DBConnection", spark_session: "SparkSession", conf_name: str
 ):
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company3_stale_fallback")[conf_name]
 

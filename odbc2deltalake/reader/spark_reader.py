@@ -229,20 +229,20 @@ class SparkReader(DataSourceReader):
         if self.jdbc:
             options = {}
             if self.spark_format in ["postgres", "postgresql"]:
-                jdbcUrl = "jdbc:postgresql://"
+                jdbc_url = "jdbc:postgresql://"
             else:
-                jdbcUrl = f"jdbc:{self.spark_format}://"
+                jdbc_url = f"jdbc:{self.spark_format}://"
             if "host" in self.sql_config:
-                jdbcUrl += self.sql_config["host"].replace(",", ":")
+                jdbc_url += self.sql_config["host"].replace(",", ":")
             if "server" in self.sql_config:
-                jdbcUrl += self.sql_config["server"].replace(",", ":")
+                jdbc_url += self.sql_config["server"].replace(",", ":")
             if "port" in self.sql_config:
-                jdbcUrl += ":" + str(self.sql_config["port"])
+                jdbc_url += ":" + str(self.sql_config["port"])
             if "database" in self.sql_config and self.spark_format in [
                 "postgres",
                 "postgresql",
             ]:
-                jdbcUrl += "/" + self.sql_config["database"]
+                jdbc_url += "/" + self.sql_config["database"]
 
             for key, value in self.sql_config.items():
                 if key.lower() in ["host", "port", "server"]:
@@ -258,16 +258,16 @@ class SparkReader(DataSourceReader):
                     elif enc_vl.lower() == "no":
                         enc_vl = "false"
                     assert enc_vl in ["true", "false"]
-                    jdbcUrl += f";{key}=" + enc_vl
+                    jdbc_url += f";{key}=" + enc_vl
                 elif key.lower() == "database":
                     if self.spark_format not in [
                         "postgres",
                         "postgresql",
                     ]:  # postgres has db in url
-                        jdbcUrl += ";databaseName=" + value
+                        jdbc_url += ";databaseName=" + value
                 else:
                     options[key] = value
-            reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
+            reader = self.spark.read.format("jdbc").option("url", jdbc_url)
         else:
             options = self.sql_config
             reader = self.spark.read.format(self.spark_format)

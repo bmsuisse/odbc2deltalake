@@ -7,12 +7,12 @@ from tests.utils import config_names, get_test_run_configs, write_db_to_delta_wi
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 @pytest.mark.order(17)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_no_change(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
+def test_no_change(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
     """A delta load of an unchanged source compares MAX(delta column) and COUNT(*) with the
     last load (the delta column converted as the load writes it, e.g. a rowversion as bigint)
     and writes nothing."""

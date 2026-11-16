@@ -10,11 +10,11 @@ from tests.utils import config_names, get_test_run_configs, write_db_to_delta_wi
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
-    from tests.conftest import DB_Connection
+    from tests.conftest import DBConnection
 
 
 def _run_type_change(
-    connection: "DB_Connection",
+    connection: "DBConnection",
     spark_session: "SparkSession",
     conf_name: str,
     new_type: str,
@@ -59,14 +59,14 @@ def _run_type_change(
 
 @pytest.mark.parametrize("conf_name", config_names)
 def test_source_type_widening_does_not_fail_on_stale_staging(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
+    connection: "DBConnection", spark_session: "SparkSession", conf_name: str
 ):
     # the temporary delta_load tables written by the first run still have the old
     # schema and must not block the next run
     _run_type_change(connection, spark_session, conf_name, "bigint")
 
 
-def test_source_type_change_int_to_string_spark(connection: "DB_Connection", spark_session: "SparkSession"):
+def test_source_type_change_int_to_string_spark(connection: "DBConnection", spark_session: "SparkSession"):
     if spark_session is None or "spark" not in config_names:
         pytest.skip("Column migration is only implemented for spark")
     _, dest, ops = _run_type_change(connection, spark_session, "spark", "text", append_only=True)
