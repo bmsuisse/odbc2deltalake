@@ -167,3 +167,8 @@ debug.sql
 requirements.txt
 prof
 repo.py
+
+# Local tooling
+.worktrees/
+.claude/worktrees/
+.codegraph/
