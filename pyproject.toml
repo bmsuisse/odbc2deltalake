@@ -130,6 +130,7 @@ ignore = ["ANN401"]  # `Any` is a warning via the ruff-warn-any prek hook, not a
 [tool.ruff.lint.per-file-ignores]
 "tester.py" = ["T20"]  # dev script, its output is stdout
 "test_spark_import.py" = ["T20"]  # CI smoke script, its output is stdout
+"odbc2deltalake/sql_schema.py" = ["A002"]  # `type` is a keyword of the published is_string_type API
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
