@@ -10,6 +10,7 @@ full load, as long as their __timestamp matches the last full load's
 timestamp exactly - which produces two rows for the same primary key in the
 supposedly-single-row-per-pk "last pk version" output.
 """
+
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,9 +26,7 @@ from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
 
 
 def _col(name: str) -> InformationSchemaColInfo:
-    return InformationSchemaColInfo(
-        column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint"
-    )
+    return InformationSchemaColInfo(column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint")
 
 
 def test_last_full_load_view_ignores_non_full_load_rows(tmp_path: Path):

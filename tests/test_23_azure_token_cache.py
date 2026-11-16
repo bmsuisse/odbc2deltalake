@@ -5,6 +5,7 @@ from one storage account (managed_identity_client_id=A) and writing to
 another (managed_identity_client_id=B) would silently authenticate the
 second destination with the first destination's identity.
 """
+
 from unittest.mock import MagicMock, patch
 
 import odbc2deltalake.destination.azure_utils as azure_utils
@@ -30,8 +31,7 @@ def test_different_kwargs_get_different_cached_credentials():
         token_a_again = azure_utils._get_default_token(managed_identity_client_id="A")
 
     assert token_a != token_b, (
-        "different managed_identity_client_id kwargs must not silently reuse "
-        "the first credential's token"
+        "different managed_identity_client_id kwargs must not silently reuse the first credential's token"
     )
     assert token_a == token_a_again
     assert len(created_with) == 2, (

@@ -21,16 +21,12 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(5)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_delta(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     import sqlglot.expressions as ex
 
     from odbc2deltalake import DBDeltaPathConfigs
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user2")[conf_name]
     write_db_to_delta_with_check(reader, ("dbo", "user2$"), dest)
     fields = reader.get_local_delta_ops(dest / "delta").column_infos()
     nbr_field = next(f for f in fields if f.column_name == "nbr")
@@ -58,11 +54,7 @@ def test_delta(
             else:
                 cursor.execute("COMMIT")
         with nc.cursor() as cursor:
-            cursor.execute(
-                sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(
-                    reader.source_dialect
-                )
-            )
+            cursor.execute(sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(reader.source_dialect))
             alls = cursor.fetchall()
             assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
@@ -81,9 +73,7 @@ def test_delta(
             use_delta_ext=conf_name == "spark",
         )
         if reader.source_dialect in ["tsql", "mssql"]:
-            res = con.execute(
-                'select "time_stamp", "User_-_iD" from v_user_2_temp limit 1'
-            ).fetchone()
+            res = con.execute('select "time_stamp", "User_-_iD" from v_user_2_temp limit 1').fetchone()
             assert res is not None
             assert isinstance(res[0], int), "time_stamp is not an integer"
 
@@ -153,14 +143,10 @@ def test_delta(
 
 @pytest.mark.order(5)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_sys(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_delta_sys(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import DBDeltaPathConfigs
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_2")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_2")[conf_name]
     write_db_to_delta_with_check(reader, ("dbo", "company"), dest)  # full load
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:

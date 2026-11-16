@@ -1,4 +1,3 @@
-
 try:
     import deltalake
 

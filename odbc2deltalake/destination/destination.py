@@ -44,9 +44,7 @@ class Destination(ABC):
         pass
 
     @abstractmethod
-    def as_path_options(
-        self, flavor: Literal["fsspec", "object_store"]
-    ) -> tuple[str, Optional[dict[str, str]]]:
+    def as_path_options(self, flavor: Literal["fsspec", "object_store"]) -> tuple[str, Optional[dict[str, str]]]:
         pass
 
     @abstractmethod

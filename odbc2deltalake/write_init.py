@@ -95,9 +95,7 @@ class WriteConfig:
     no_complex_entries_load: bool = False
     """If true, will not load 'strange updates' via OPENJSON. Use if your db does not support OPENJSON or you're fine to get some additional updates in order to reduce complexity"""
 
-    get_target_name: Callable[[InformationSchemaColInfo], str] = dataclasses.field(
-        default_factory=lambda: compat_name
-    )
+    get_target_name: Callable[[InformationSchemaColInfo], str] = dataclasses.field(default_factory=lambda: compat_name)
     """A method that returns the target name of a column. This is used to map the source column names to the target column names.
     Use if you want to apply some naming convention or avoid special characters in the target. """
 
@@ -129,9 +127,7 @@ class WriteConfigAndInfos:
         res = check_latest_pk(self, raise_if_not_consistent=not auto_fix)
         if res and auto_fix:
             self.logger.warning("PK's inconsistent, remove them")
-            (
-                self.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-            ).remove(True)
+            (self.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).remove(True)
             return res, True
         return res, False
 
@@ -162,9 +158,7 @@ def get_delta_col(
     if dialect == "postgres" and is_physical_table:
         return InformationSchemaColInfo(
             column_name="xmin",
-            data_type=ex.DataType.build(
-                "oid", dialect="postgres"
-            ),  # should actually be xid
+            data_type=ex.DataType.build("oid", dialect="postgres"),  # should actually be xid
             data_type_str="xid",
         )
     return row_start_col
@@ -181,11 +175,7 @@ def make_writer(
     log_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
 ):
     if write_config is None:
-        write_config = WriteConfig(
-            dialect=source.source_dialect
-            if isinstance(source, DataSourceReader)
-            else "tsql"
-        )
+        write_config = WriteConfig(dialect=source.source_dialect if isinstance(source, DataSourceReader) else "tsql")
     if isinstance(destination, Path):
         from .destination.file_system import FileSystemDestination
 
@@ -198,16 +188,10 @@ def make_writer(
     cols = get_columns(source, table_or_query, dialect=write_config.dialect)
     is_physical_table = None
     if write_config.delta_col:
-        delta_col = next(
-            (c for c in cols if c.column_name == write_config.delta_col), None
-        )
+        delta_col = next((c for c in cols if c.column_name == write_config.delta_col), None)
         if delta_col is None:
             delta_col = next(
-                (
-                    c
-                    for c in cols
-                    if write_config.get_target_name(c) == write_config.delta_col
-                ),
+                (c for c in cols if write_config.get_target_name(c) == write_config.delta_col),
                 None,
             )
         if delta_col is None:
@@ -218,69 +202,44 @@ def make_writer(
                     data_type_str="xid",
                 )
             else:
-                raise ValueError(
-                    f"Delta column {write_config.delta_col} not found in source"
-                )
+                raise ValueError(f"Delta column {write_config.delta_col} not found in source")
     else:
-        if (
-            not isinstance(table_or_query, ex.Query)
-            and write_config.dialect == "postgres"
-        ):
+        if not isinstance(table_or_query, ex.Query) and write_config.dialect == "postgres":
             qb = cast(
                 ex.Query,
                 sg.parse_one("SELECT table_type FROM information_schema.tables"),
             )
             if isinstance(table_or_query, tuple):
                 qb.where(
-                    ex.func("LOWER", ex.column("table_schema")).eq(
-                        ex.func("LOWER", ex.convert(table_or_query[0]))
-                    ),
+                    ex.func("LOWER", ex.column("table_schema")).eq(ex.func("LOWER", ex.convert(table_or_query[0]))),
                     copy=False,
                 )
                 qb.where(
-                    ex.func("LOWER", ex.column("table_name")).eq(
-                        ex.func("LOWER", ex.convert(table_or_query[1]))
-                    ),
+                    ex.func("LOWER", ex.column("table_name")).eq(ex.func("LOWER", ex.convert(table_or_query[1]))),
                     copy=False,
                 )
             else:
                 qb.where(
-                    ex.func("LOWER", ex.column("table_name")).eq(
-                        ex.func("LOWER", ex.convert(table_or_query))
-                    ),
+                    ex.func("LOWER", ex.column("table_name")).eq(ex.func("LOWER", ex.convert(table_or_query))),
                     copy=False,
                 )
             type_type = source.source_sql_to_py(qb)[0]["table_type"]
             is_physical_table = type_type == "BASE TABLE"
 
-        delta_col = get_delta_col(
-            cols, write_config.dialect, is_physical_table=is_physical_table
-        )
-    if delta_col and delta_col.column_name.lower() not in (
-        c.column_name.lower() for c in cols
-    ):
-        cols.append(
-            delta_col
-        )  # we assume it's a hidden column, so we add it to the cols (eg, xmin in postgres)
+        delta_col = get_delta_col(cols, write_config.dialect, is_physical_table=is_physical_table)
+    if delta_col and delta_col.column_name.lower() not in (c.column_name.lower() for c in cols):
+        cols.append(delta_col)  # we assume it's a hidden column, so we add it to the cols (eg, xmin in postgres)
     _pks = write_config.primary_keys
-    if _pks is None and (
-        isinstance(table_or_query, str) or isinstance(table_or_query, tuple)
-    ):
+    if _pks is None and (isinstance(table_or_query, str) or isinstance(table_or_query, tuple)):
         _pks = get_primary_keys(source, table_or_query, dialect=write_config.dialect)
     elif _pks is None:
         _pks = []
     pk_cols: Sequence[InformationSchemaColInfo] = []
     for pk in _pks:
-        pk_col = next(
-            (c for c in cols if c.column_name.casefold() == pk.casefold()), None
-        )
+        pk_col = next((c for c in cols if c.column_name.casefold() == pk.casefold()), None)
         if pk_col is None:
             pk_col = next(
-                (
-                    c
-                    for c in cols
-                    if write_config.get_target_name(c).casefold() == pk.casefold()
-                ),
+                (c for c in cols if write_config.get_target_name(c).casefold() == pk.casefold()),
                 None,
             )
         if pk_col is None:

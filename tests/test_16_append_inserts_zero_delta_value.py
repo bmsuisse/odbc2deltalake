@@ -16,6 +16,7 @@ source_write_sql_to_delta - the point where the query would otherwise
 be executed over a real ODBC connection) to assert whether a `> 0`
 filter made it into the WHERE clause.
 """
+
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -31,9 +32,7 @@ from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
 
 
 def _col(name: str) -> InformationSchemaColInfo:
-    return InformationSchemaColInfo(
-        column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint"
-    )
+    return InformationSchemaColInfo(column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint")
 
 
 class _StopForTest(Exception):

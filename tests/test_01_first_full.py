@@ -19,14 +19,10 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(1)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_timestamp(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_first_load_timestamp(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import DBDeltaPathConfigs
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user")[conf_name]
 
     write_db_to_delta_with_check(reader, ("dbo", "user"), dest)
     with duckdb.connect() as con:
@@ -36,9 +32,7 @@ def test_first_load_timestamp(
             "v_user",
             use_delta_ext=conf_name == "spark",
         )
-        name_tuples = con.execute(
-            'SELECT FirstName from v_user order by "User_-_iD"'
-        ).fetchall()
+        name_tuples = con.execute('SELECT FirstName from v_user order by "User_-_iD"').fetchall()
         assert name_tuples == [("John",), ("Peter",), ("Petra",)]
 
         create_delta_view(
@@ -48,22 +42,16 @@ def test_first_load_timestamp(
             use_delta_ext=conf_name == "spark",
         )
 
-        id_tuples = con.execute(
-            'SELECT "User_-_iD" from v_latest_pk order by "User_-_iD"'
-        ).fetchall()
+        id_tuples = con.execute('SELECT "User_-_iD" from v_latest_pk order by "User_-_iD"').fetchall()
         assert id_tuples == [(1,), (2,), (3,)]
 
 
 @pytest.mark.order(2)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_sys_start(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_first_load_sys_start(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import DBDeltaPathConfigs, write_db_to_delta
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company")[conf_name]
 
     write_db_to_delta(reader, ("dbo", "company"), dest)
 
@@ -83,22 +71,16 @@ def test_first_load_sys_start(
             "v_latest_pk_company",
             use_delta_ext=conf_name == "spark",
         )
-        id_tuples = con.execute(
-            'SELECT "id" from v_latest_pk_company order by "id"'
-        ).fetchall()
+        id_tuples = con.execute('SELECT "id" from v_latest_pk_company order by "id"').fetchall()
         assert id_tuples == [("c1",), ("c2",)]
 
 
 @pytest.mark.order(3)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_always_full(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_first_load_always_full(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import write_db_to_delta
 
-    reader, dest = get_test_run_configs(
-        connection, spark_session, "long_schema/long_table_name"
-    )[conf_name]
+    reader, dest = get_test_run_configs(connection, spark_session, "long_schema/long_table_name")[conf_name]
 
     write_db_to_delta(
         reader,
@@ -114,9 +96,7 @@ def test_first_load_always_full(
             use_delta_ext=conf_name == "spark",
         )
 
-        name_tuples = con.execute(
-            'SELECT date from v_long_table_name order by "long_column_name"'
-        ).fetchall()
+        name_tuples = con.execute('SELECT date from v_long_table_name order by "long_column_name"').fetchall()
         assert name_tuples == [
             (
                 date(

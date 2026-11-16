@@ -36,12 +36,8 @@ class SparkDeltaOps(DeltaOps):
         def _escape(s: str):
             return s.replace("'", "''")
 
-        prop_str = ", ".join(
-            [f"'{_escape(k)}' = '{_escape(v)}'" for k, v in props.items()]
-        )
-        self.spark.sql(
-            f"ALTER TABLE delta.`{self.dest!s}` SET TBLPROPERTIES ({prop_str})"
-        )
+        prop_str = ", ".join([f"'{_escape(k)}' = '{_escape(v)}'" for k, v in props.items()])
+        self.spark.sql(f"ALTER TABLE delta.`{self.dest!s}` SET TBLPROPERTIES ({prop_str})")
 
     def get_property(self, key: str) -> Optional[str]:
         from pyspark.sql.functions import col, lit
@@ -77,13 +73,9 @@ class SparkDeltaOps(DeltaOps):
     def set_nullable(self, cols: Mapping[str, bool]):
         for c, n in cols.items():
             if n:
-                self.spark.sql(
-                    f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` DROP NOT NULL"
-                )
+                self.spark.sql(f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` DROP NOT NULL")
             else:
-                self.spark.sql(
-                    f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` SET NOT NULL"
-                )
+                self.spark.sql(f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` SET NOT NULL")
 
     def update_incremental(self):
         """Update the incremental state of the Delta table."""
@@ -112,9 +104,7 @@ class SparkReader(DataSourceReader):
         else:
             self.source_dialect = spark_format
 
-        self.transformation_hook: Callable[[DataFrame, str], DataFrame] = (
-            transformation_hook or (lambda d, _: d)
-        )
+        self.transformation_hook: Callable[[DataFrame, str], DataFrame] = transformation_hook or (lambda d, _: d)
         # spark.conf.get(key) with no default raises if the key isn't set
         # (rather than returning None), so calling it bare here always threw
         # and was silently swallowed by the broad except below - Databricks
@@ -145,9 +135,7 @@ class SparkReader(DataSourceReader):
         read.load(str(delta_path)).createOrReplaceTempView(view_name)
 
     def local_register_view(self, sql: Query, view_name: str):
-        self.spark.sql(
-            f"CREATE OR REPLACE TEMPORARY VIEW {view_name} AS {sql.sql(self._dialect)}"
-        )
+        self.spark.sql(f"CREATE OR REPLACE TEMPORARY VIEW {view_name} AS {sql.sql(self._dialect)}")
 
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
         spark_rows = self.spark.sql(sql.sql(self._dialect)).collect()
@@ -168,9 +156,7 @@ class SparkReader(DataSourceReader):
         if allow_schema_drift == "new_only":
             self._append_new_cols(delta_path, df.schema)
         elif allow_schema_drift:
-            writer = writer.option(
-                "mergeSchema" if mode == "append" else "overwriteSchema", "true"
-            )
+            writer = writer.option("mergeSchema" if mode == "append" else "overwriteSchema", "true")
             if mode == "append":
                 writer = writer.option("delta.enableTypeWidening", "true")
         writer.mode(mode).save(str(delta_path))
@@ -186,9 +172,9 @@ class SparkReader(DataSourceReader):
             self.spark.createDataFrame([dummy_record]).schema if dummy_record else None  # type: ignore
         )
         df = self.spark.createDataFrame(pylist, schema=schema)  # type: ignore
-        df.write.format("delta").option(
-            "mergeSchema" if mode == "append" else "overwriteSchema", "true"
-        ).mode(mode).save(str(delta_path))
+        df.write.format("delta").option("mergeSchema" if mode == "append" else "overwriteSchema", "true").mode(
+            mode
+        ).save(str(delta_path))
 
     @property
     def query_dialect(self) -> str:
@@ -230,21 +216,12 @@ class SparkReader(DataSourceReader):
         rows = self.transformation_hook(reader.load(), "source2py").collect()
         return [row.asDict() for row in rows]
 
-    def local_delta_table_exists(
-        self, delta_path: Destination, extended_check=False
-    ) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check=False) -> bool:
         from delta import DeltaTable
 
         if delta_path.exists() and DeltaTable.isDeltaTable(self.spark, str(delta_path)):
             if extended_check:
-                return (
-                    len(
-                        self.spark.sql(
-                            f"select * from delta.`{delta_path!s}` limit 0"
-                        ).columns
-                    )
-                    > 0
-                )
+                return len(self.spark.sql(f"select * from delta.`{delta_path!s}` limit 0").columns) > 0
             return True
         return False
 
@@ -304,9 +281,7 @@ class SparkReader(DataSourceReader):
         from delta import DeltaTable
 
         if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
-            empty_read_df = (
-                self.spark.read.format("delta").load(str(delta_path)).limit(0)
-            )
+            empty_read_df = self.spark.read.format("delta").load(str(delta_path)).limit(0)
             existing_schema = empty_read_df.schema
             existing_fields = existing_schema.fieldNames()
             existing_fields_lower = [f.lower() for f in existing_fields]
@@ -319,9 +294,7 @@ class SparkReader(DataSourceReader):
 
             if has_new:
                 new_cols = self.spark.createDataFrame([], new_schema)
-                new_cols.write.format("delta").option("mergeSchema", "true").mode(
-                    "append"
-                ).save(str(delta_path))
+                new_cols.write.format("delta").option("mergeSchema", "true").mode("append").save(str(delta_path))
 
     _MIGRATION_TMP_SUFFIX = "__odbc2delta_tmp"
 
@@ -343,46 +316,33 @@ class SparkReader(DataSourceReader):
 
         if not DeltaTable.isDeltaTable(self.spark, str(delta_path)):
             return
-        existing_fields = (
-            self.spark.read.format("delta").load(str(delta_path)).schema.fields
-        )
+        existing_fields = self.spark.read.format("delta").load(str(delta_path)).schema.fields
         by_name = {f.name.lower(): f for f in existing_fields}
         suffix = self._MIGRATION_TMP_SUFFIX
         for f in existing_fields:  # resume interrupted migrations
-            if (
-                f.name.endswith(suffix)
-                and f.name[: -len(suffix)].lower() not in by_name
-            ):
+            if f.name.endswith(suffix) and f.name[: -len(suffix)].lower() not in by_name:
                 self._migrate_column(delta_path, f.name[: -len(suffix)], None)
         for sf in source_schema.fields:
             ef = by_name.get(sf.name.lower())
             if ef is not None and self._type_needs_migration(ef.dataType, sf.dataType):
                 self._migrate_column(delta_path, ef.name, sf.dataType.simpleString())
 
-    def _migrate_column(
-        self, delta_path: Destination, name: str, new_type: Optional[str]
-    ):
+    def _migrate_column(self, delta_path: Destination, name: str, new_type: Optional[str]):
         def q(n: str):
             return "`" + n.replace("`", "``") + "`"
 
         table = f"delta.`{delta_path!s}`"
         tmp = name + self._MIGRATION_TMP_SUFFIX
         ops = SparkDeltaOps(delta_path, self.spark)
-        fields = [
-            f.name for f in self.spark.read.format("delta").load(str(delta_path)).schema
-        ]
+        fields = [f.name for f in self.spark.read.format("delta").load(str(delta_path)).schema]
         append_only = ops.get_property("delta.appendOnly")
         try:
             if append_only is not None and append_only.lower() == "true":
                 ops.set_properties({"delta.appendOnly": "false"})
             if new_type is not None:  # otherwise the values were already copied
                 if tmp not in fields:
-                    self.spark.sql(
-                        f"ALTER TABLE {table} ADD COLUMN {q(tmp)} {new_type}"
-                    )
-                self.spark.sql(
-                    f"UPDATE {table} SET {q(tmp)} = CAST({q(name)} AS {new_type})"
-                )
+                    self.spark.sql(f"ALTER TABLE {table} ADD COLUMN {q(tmp)} {new_type}")
+                self.spark.sql(f"UPDATE {table} SET {q(tmp)} = CAST({q(name)} AS {new_type})")
                 if ops.get_property("delta.columnMapping.mode") != "name":
                     detail = self.spark.sql(f"DESCRIBE DETAIL {table}").collect()[0]
                     props = {"delta.columnMapping.mode": "name"}
@@ -417,9 +377,7 @@ class SparkReader(DataSourceReader):
         if allow_schema_drift == "new_only":
             self._append_new_cols(delta_path, reader.schema)
         elif allow_schema_drift:
-            writer = writer.option(
-                "mergeSchema" if mode == "append" else "overwriteSchema", "true"
-            )
+            writer = writer.option("mergeSchema" if mode == "append" else "overwriteSchema", "true")
         writer.mode(mode).save(str(delta_path))
 
     def get_local_delta_ops(self, delta_path: Destination) -> DeltaOps:
@@ -439,11 +397,6 @@ class SparkReader(DataSourceReader):
         DeltaTable.forPath(self.spark, str(target_delta)).alias("tgt").merge(
             df_source.alias("src"),
             sg.and_(
-                *[
-                    sg.column(mc, "tgt", quoted=True).eq(
-                        sg.column(mc, "src", quoted=True)
-                    )
-                    for mc in merge_cols
-                ]
+                *[sg.column(mc, "tgt", quoted=True).eq(sg.column(mc, "src", quoted=True)) for mc in merge_cols]
             ).sql(self._dialect),
         ).whenNotMatchedInsertAll().whenMatchedUpdateAll().execute()

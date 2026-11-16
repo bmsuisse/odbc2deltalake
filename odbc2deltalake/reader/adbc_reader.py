@@ -31,20 +31,14 @@ if TYPE_CHECKING:
 def _is_opaque_numeric(tp: "pa.DataType") -> bool:
     import pyarrow as pa
 
-    return (
-        isinstance(tp, pa.BaseExtensionType)
-        and getattr(tp, "type_name", None) == "numeric"
-    )
+    return isinstance(tp, pa.BaseExtensionType) and getattr(tp, "type_name", None) == "numeric"
 
 
 def _decimal_schema(schema: "pa.Schema") -> "pa.Schema":
     import pyarrow as pa
 
     return pa.schema(
-        [
-            f.with_type(pa.decimal128(38, 18)) if _is_opaque_numeric(f.type) else f
-            for f in schema
-        ],
+        [f.with_type(pa.decimal128(38, 18)) if _is_opaque_numeric(f.type) else f for f in schema],
         metadata=schema.metadata,
     )
 
@@ -52,10 +46,7 @@ def _decimal_schema(schema: "pa.Schema") -> "pa.Schema":
 def _decimal_batch(batch: "pa.RecordBatch", schema: "pa.Schema") -> "pa.RecordBatch":
     import pyarrow as pa
 
-    cols = [
-        c.storage.cast(f.type) if _is_opaque_numeric(c.type) else c
-        for c, f in zip(batch.columns, schema)
-    ]
+    cols = [c.storage.cast(f.type) if _is_opaque_numeric(c.type) else c for c, f in zip(batch.columns, schema)]
     return pa.RecordBatch.from_arrays(cols, schema=schema)
 
 
@@ -90,9 +81,7 @@ class ADBCReader(DataSourceReader):
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
         dp, do = delta_path.as_path_options("object_store")
-        duckdb_create_view_for_delta(
-            self.duck_con, dp, view_name, storage_options=do, version=version
-        )
+        duckdb_create_view_for_delta(self.duck_con, dp, view_name, storage_options=do, version=version)
 
     def local_execute_sql_to_py(self, sql: ex.Query) -> list[dict]:
         import duckdb
@@ -108,9 +97,7 @@ class ADBCReader(DataSourceReader):
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
-        self.duck_con.sql(
-            f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql(self.query_dialect)}"
-        )
+        self.duck_con.sql(f"CREATE OR REPLACE VIEW {view_name} AS {sql.sql(self.query_dialect)}")
 
     def local_pylist_to_delta(
         self,
@@ -122,9 +109,7 @@ class ADBCReader(DataSourceReader):
         import pyarrow as pa
         from deltalake import write_deltalake
 
-        schema = (
-            pa.RecordBatch.from_pylist([dummy_record]).schema if dummy_record else None
-        )
+        schema = pa.RecordBatch.from_pylist([dummy_record]).schema if dummy_record else None
         batch = pa.RecordBatch.from_pylist(pylist, schema=schema)
         dp, do = delta_path.as_path_options("object_store")
 
@@ -137,9 +122,7 @@ class ADBCReader(DataSourceReader):
             writer_properties=self.writer_properties,
         )
 
-    def local_delta_table_exists(
-        self, delta_path: Destination, extended_check=False
-    ) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check=False) -> bool:
         if delta_path.exists():
             from deltalake import DeltaTable
             from deltalake.exceptions import TableNotFoundError
@@ -180,11 +163,7 @@ class ADBCReader(DataSourceReader):
 
                 existing_field_names = [f.name for f in existing_schema]
                 new_schema = _all_nullable(input_schema)
-                new_fields = [
-                    new_schema.field(n)
-                    for n in new_schema.names
-                    if n not in existing_field_names
-                ]
+                new_fields = [new_schema.field(n) for n in new_schema.names if n not in existing_field_names]
 
                 if new_fields:
                     import pyarrow as pa
@@ -248,18 +227,14 @@ class ADBCReader(DataSourceReader):
                         fields.append(field)
                 schema = pa.schema(fields) if must_fix_tz else schema
 
-            cast_schema, schema_mode = self._handle_schema_drift(
-                delta_path, allow_schema_drift, mode, schema
-            )
+            cast_schema, schema_mode = self._handle_schema_drift(delta_path, allow_schema_drift, mode, schema)
             if cast_schema:
                 schema = cast_schema
                 batch_reader = pa.RecordBatchReader.from_batches(
                     cast_schema, (b.cast(cast_schema) for b in batch_reader)
                 )
             elif must_fix_tz:
-                batch_reader = pa.RecordBatchReader.from_batches(
-                    schema, (b.cast(schema) for b in batch_reader)
-                )
+                batch_reader = pa.RecordBatchReader.from_batches(schema, (b.cast(schema) for b in batch_reader))
             try:
                 write_deltalake(
                     dp,
@@ -280,9 +255,7 @@ class ADBCReader(DataSourceReader):
     def query_dialect(self) -> str:
         return "duckdb"
 
-    def source_schema_limit_one(
-        self, sql: ex.Query
-    ) -> "list[InformationSchemaColInfo]":
+    def source_schema_limit_one(self, sql: ex.Query) -> "list[InformationSchemaColInfo]":
         from ..metadata import InformationSchemaColInfo
 
         limit_sql = sql.limit(0).sql(self.source_dialect)
@@ -344,9 +317,7 @@ class ADBCReader(DataSourceReader):
                     delta_path, allow_schema_drift, mode, reader.schema
                 )
                 schema = _all_nullable(cast_schema or reader.schema)
-                reader = pa.RecordBatchReader.from_batches(
-                    schema, (b.cast(schema) for b in reader)
-                )
+                reader = pa.RecordBatchReader.from_batches(schema, (b.cast(schema) for b in reader))
                 try:
                     write_deltalake(
                         dp,
@@ -410,12 +381,7 @@ class ADBCReader(DataSourceReader):
                 dt.merge(
                     cursor.fetch_record_batch(),
                     sg.and_(
-                        *[
-                            sg.column(mc, "tgt", quoted=True).eq(
-                                sg.column(mc, "src", quoted=True)
-                            )
-                            for mc in merge_cols
-                        ]
+                        *[sg.column(mc, "tgt", quoted=True).eq(sg.column(mc, "src", quoted=True)) for mc in merge_cols]
                     ).sql(self.query_dialect),
                     "src",
                     "tgt",

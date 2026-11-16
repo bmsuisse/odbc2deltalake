@@ -25,9 +25,7 @@ def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
         infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION,
         lpk_view,
     )
-    _, view_name, success = create_last_pk_version_view(
-        infos, view_prefix="v_" + postfix
-    )
+    _, view_name, success = create_last_pk_version_view(infos, view_prefix="v_" + postfix)
     d_cols = list(infos.pk_cols) + [infos.delta_col]
     col_names = [infos.write_config.get_target_name(p) for p in d_cols]
     assert success
@@ -48,9 +46,7 @@ def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
         .select(*[ex.column(c, "lpk", quoted=True) for c in col_names])
         .select(ex.convert("missing in persisted data"), append=True),
     )
-    result = infos.source.local_execute_sql_to_py(
-        ex.union(query1, query2, distinct=False)
-    )
+    result = infos.source.local_execute_sql_to_py(ex.union(query1, query2, distinct=False))
     if result:
         print(result)
         if raise_if_not_consistent:

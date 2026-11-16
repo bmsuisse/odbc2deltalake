@@ -17,14 +17,10 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(4)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_always_full(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_first_load_always_full(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import write_db_to_delta
 
-    reader, dest = get_test_run_configs(
-        connection, spark_session, "long_schema/long_table_name2"
-    )[conf_name]
+    reader, dest = get_test_run_configs(connection, spark_session, "long_schema/long_table_name2")[conf_name]
 
     write_db_to_delta(
         reader,
@@ -41,9 +37,7 @@ def test_first_load_always_full(
             "v_long_table_name_temp",
             use_delta_ext=conf_name == "spark",
         )
-        res = con.execute(
-            "select max(__timestamp) from v_long_table_name_temp s"
-        ).fetchone()
+        res = con.execute("select max(__timestamp) from v_long_table_name_temp s").fetchone()
 
         assert res is not None
         max_valid_from = res[0]

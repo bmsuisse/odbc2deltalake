@@ -20,14 +20,10 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(14)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_sys(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_delta_sys(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import WriteConfig, write_db_to_delta
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_3_dc")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_3_dc")[conf_name]
     cfg = WriteConfig(load_mode="simple_delta_check", dialect=reader.source_dialect)
     ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     write_db_to_delta_with_check(reader, ("dbo", "company3"), dest, cfg)  # full load

@@ -41,9 +41,7 @@ def test_simple_delta_after_delta_col_less_init(
 
     # use a destination path distinct from other tests targeting dbo.company3,
     # so we control the bootstrap state (no leftover latest_pk_version)
-    reader, dest = get_test_run_configs(
-        connection, spark_session, "dbo/company3_bootstrap"
-    )[conf_name]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company3_bootstrap")[conf_name]
 
     # Step 1: "init" load with no delta_col - mirrors bootstrapping a table
     # before a delta column is known/configured. do_full_load with
@@ -61,9 +59,7 @@ def test_simple_delta_after_delta_col_less_init(
     # reaching write_latest_pk, and the bug wouldn't be exercised.
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
         cursor.execute(
-            "insert into dbo.company3(id, name) values "
-            "('c301', 'company3_bootstrap_test') "
-            "on conflict do nothing"
+            "insert into dbo.company3(id, name) values ('c301', 'company3_bootstrap_test') on conflict do nothing"
             if reader.source_dialect == "postgres"
             else "if not exists (select 1 from dbo.company3 where id = 'c301') "
             "insert into dbo.company3(id, name) values ('c301', 'company3_bootstrap_test')"
@@ -73,9 +69,7 @@ def test_simple_delta_after_delta_col_less_init(
     # with a properly detected delta_col. Since destination/delta already
     # exists, exec_write_db_to_delta routes straight into do_delta_load
     # instead of do_full_load, and the simple path has no bootstrap guard.
-    simple_config = WriteConfig(
-        load_mode="simple_delta", dialect=reader.source_dialect
-    )
+    simple_config = WriteConfig(load_mode="simple_delta", dialect=reader.source_dialect)
     simple_infos = make_writer(reader, ("dbo", "company3"), dest, simple_config)
     assert simple_infos.delta_col is not None, "test setup needs a real delta col"
 

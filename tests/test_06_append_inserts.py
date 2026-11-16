@@ -15,9 +15,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(11)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_append_inserts(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_append_inserts(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import (
         WriteConfig,
         write_db_to_delta,
@@ -25,9 +23,7 @@ def test_append_inserts(
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/log")[conf_name]
 
-    write_config = WriteConfig(
-        load_mode="append_inserts", dialect=reader.source_dialect
-    )
+    write_config = WriteConfig(load_mode="append_inserts", dialect=reader.source_dialect)
     write_db_to_delta(
         reader,
         ("dbo", "log"),
@@ -43,9 +39,7 @@ def test_append_inserts(
             use_delta_ext=conf_name == "spark",
         )
 
-        id_tuples = con.execute(
-            'SELECT id, message from v_log order by "__timestamp"'
-        ).fetchall()
+        id_tuples = con.execute('SELECT id, message from v_log order by "__timestamp"').fetchall()
         assert id_tuples == [(1, "The first log message")]
 
     time.sleep(1)
@@ -72,9 +66,7 @@ def test_append_inserts(
             use_delta_ext=conf_name == "spark",
         )
 
-        id_tuples = con.execute(
-            'SELECT id, message from v_log order by "__timestamp"'
-        ).fetchall()
+        id_tuples = con.execute('SELECT id, message from v_log order by "__timestamp"').fetchall()
         assert id_tuples == [
             (1, "The first log message"),
             (2, "The second log message"),

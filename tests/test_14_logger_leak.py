@@ -10,6 +10,7 @@ messages accumulate in ONE shared list - whichever instance flushes
 first writes ALL pending messages (including ones belonging to a
 different table's logger) to its own log_file_path.
 """
+
 from datetime import datetime, timezone
 from pathlib import Path
 

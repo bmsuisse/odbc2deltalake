@@ -9,6 +9,7 @@ silently swallowed by the broad `except Exception`, and `self._dialect`
 therefore fell back to "spark" unconditionally - even when genuinely running
 on Databricks. Databricks-specific SQL generation was consequently dead code.
 """
+
 from unittest.mock import MagicMock
 
 

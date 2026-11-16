@@ -20,14 +20,10 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(6)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_strange_delta(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_strange_delta(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import DBDeltaPathConfigs
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user3")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user3")[conf_name]
     write_db_to_delta_with_check(reader, ("dbo", "user3"), dest)
     with connection.new_connection(conf_name) as nc:
         with nc.cursor() as cursor:
@@ -134,23 +130,17 @@ def test_strange_delta(
     os.getenv("ODBCLAKE_TEST_SOURCE_SERVER") == "postgres",
     reason="postgres does not support system time tables",
 )
-def test_strange_delta_sys(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_strange_delta_sys(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     import time
 
     from odbc2deltalake import DBDeltaPathConfigs, write_db_to_delta
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company2_1")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/company2_1")[conf_name]
     if reader.source_dialect == "postgres":
         return
     write_db_to_delta(reader, ("dbo", "company2"), dest)  # empty
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
-        cursor.execute(
-            """ insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """
-        )
+        cursor.execute(""" insert into dbo.company2(id, name) select id, name from dbo.company where id <> 'c300'; """)
     write_db_to_delta_with_check(  # normal full load
         reader, ("dbo", "company2"), dest
     )
@@ -184,9 +174,7 @@ def test_strange_delta_sys(
                    """
             )
         with nc.cursor() as cursor:
-            cursor.execute(
-                "ALTER TABLE dbo.company2 add PERIOD FOR SYSTEM_TIME (SysStartTime, SysEndTime)  "
-            )
+            cursor.execute("ALTER TABLE dbo.company2 add PERIOD FOR SYSTEM_TIME (SysStartTime, SysEndTime)  ")
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM dbo.company2")
             alls = cursor.fetchall()

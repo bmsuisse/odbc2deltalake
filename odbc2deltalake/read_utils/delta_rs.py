@@ -100,14 +100,10 @@ def _delta_to_sq_type(
         key_type = _delta_to_sq_type(delta_type.key_type)
         value_type = _delta_to_sq_type(delta_type.value_type)
 
-        return ex.DataType(
-            this=ex.DataType.Type.MAP, expressions=[key_type, value_type], nested=True
-        )
+        return ex.DataType(this=ex.DataType.Type.MAP, expressions=[key_type, value_type], nested=True)
     if isinstance(delta_type, ArrayType):
         item_type = _delta_to_sq_type(delta_type.element_type)
-        return ex.DataType(
-            this=ex.DataType.Type.ARRAY, expressions=[item_type], nested=True
-        )
+        return ex.DataType(this=ex.DataType.Type.ARRAY, expressions=[item_type], nested=True)
     if isinstance(delta_type, StructType):
         fields = [
             ex.DataType(
@@ -122,9 +118,7 @@ def _delta_to_sq_type(
             )
             for f in delta_type.fields
         ]
-        return ex.DataType(
-            this=ex.DataType.Type.STRUCT, expressions=fields, nested=True
-        )
+        return ex.DataType(this=ex.DataType.Type.STRUCT, expressions=fields, nested=True)
     raise ValueError(f"Unsupported Delta type: {type(delta_type)}")
 
 
@@ -153,9 +147,7 @@ class DeltaRSDeltaOps(DeltaOps):
             if v:
                 self.delta_table.alter.add_constraint({f"null_{k}": f"{k} IS NOT NULL"})
             else:
-                self.delta_table.alter.drop_constraint(
-                    f"null_{k}", raise_if_not_exists=False
-                )
+                self.delta_table.alter.drop_constraint(f"null_{k}", raise_if_not_exists=False)
 
     def column_infos(self) -> "Sequence[InformationSchemaColInfo]":
         from odbc2deltalake.metadata import InformationSchemaColInfo

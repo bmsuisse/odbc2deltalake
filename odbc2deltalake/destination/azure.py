@@ -51,9 +51,7 @@ class AzureDestination(Destination):
     def as_path_options(self, flavor: Literal["fsspec", "object_store"]):
         from .azure_utils import convert_options
 
-        return self.to_az_path(), cast(
-            dict[str, str], convert_options(self.storage_options, flavor)
-        )
+        return self.to_az_path(), cast(dict[str, str], convert_options(self.storage_options, flavor))
 
     def as_delta_table(self):
         from deltalake import DeltaTable

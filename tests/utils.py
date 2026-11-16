@@ -45,9 +45,7 @@ def create_delta_view(
 
 def _ntz(df_in: pd.DataFrame):
     df = df_in.copy()
-    col_times = [
-        col for col in df.columns if any([isinstance(x, pd.Timestamp) for x in df[col]])
-    ]
+    col_times = [col for col in df.columns if any([isinstance(x, pd.Timestamp) for x in df[col]])]
     for col in col_times:
         df[col] = pd.to_datetime(df[col])
         df[col] = df[col].dt.tz_localize(None)
@@ -72,9 +70,7 @@ def check_latest_pk_pandas(infos: WriteConfigAndInfos):
     _, view_name, success = create_last_pk_version_view(infos, view_prefix="v_tester_")
     assert success
     assert view_name is not None
-    latest_pd = _sort_pd(
-        pd.DataFrame(infos.source.local_execute_sql_to_py(from_(view_name).select("*")))
-    )
+    latest_pd = _sort_pd(pd.DataFrame(infos.source.local_execute_sql_to_py(from_(view_name).select("*"))))
     if latest_pd.shape[0] == 0 and lpk_pd.shape[0] == 0:
         return
     latest_pd = _ntz(latest_pd)
@@ -114,11 +110,7 @@ def write_db_to_delta_with_check(
 if os.getenv("ODBCLAKE_TEST_CONFIGURATION"):
     config_names = [os.getenv("ODBCLAKE_TEST_CONFIGURATION")]
 else:
-    config_names = (
-        ["azure", "spark", "local"]
-        if not os.getenv("NO_SPARK", "0") == "1"
-        else ["azure", "local"]
-    )
+    config_names = ["azure", "spark", "local"] if not os.getenv("NO_SPARK", "0") == "1" else ["azure", "local"]
 
 
 def get_test_run_configs(
@@ -172,14 +164,8 @@ def get_test_run_configs(
                 spark_session,
                 connection.get_jdbc_options("spark"),
                 jdbc=True,
-                spark_format=(
-                    "sqlserver"
-                    if connection.source_server in ["tsql", "mssql"]
-                    else "postgres"
-                ),
+                spark_format=("sqlserver" if connection.source_server in ["tsql", "mssql"] else "postgres"),
             ),
-            FileSystemDestination(
-                Path(f"tests/_data/spark/{tbl_dest_name}").absolute()
-            ),
+            FileSystemDestination(Path(f"tests/_data/spark/{tbl_dest_name}").absolute()),
         )
     return cfg

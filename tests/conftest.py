@@ -14,9 +14,7 @@ if TYPE_CHECKING:
 load_dotenv(override=True)
 
 use_postgres = os.getenv("ODBCLAKE_TEST_SOURCE_SERVER") == "postgres"
-source_server: Final[Literal["mssql", "postgres"]] = (
-    "mssql" if not use_postgres else "postgres"
-)
+source_server: Final[Literal["mssql", "postgres"]] = "mssql" if not use_postgres else "postgres"
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +31,9 @@ def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
     except Exception as e:
         if attempt < 3:
             sleep(3)  # wait a bit before retrying
-            logger.warning(
-                "Connection failed, retrying... Attempt %d: %s", attempt + 1, e
-            )
+            logger.warning("Connection failed, retrying... Attempt %d: %s", attempt + 1, e)
             return get_conn(conn_str, autocommit=autocommit, attempt=attempt + 1)
-        raise RuntimeError(
-            f"Failed to connect after 3 attempts: {conn_str}\r\n {e}"
-        ) from e
+        raise RuntimeError(f"Failed to connect after 3 attempts: {conn_str}\r\n {e}") from e
 
 
 class DB_Connection:
@@ -74,9 +68,9 @@ class DB_Connection:
             self.conn_str_master = conn_str
             for cfg in configs:
                 db_name = "db_to_delta_test_" + cfg
-                self.conn_str[cfg] = self.conn_str_master.replace(
-                    "database=master", "database=" + db_name
-                ).replace("Database=master", "database=" + db_name)
+                self.conn_str[cfg] = self.conn_str_master.replace("database=master", "database=" + db_name).replace(
+                    "Database=master", "database=" + db_name
+                )
         else:
             # base url without database, e.g. postgresql://user:pw@localhost:5432
             pg_base = os.getenv(
@@ -92,16 +86,15 @@ class DB_Connection:
         for cfg in configs:
             with master_conn.cursor() as cursor:
                 try:
-                    cursor.execute(
-                        cast(LiteralString, " drop DATABASE if exists " + db_name)
-                    )
+                    cursor.execute(cast(LiteralString, " drop DATABASE if exists " + db_name))
                     cursor.execute(cast(LiteralString, "CREATE DATABASE " + db_name))
                 except Exception as e:
                     logger.error("Error drop creating db", exc_info=e)
 
-            with get_conn(self.conn_str[cfg], autocommit=True) as con, open(
-                f"tests/sqls/init_{source_server}.sql", encoding="utf-8-sig"
-            ) as f:
+            with (
+                get_conn(self.conn_str[cfg], autocommit=True) as con,
+                open(f"tests/sqls/init_{source_server}.sql", encoding="utf-8-sig") as f,
+            ):
                 sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
                 for sql in sqls:
                     with con.cursor() as cursor:
@@ -187,9 +180,7 @@ def spawn_azurite():
     else:
         azurite = test_server.start_azurite()
         yield azurite
-        if (
-            os.getenv("KEEP_AZURITE_DOCKER", "0") == "0"
-        ):  # can be handy during development
+        if os.getenv("KEEP_AZURITE_DOCKER", "0") == "0":  # can be handy during development
             azurite.stop()
 
 
@@ -215,13 +206,9 @@ def spark_session():
         )
     )
     if source_server == "mssql":
-        builder = builder.config(
-            "spark.jars", str(Path("tests/jar/mssql-jdbc-12.6.1.jre11.jar").absolute())
-        )
+        builder = builder.config("spark.jars", str(Path("tests/jar/mssql-jdbc-12.6.1.jre11.jar").absolute()))
     else:
-        builder = builder.config(
-            "spark.jars", str(Path("tests/jar/postgresql-42.7.7.jar").absolute())
-        )
+        builder = builder.config("spark.jars", str(Path("tests/jar/postgresql-42.7.7.jar").absolute()))
 
     spark = configure_spark_with_delta_pip(builder).getOrCreate()
 

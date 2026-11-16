@@ -23,9 +23,7 @@ def _run_type_change(
 ):
     from odbc2deltalake import WriteConfig
 
-    reader, dest = get_test_run_configs(
-        connection, spark_session, f"dbo/user_type_change_{new_type}"
-    )[conf_name]
+    reader, dest = get_test_run_configs(connection, spark_session, f"dbo/user_type_change_{new_type}")[conf_name]
     dialect = reader.source_dialect
     is_pg = dialect == "postgres"
     delta_col = "xmin" if is_pg else "time stamp"
@@ -39,9 +37,7 @@ def _run_type_change(
         assert isinstance(q, ex.Query)
         return q
 
-    config = WriteConfig(
-        primary_keys=["User_-_iD"], delta_col=delta_col, dialect=dialect
-    )
+    config = WriteConfig(primary_keys=["User_-_iD"], delta_col=delta_col, dialect=dialect)
     write_db_to_delta_with_check(reader, _query("int"), dest, write_config=config)
     ops = reader.get_local_delta_ops(dest / "delta")
     if append_only:
@@ -64,14 +60,10 @@ def test_source_type_widening_does_not_fail_on_stale_staging(
     _run_type_change(connection, spark_session, conf_name, "bigint")
 
 
-def test_source_type_change_int_to_string_spark(
-    connection: "DB_Connection", spark_session: "SparkSession"
-):
+def test_source_type_change_int_to_string_spark(connection: "DB_Connection", spark_session: "SparkSession"):
     if spark_session is None or "spark" not in config_names:
         pytest.skip("Column migration is only implemented for spark")
-    reader, dest, ops = _run_type_change(
-        connection, spark_session, "spark", "text", append_only=True
-    )
+    reader, dest, ops = _run_type_change(connection, spark_session, "spark", "text", append_only=True)
     df = spark_session.read.format("delta").load(str(dest / "delta"))
     assert dict(df.dtypes)["name_len"] == "string"
     assert df.columns.index("name_len") == 2  # keeps its position

@@ -15,9 +15,7 @@ if is_pydantic_2:
 table_name_type = Union[str, tuple[str, str], tuple[str, str, str]]
 
 
-def get_primary_keys(
-    reader: DataSourceReader, table_name: table_name_type, *, dialect: str
-) -> list[str]:
+def get_primary_keys(reader: DataSourceReader, table_name: table_name_type, *, dialect: str) -> list[str]:
     if isinstance(table_name, str):
         table_name = ("dbo", table_name)
     real_table_name = table_name[1] if len(table_name) == 2 else table_name[2]
@@ -36,11 +34,7 @@ def get_primary_keys(
     query = query.where(
         ex.func("lower", ex.column("TABLE_NAME", "ccu"))
         .eq(ex.convert(real_table_name.lower()))
-        .and_(
-            ex.func("lower", ex.column("TABLE_SCHEMA", "ccu")).eq(
-                ex.convert(real_schema.lower())
-            )
-        )
+        .and_(ex.func("lower", ex.column("TABLE_SCHEMA", "ccu")).eq(ex.convert(real_schema.lower())))
     )
     full_query = query.sql(dialect)
     res = reader.source_sql_to_py(full_query)
@@ -67,15 +61,11 @@ class InformationSchemaColInfo(BaseModel):
     data_type_str: str
     column_default: Union[str, None] = None
     is_nullable: bool = True
-    generated_always_type_desc: Union[
-        Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"], None
-    ] = "NOT_APPLICABLE"
+    generated_always_type_desc: Union[Literal["NOT_APPLICABLE", "AS_ROW_START", "AS_ROW_END"], None] = "NOT_APPLICABLE"
     is_identity: bool = False
 
 
-def _get_table_cols(
-    reader: DataSourceReader, table_name: table_name_type, *, dialect: str
-):
+def _get_table_cols(reader: DataSourceReader, table_name: table_name_type, *, dialect: str):
     if isinstance(table_name, str):
         table_name = ("dbo", table_name)
     real_table_name = table_name[1] if len(table_name) == 2 else table_name[2]
@@ -121,11 +111,7 @@ def _get_table_cols(
     full_query = query.where(
         ex.func("LOWER", ex.column("TABLE_NAME", "ccu"))
         .eq(ex.func("LOWER", ex.convert(real_table_name)))
-        .and_(
-            ex.func("LOWER", ex.column("TABLE_SCHEMA", "ccu")).eq(
-                ex.func("LOWER", ex.convert(real_schema))
-            )
-        )
+        .and_(ex.func("LOWER", ex.column("TABLE_SCHEMA", "ccu")).eq(ex.func("LOWER", ex.convert(real_schema))))
     ).sql(dialect)
     dicts = reader.source_sql_to_py(full_query)
     for d in dicts:
@@ -154,14 +140,8 @@ def _get_table_cols(
     return [InformationSchemaColInfo(**d) for d in dicts]
 
 
-def _get_query_cols_first_result_set(
-    reader: DataSourceReader, query: ex.Query, *, dialect: str
-):
-    sql = (
-        "EXEC sp_describe_first_result_set @tsql=N'"
-        + query.sql(dialect).replace("'", "''")
-        + "'"
-    )
+def _get_query_cols_first_result_set(reader: DataSourceReader, query: ex.Query, *, dialect: str):
+    sql = "EXEC sp_describe_first_result_set @tsql=N'" + query.sql(dialect).replace("'", "''") + "'"
 
     dicts = reader.source_sql_to_py(sql)
 
@@ -190,16 +170,12 @@ def get_columns(
             return reader.source_schema_limit_one(
                 table_or_query
             )  # get result metadata by just executing the query with limit 0
-        return list(
-            _get_query_cols_first_result_set(
-                reader, table_or_query, dialect=dialect
-            )
-        )
+        return list(_get_query_cols_first_result_set(reader, table_or_query, dialect=dialect))
 
     return _get_table_cols(reader, table_or_query, dialect=dialect)
 
 
 def get_compatibility_level(reader: DataSourceReader) -> int:
-    return reader.source_sql_to_py(
-        "SELECT compatibility_level FROM sys.databases WHERE name =DB_NAME()"
-    )[0]["compatibility_level"]
+    return reader.source_sql_to_py("SELECT compatibility_level FROM sys.databases WHERE name =DB_NAME()")[0][
+        "compatibility_level"
+    ]

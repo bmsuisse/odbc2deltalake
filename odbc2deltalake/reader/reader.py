@@ -48,9 +48,7 @@ class DataSourceReader(ABC):
         pass
 
     @abstractmethod
-    def local_delta_table_exists(
-        self, delta_path: Destination, extended_check=False
-    ) -> bool:
+    def local_delta_table_exists(self, delta_path: Destination, extended_check=False) -> bool:
         pass
 
     @abstractmethod

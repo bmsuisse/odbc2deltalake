@@ -22,14 +22,10 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(15)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_query(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_delta_query(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user5")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user5")[conf_name]
     if reader.source_dialect == "postgres":
         query = sg.parse_one(
             "select *, xmin::text::bigint as xmin from dbo.user5 where Age is null or age < 50",
@@ -37,9 +33,7 @@ def test_delta_query(
         )
         delta_col = "xmin"
     else:
-        query = sg.parse_one(
-            "select * from dbo.user5 where Age is null or age < 50", dialect="tsql"
-        )
+        query = sg.parse_one("select * from dbo.user5 where Age is null or age < 50", dialect="tsql")
         delta_col = "time stamp"
     ts_col = delta_col.replace(" ", "_").lower()
     config = WriteConfig(
@@ -58,9 +52,7 @@ def test_delta_query(
                    select 'Heiri', 'Meier', 60.98, 'c2'"""
             )
             cursor.execute("DELETE FROM dbo.user5 where LastName='Anders'")
-            cursor.execute(
-                "UPDATE dbo.user5 SET LastName='wayne-hösch' where LastName='wayne' -- Petra"
-            )
+            cursor.execute("UPDATE dbo.user5 SET LastName='wayne-hösch' where LastName='wayne' -- Petra")
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM dbo.user5")
             alls = cursor.fetchall()

@@ -16,6 +16,7 @@ this to auto-select an identity primary key as the delta column for
 append_inserts mode when no delta_col is configured; that auto-detection
 silently never fired for postgres.
 """
+
 from typing import TYPE_CHECKING
 
 import pytest
@@ -40,9 +41,7 @@ def test_postgres_identity_column_detected(connection: "DB_Connection"):
         with conn.cursor() as c:
             c.execute("drop table if exists dbo.identity_probe")
             c.execute(
-                "create table dbo.identity_probe ("
-                "id integer generated always as identity primary key, "
-                "name text)"
+                "create table dbo.identity_probe (id integer generated always as identity primary key, name text)"
             )
 
         reader = ADBCReader(conn, local_db=":memory:", source_dialect="postgres")

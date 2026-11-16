@@ -23,11 +23,7 @@ def _getenvs(server: Literal["mssql", "postgres"]):
         lines = f.readlines()
         envs = {
             item[0].strip(): item[1].strip()
-            for item in [
-                line.split("=")
-                for line in lines
-                if len(line.strip()) > 0 and not line.startswith("#")
-            ]
+            for item in [line.split("=") for line in lines if len(line.strip()) > 0 and not line.startswith("#")]
         }
     return envs
 
@@ -53,11 +49,7 @@ def start_server(server: Literal["mssql", "postgres"]) -> Container:
             environment=envs,
             detach=True,
             name=f"test4{server}_odbc2deltalake",
-            ports={
-                f"{server_configs[server]['container_port']}/tcp": server_configs[
-                    server
-                ]["local_port"]
-            },
+            ports={f"{server_configs[server]['container_port']}/tcp": server_configs[server]["local_port"]},
         )  # type: ignore
     assert sql_server is not None
     sql_server.start()

@@ -21,27 +21,19 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(16)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_query(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_delta_query(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import DBDeltaPathConfigs, WriteConfig
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user6")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user6")[conf_name]
 
     config = WriteConfig(
         primary_keys=["User_-_iD"],
         delta_col="time stamp" if reader.source_dialect != "postgres" else "xmin",
         dialect=reader.source_dialect,
     )
-    w, r = write_db_to_delta_with_check(
-        reader, ("dbo", "user6"), dest, write_config=config
-    )
+    w, r = write_db_to_delta_with_check(reader, ("dbo", "user6"), dest, write_config=config)
     assert r.executed_type == "full"
-    dt_or_path = (
-        dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
-    ).as_delta_table()
+    dt_or_path = (dest / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION).as_delta_table()
 
     # we're evil and manipulate the latest pk!
     if isinstance(reader, SparkReader) and isinstance(dt_or_path, Path):

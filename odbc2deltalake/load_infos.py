@@ -13,9 +13,7 @@ def get_local_delta_value_and_count(
     from odbc2deltalake.write_init import DBDeltaPathConfigs
 
     if (infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS).exists():
-        delta_path = (
-            infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
-        )
+        delta_path = infos.destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
     else:
         delta_path = infos.destination / "delta"
     tmp_view_name = "temp_" + str(abs(hash(str(delta_path))))

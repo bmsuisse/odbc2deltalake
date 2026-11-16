@@ -55,9 +55,7 @@ class DeltaLogger:
         base_logger: Union[logging.Logger, None] = None,
         print_to_console: bool = False,
         log_name: Optional[str] = None,
-        storage_backend: Optional[
-            Union[StorageBackend, Literal["default"]]
-        ] = "default",
+        storage_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
     ):
         self.log_file_path = log_file_path
         self.base_logger = base_logger
@@ -80,9 +78,7 @@ class DeltaLogger:
             if msg.error_trackback:
                 msg_str += f" | Error: {msg.error_trackback}"
             if msg.load:
-                msg_str += (
-                    f" | Load: {msg.load}{', ' + msg.sub_load if msg.sub_load else ''}"
-                )
+                msg_str += f" | Load: {msg.load}{', ' + msg.sub_load if msg.sub_load else ''}"
 
             if self.base_logger and msg.type == "info":
                 self.base_logger.info(msg_str)

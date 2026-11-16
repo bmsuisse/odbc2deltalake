@@ -12,9 +12,7 @@ def union(selects: Sequence[ex.Query], *, distinct: bool) -> ex.Query:
         return selects[0]
     if len(selects) == 2:
         return ex.union(selects[0], selects[1], distinct=distinct)
-    return ex.union(
-        selects[0], union(selects[1:], distinct=distinct), distinct=distinct
-    )
+    return ex.union(selects[0], union(selects[1:], distinct=distinct), distinct=distinct)
 
 
 def count_limit_one(table_name: Union[ex.Expression, str]):

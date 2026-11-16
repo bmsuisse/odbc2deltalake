@@ -18,14 +18,10 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.parametrize("conf_name", config_names)
-def test_insert_while_load(
-    connection: "DB_Connection", spark_session: "SparkSession", conf_name: str
-):
+def test_insert_while_load(connection: "DB_Connection", spark_session: "SparkSession", conf_name: str):
     from odbc2deltalake import WriteConfig, make_writer
 
-    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user8")[
-        conf_name
-    ]
+    reader, dest = get_test_run_configs(connection, spark_session, "dbo/user8")[conf_name]
 
     config = WriteConfig(
         primary_keys=["User_-_iD"],
@@ -33,9 +29,7 @@ def test_insert_while_load(
         dialect=reader.source_dialect,
     )
 
-    w = write_db_to_delta_with_check(
-        reader, ("dbo", "user8"), dest, write_config=config
-    )
+    w = write_db_to_delta_with_check(reader, ("dbo", "user8"), dest, write_config=config)
 
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
         sql = sg.parse_one(
@@ -75,9 +69,7 @@ def test_insert_while_load(
             use_delta_ext=conf_name == "spark",
         )
 
-        name_tuples = con.execute(
-            'SELECT * from v_user_scd2 where "User_-_iD"=98'
-        ).fetchall()
+        name_tuples = con.execute('SELECT * from v_user_scd2 where "User_-_iD"=98').fetchall()
         assert len(name_tuples) == 0
         create_delta_view(
             con,
@@ -86,7 +78,5 @@ def test_insert_while_load(
             use_delta_ext=conf_name == "spark",
         )
 
-        name_tuples = con.execute(
-            'SELECT * from v_user_lpk where "User_-_iD"=98'
-        ).fetchall()
+        name_tuples = con.execute('SELECT * from v_user_lpk where "User_-_iD"=98').fetchall()
         assert len(name_tuples) == 0
