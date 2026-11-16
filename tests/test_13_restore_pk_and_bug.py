@@ -29,7 +29,7 @@ def _col(name: str) -> InformationSchemaColInfo:
     return InformationSchemaColInfo(column_name=name, data_type=ex.DataType.build("bigint"), data_type_str="bigint")
 
 
-def test_last_full_load_view_ignores_non_full_load_rows(tmp_path: Path):
+def test_last_full_load_view_ignores_non_full_load_rows(tmp_path: Path) -> None:
     dest = FileSystemDestination(tmp_path / "dest")
     reader = ODBCReader("unused", local_db=":memory:", source_dialect="tsql")
 

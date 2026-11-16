@@ -147,7 +147,7 @@ def _get_cols_select(
     )
 
 
-def _vacuum(source: DataSourceReader, dest: Destination):
+def _vacuum(source: DataSourceReader, dest: Destination) -> None:
     if source.local_delta_table_exists(dest):
         source.get_local_delta_ops(dest).vacuum()
 
@@ -392,7 +392,7 @@ def write_latest_pk(
     write_config: WriteConfig,
     merge_delta=False,
     delta_load_value=None,
-):
+) -> None:
     latest_pk_query = _get_latest_pk_query(
         reader,
         destination,
@@ -713,7 +713,7 @@ def do_deletes(
     delta_col: InformationSchemaColInfo,
     old_pk_version: int,
     write_config: WriteConfig,
-):
+) -> None:
     latest_pk_query = _get_latest_pk_query(
         reader,
         destination,
@@ -851,18 +851,18 @@ def _list_to_chunks(items: Iterable[T], chunk_size: int):
         yield chunk
 
 
-def _write_delta2(infos: WriteConfigAndInfos, data: list[dict], mode: Literal["overwrite", "append"]):
+def _write_delta2(infos: WriteConfigAndInfos, data: list[dict], mode: Literal["overwrite", "append"]) -> None:
     write_config = infos.write_config
     from odbc2deltalake.query import sql_quote_value
 
-    def _collate(c: InformationSchemaColInfo):
+    def _collate(c: InformationSchemaColInfo) -> str:
         if is_string_type(c.data_type) and infos.write_config.dialect == "tsql":
             return "COLLATE Latin1_General_100_BIN "
         return ""
 
     delta_2_path = infos.destination / "delta_load" / DBDeltaPathConfigs.DELTA_2_NAME
 
-    def full_sql(js: str):
+    def full_sql(js: str) -> str:
         col_defs = ", ".join(
             [f"p{i} {p.data_type.sql(infos.write_config.dialect)}" for i, p in enumerate(infos.pk_cols)]
         )
@@ -968,7 +968,7 @@ def _handle_additional_updates(
         version=old_pk_version,
     )
 
-    def _local_view_for_updates():
+    def _local_view_for_updates() -> None:
         reader.local_register_view(
             ex.except_(
                 ex.select(
@@ -1162,7 +1162,7 @@ def _load_updates_to_delta(
     sql: Union[str, ex.Query],
     delta_name: str,
     write_config: WriteConfig,
-):
+) -> None:
     if isinstance(sql, ex.Query):
         sql = sql.sql(write_config.dialect)
 

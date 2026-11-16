@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(14)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_sys(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_delta_sys(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import WriteConfig, write_db_to_delta
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_3_dc")[conf_name]

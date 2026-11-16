@@ -4,7 +4,7 @@ from typing import Any, Literal, Optional, Union
 class FullLoadResult:
     executed_type: Literal["full"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.executed_type = "full"
 
 
@@ -19,21 +19,21 @@ class DeltaLoadResult:
 
     dirty: Optional[bool] = None  # True if the count does not match
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.executed_type = "delta"
 
 
 class NoLoadResult:
     executed_type: Literal["none"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.executed_type = "none"
 
 
 class AppendOnlyLoadResult:
     executed_type: Literal["append_only"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.executed_type = "append_only"
 
 

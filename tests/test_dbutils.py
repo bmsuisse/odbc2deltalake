@@ -11,7 +11,7 @@ def _container_path_account(path: str):
     return container, path, account
 
 
-def test_dbutils():
+def test_dbutils() -> None:
     test_paths = [
         "abfss://raw@somesuperstore1.dfs.core.windows.net/",
         "abfss://raw@somesuperstore1.dfs.core.windows.net/asdfwe",

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.parametrize("conf_name", config_names)
-def test_insert_while_load(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_insert_while_load(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import WriteConfig, make_writer
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user8")[conf_name]
@@ -44,7 +44,7 @@ def test_insert_while_load(connection: "DBConnection", spark_session: "SparkSess
 
     orig_info = writer.logger.info
 
-    def info(*args, **kwargs):
+    def info(*args, **kwargs) -> None:
         msg = args[0]
         if msg.startswith("Start delta step 2"):
             with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:

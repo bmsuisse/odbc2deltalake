@@ -164,7 +164,7 @@ def create_last_pk_version_view(
     return last_pk_query, view_prefix + "last_pk_version", True
 
 
-def restore_last_pk(infos: WriteConfigAndInfos):
+def restore_last_pk(infos: WriteConfigAndInfos) -> bool:
     query, view_name, success = create_last_pk_version_view(
         infos=infos,
         view_prefix="v_odbc_load_",

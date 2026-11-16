@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.parametrize("conf_name", config_names)
-def test_schema_drift(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_schema_drift(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     import sqlglot.expressions as ex
 
     from odbc2deltalake import WriteConfig

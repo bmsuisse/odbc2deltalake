@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize("conf_name", config_names)
 def test_simple_delta_after_delta_col_less_init(
     connection: "DBConnection", spark_session: "SparkSession", conf_name: str
-):
+) -> None:
     from odbc2deltalake import WriteConfig, make_writer
     from odbc2deltalake.db_to_delta import do_full_load
 

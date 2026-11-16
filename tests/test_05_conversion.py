@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(10)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_timestamp(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_first_load_timestamp(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import (
         DEFAULT_DATA_TYPE_MAP,
         DBDeltaPathConfigs,

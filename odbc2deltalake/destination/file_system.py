@@ -8,25 +8,25 @@ if TYPE_CHECKING:
 
 
 class FileSystemDestination(Destination):
-    def __init__(self, path: Union[str, Path]):
+    def __init__(self, path: Union[str, Path]) -> None:
         self.path = Path(path)
         import fsspec
 
         self.fs = fsspec.filesystem("file")
 
-    def mkdir(self):
+    def mkdir(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
 
     def get_fs_path(self) -> "tuple[fsspec.AbstractFileSystem, str]":
         return (self.fs, str(self.path))
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.path)
 
     def exists(self):
         return self.path.exists()
 
-    def upload_str(self, data: str):
+    def upload_str(self, data: str) -> None:
         with self.path.open("w", encoding="utf-8") as f:
             f.write(data)
 
@@ -34,7 +34,7 @@ class FileSystemDestination(Destination):
         fs, path = self.get_fs_path()
         return fs.modified(path)
 
-    def remove(self, recurse: bool = False):
+    def remove(self, recurse: bool = False) -> None:
         if recurse:
             import shutil
 

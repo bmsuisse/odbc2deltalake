@@ -29,7 +29,7 @@ def _msg(text: str) -> LogMessage:
     )
 
 
-def test_pending_logs_are_not_shared_between_instances(tmp_path: Path):
+def test_pending_logs_are_not_shared_between_instances(tmp_path: Path) -> None:
     dest_a = FileSystemDestination(tmp_path / "table_a" / "log")
     dest_b = FileSystemDestination(tmp_path / "table_b" / "log")
 

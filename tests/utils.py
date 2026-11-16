@@ -33,7 +33,7 @@ def create_delta_view(
     view_name: str,
     *,
     use_delta_ext: bool = False,
-):
+) -> None:
     from deltalake2db import duckdb_create_view_for_delta
 
     path, storage_options = destination.as_path_options("object_store")
@@ -55,7 +55,7 @@ def _ntz(df_in: pd.DataFrame):
     return df
 
 
-def check_latest_pk_pandas(infos: WriteConfigAndInfos):
+def check_latest_pk_pandas(infos: WriteConfigAndInfos) -> None:
     lpk_path = infos.destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION
     lpk_df = lpk_path.as_delta_table()
     if isinstance(lpk_df, Path):

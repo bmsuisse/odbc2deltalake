@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 
 class AzureDestination(Destination):
-    def __init__(self, container: str, path: str, storage_options: dict):
+    def __init__(self, container: str, path: str, storage_options: dict) -> None:
         from odbc2deltalake.destination.azure_utils import convert_options
 
         self.path = path
@@ -27,16 +27,16 @@ class AzureDestination(Destination):
             self.storage_options,
         )
 
-    def to_az_path(self):
+    def to_az_path(self) -> str:
         return f"az://{self.container}/{self.path}"
 
-    def mkdir(self):
+    def mkdir(self) -> None:
         pass
 
     def get_fs_path(self) -> "tuple[adlfs.AzureBlobFileSystem, str]":
         return (self.fs, self.to_az_path())
 
-    def upload_str(self, data: str):
+    def upload_str(self, data: str) -> None:
         with self.fs.open(self.to_az_path(), "w", encoding="utf-8") as f:
             f.write(data)  # type: ignore
 
@@ -44,7 +44,7 @@ class AzureDestination(Destination):
         fs, path = self.get_fs_path()
         return fs.modified(path)
 
-    def remove(self, recurse: bool = False):
+    def remove(self, recurse: bool = False) -> None:
         fs, path = self.get_fs_path()
         fs.rm(path, recursive=recurse)
 
@@ -63,7 +63,7 @@ class AzureDestination(Destination):
             storage_options=convert_options(self.storage_options, "object_store"),  # type: ignore
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_az_path()
 
     @property

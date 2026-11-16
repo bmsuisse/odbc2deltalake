@@ -123,25 +123,25 @@ def _delta_to_sq_type(
 
 
 class DeltaRSDeltaOps(DeltaOps):
-    def __init__(self, delta_table: "DeltaTable"):
+    def __init__(self, delta_table: "DeltaTable") -> None:
         self.delta_table = delta_table
 
     def version(self) -> int:
         return self.delta_table.version()
 
-    def vacuum(self, retention_hours: Union[int, None] = None):
+    def vacuum(self, retention_hours: Union[int, None] = None) -> None:
         self.delta_table.vacuum(retention_hours)
 
-    def restore(self, target: int):
+    def restore(self, target: int) -> None:
         self.delta_table.restore(target)
 
-    def set_properties(self, props: dict[str, str]):
+    def set_properties(self, props: dict[str, str]) -> None:
         self.delta_table.alter.set_table_properties(props, raise_if_not_exists=False)
 
     def get_property(self, key: str):
         return self.delta_table.metadata().configuration.get(key, None)
 
-    def set_nullable(self, cols: Mapping[str, bool]):
+    def set_nullable(self, cols: Mapping[str, bool]) -> None:
         # not implemented properly for delta-rs
         for k, v in cols.items():
             if v:
@@ -163,5 +163,5 @@ class DeltaRSDeltaOps(DeltaOps):
             for f in fields
         ]
 
-    def update_incremental(self):
+    def update_incremental(self) -> None:
         self.delta_table.update_incremental()

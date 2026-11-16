@@ -14,17 +14,17 @@ is_pydantic_2 = int(pydantic.__version__.split(".")[0]) > 1
 
 
 class DeltaStorageBackend(StorageBackend):
-    def __init__(self, log_file_path: Destination, source: DataSourceReader):
+    def __init__(self, log_file_path: Destination, source: DataSourceReader) -> None:
         self.log_file_path = log_file_path
         self.source = source
         self._pending_logs: list[LogMessage] = []
 
-    def log(self, msg: LogMessage):
+    def log(self, msg: LogMessage) -> None:
         self._pending_logs.append(msg)
         if len(self._pending_logs) > 10:
             self.flush()
 
-    def flush(self):
+    def flush(self) -> None:
         if not self._pending_logs:
             return
         dummy = LogMessage(
@@ -56,7 +56,7 @@ class DeltaLogger:
         print_to_console: bool = False,
         log_name: Optional[str] = None,
         storage_backend: Optional[Union[StorageBackend, Literal["default"]]] = "default",
-    ):
+    ) -> None:
         self.log_file_path = log_file_path
         self.base_logger = base_logger
         self.source = source
@@ -68,7 +68,7 @@ class DeltaLogger:
         else:
             self.storage_backend = storage_backend
 
-    def _log(self, msg: LogMessage):
+    def _log(self, msg: LogMessage) -> None:
         if self.storage_backend:
             self.storage_backend.log(msg)
         if self.base_logger or self.print_to_console:
@@ -97,7 +97,7 @@ class DeltaLogger:
         load: Union[str, None] = None,
         sql: Union[str, None] = None,
         sub_load: Union[str, None] = None,
-    ):
+    ) -> None:
         self._log(
             LogMessage(
                 message=message,
@@ -119,7 +119,7 @@ class DeltaLogger:
         sql: Union[str, None] = None,
         sub_load: Union[str, None] = None,
         error_trackback: Union[str, None] = None,
-    ):
+    ) -> None:
         self._log(
             LogMessage(
                 message=message,
@@ -142,7 +142,7 @@ class DeltaLogger:
         sql: Union[str, None] = None,
         sub_load: Union[str, None] = None,
         error_trackback: Union[str, None] = None,
-    ):
+    ) -> None:
         self._log(
             LogMessage(
                 message=message,
@@ -157,6 +157,6 @@ class DeltaLogger:
             )
         )
 
-    def flush(self):
+    def flush(self) -> None:
         if self.storage_backend:
             self.storage_backend.flush()

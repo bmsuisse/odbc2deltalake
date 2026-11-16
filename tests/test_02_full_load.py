@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(4)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_first_load_always_full(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_first_load_always_full(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import write_db_to_delta
 
     reader, dest = get_test_run_configs(connection, spark_session, "long_schema/long_table_name2")[conf_name]

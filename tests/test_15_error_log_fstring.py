@@ -42,7 +42,7 @@ class _BoomOnDeltaPathReader(ODBCReader):
         return super().local_delta_table_exists(delta_path, extended_check)
 
 
-def test_error_log_contains_actual_exception_message(tmp_path: Path):
+def test_error_log_contains_actual_exception_message(tmp_path: Path) -> None:
     dest = FileSystemDestination(tmp_path / "dest")
     reader = _BoomOnDeltaPathReader("unused", local_db=":memory:", source_dialect="tsql")
 

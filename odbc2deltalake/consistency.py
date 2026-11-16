@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class InconsistentPrimaryKeyError(Exception):
     """Exception raised when primary keys are inconsistent."""
 
-    def __init__(self, message, invalid_data: list[dict[str, Any]]):
+    def __init__(self, message, invalid_data: list[dict[str, Any]]) -> None:
         self.message = message
         self.invalid_data = invalid_data
         super().__init__(self.message)

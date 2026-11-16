@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(17)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_no_change(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_no_change(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     """A delta load of an unchanged source compares MAX(delta column) and COUNT(*) with the
     last load (the delta column converted as the load writes it, e.g. a rowversion as bigint)
     and writes nothing."""

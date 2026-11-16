@@ -40,7 +40,7 @@ class ODBCReader(DataSourceReader):
         self.source_dialect = source_dialect
 
     @property
-    def supports_proc_exec(self):
+    def supports_proc_exec(self) -> bool:
         return True
 
     def local_register_update_view(
@@ -49,7 +49,7 @@ class ODBCReader(DataSourceReader):
         view_name: str,
         *,
         version: Union[int, None] = None,
-    ):
+    ) -> None:
         import duckdb
         from deltalake2db import duckdb_create_view_for_delta
 
@@ -67,7 +67,7 @@ class ODBCReader(DataSourceReader):
             col_names = [desc[0] for desc in cursor.description]
             return [dict(zip(col_names, row)) for row in cursor.fetchall()]
 
-    def local_register_view(self, sql: ex.Query, view_name: str):
+    def local_register_view(self, sql: ex.Query, view_name: str) -> None:
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)
@@ -79,7 +79,7 @@ class ODBCReader(DataSourceReader):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         dummy_record: Union[dict, None] = None,
-    ):
+    ) -> None:
         import pyarrow as pa
         from deltalake import write_deltalake
 
@@ -168,7 +168,7 @@ class ODBCReader(DataSourceReader):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         import duckdb
         from deltalake import write_deltalake
         from deltalake.exceptions import DeltaError
@@ -240,7 +240,7 @@ class ODBCReader(DataSourceReader):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         import pyarrow as pa
         from arrow_odbc import read_arrow_batches_from_odbc
         from deltalake import write_deltalake
@@ -277,7 +277,7 @@ class ODBCReader(DataSourceReader):
         schema: "pa.Schema",
         path: Union[str, Path],
         storage_options: Optional[dict[str, str]],
-    ):
+    ) -> None:
         from deltalake import DeltaTable
 
         DeltaTable.create(
@@ -300,7 +300,7 @@ class ODBCReader(DataSourceReader):
         local_sql_source: ex.Query,
         target_delta: Destination,
         merge_cols: Sequence[str],
-    ):
+    ) -> None:
         import duckdb
 
         self.duck_con = self.duck_con or duckdb.connect(self.local_db)

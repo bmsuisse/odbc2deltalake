@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize("conf_name", config_names)
 def test_stale_write_after_full_load_fallback(
     connection: "DBConnection", spark_session: "SparkSession", conf_name: str
-):
+) -> None:
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company3_stale_fallback")[conf_name]
 
     # establish a steady state: full load, then one normal successful delta load

@@ -30,6 +30,7 @@ from odbc2deltalake.destination.file_system import FileSystemDestination
 from odbc2deltalake.metadata import InformationSchemaColInfo
 from odbc2deltalake.reader.odbc_reader import ODBCReader
 from odbc2deltalake.write_init import WriteConfig, WriteConfigAndInfos
+from typing import NoReturn
 
 
 def _col(name: str) -> InformationSchemaColInfo:
@@ -42,7 +43,7 @@ class _StopForTestError(Exception):
 
 
 class _CapturingReader(ODBCReader):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.captured_sql = None
 
@@ -53,12 +54,12 @@ class _CapturingReader(ODBCReader):
         mode,
         *,
         allow_schema_drift,
-    ):
+    ) -> NoReturn:
         self.captured_sql = sql
         raise _StopForTestError()
 
 
-def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path):
+def test_append_inserts_zero_delta_value_still_filters(tmp_path: Path) -> None:
     dest = FileSystemDestination(tmp_path / "dest")
     reader = _CapturingReader("unused", local_db=":memory:", source_dialect="tsql")
 

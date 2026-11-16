@@ -11,13 +11,13 @@ from unittest.mock import MagicMock, patch
 import odbc2deltalake.destination.azure_utils as azure_utils
 
 
-def test_different_kwargs_get_different_cached_credentials():
+def test_different_kwargs_get_different_cached_credentials() -> None:
     azure_utils._token_state.clear()
 
     created_with: list[dict] = []
 
     class FakeCredential:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             created_with.append(kwargs)
             self.kwargs = kwargs
 

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class SparkDeltaOps(DeltaOps):
-    def __init__(self, dest: Destination, spark):
+    def __init__(self, dest: Destination, spark) -> None:
         from delta.tables import DeltaTable
 
         self.dest = dest
@@ -26,13 +26,13 @@ class SparkDeltaOps(DeltaOps):
     def version(self) -> int:
         return self.table.history(1).select("version").collect()[0].version
 
-    def vacuum(self, retention_hours: Union[int, None] = None):
+    def vacuum(self, retention_hours: Union[int, None] = None) -> None:
         self.table.vacuum(retention_hours)
 
-    def restore(self, target: int):
+    def restore(self, target: int) -> None:
         self.table.restoreToVersion(target)
 
-    def set_properties(self, props: dict[str, str]):
+    def set_properties(self, props: dict[str, str]) -> None:
         def _escape(s: str):
             return s.replace("'", "''")
 
@@ -70,14 +70,14 @@ class SparkDeltaOps(DeltaOps):
             if c.name is not None
         ]
 
-    def set_nullable(self, cols: Mapping[str, bool]):
+    def set_nullable(self, cols: Mapping[str, bool]) -> None:
         for c, n in cols.items():
             if n:
                 self.spark.sql(f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` DROP NOT NULL")
             else:
                 self.spark.sql(f"ALTER TABLE delta.`{self.dest!s}` CHANGE COLUMN `{c}` SET NOT NULL")
 
-    def update_incremental(self):
+    def update_incremental(self) -> None:
         """Update the incremental state of the Delta table."""
         # This is a no-op for Spark, as it does not maintain an incremental state like some other systems.
 
@@ -91,7 +91,7 @@ class SparkReader(DataSourceReader):
         spark_format: str = "sqlserver",
         jdbc=False,
         transformation_hook: Optional[Callable[["DataFrame", str], "DataFrame"]] = None,
-    ):
+    ) -> None:
         self.spark = spark
         self.sql_config = sql_config or {}
         self.linked_server_proxy = linked_server_proxy
@@ -128,13 +128,13 @@ class SparkReader(DataSourceReader):
         view_name: str,
         *,
         version: Union[int, None] = None,
-    ):
+    ) -> None:
         read = self.spark.read.format("delta")
         if version is not None:
             read = read.option("versionAsOf", version)
         read.load(str(delta_path)).createOrReplaceTempView(view_name)
 
-    def local_register_view(self, sql: Query, view_name: str):
+    def local_register_view(self, sql: Query, view_name: str) -> None:
         self.spark.sql(f"CREATE OR REPLACE TEMPORARY VIEW {view_name} AS {sql.sql(self._dialect)}")
 
     def local_execute_sql_to_py(self, sql: Query) -> list[dict]:
@@ -148,7 +148,7 @@ class SparkReader(DataSourceReader):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         df = self.spark.sql(sql.sql(self._dialect))
         writer = df.write.format("delta")
         if mode == "append" and allow_schema_drift == "new_only":
@@ -167,7 +167,7 @@ class SparkReader(DataSourceReader):
         delta_path: Destination,
         mode: Literal["overwrite", "append"],
         dummy_record: Union[dict, None] = None,
-    ):
+    ) -> None:
         schema = (
             self.spark.createDataFrame([dummy_record]).schema if dummy_record else None  # type: ignore
         )
@@ -181,7 +181,7 @@ class SparkReader(DataSourceReader):
         return self._dialect
 
     @property
-    def supports_proc_exec(self):
+    def supports_proc_exec(self) -> bool:
         return False
 
     def _query(self, sql: Union[str, Query]):
@@ -276,7 +276,7 @@ class SparkReader(DataSourceReader):
             reader = reader.option(k, v)
         return reader
 
-    def _append_new_cols(self, delta_path: Destination, source_schema: "StructType"):
+    def _append_new_cols(self, delta_path: Destination, source_schema: "StructType") -> None:
         from delta import DeltaTable
 
         if DeltaTable.isDeltaTable(self.spark, str(delta_path)):
@@ -308,7 +308,7 @@ class SparkReader(DataSourceReader):
         self,
         delta_path: Destination,
         source_schema: "StructType",
-    ):
+    ) -> None:
         """Rewrites columns of an existing table whose datatype changed in the source
         (e.g. int -> string), as Delta cannot append such data or merge the schemas."""
         from delta import DeltaTable
@@ -326,7 +326,7 @@ class SparkReader(DataSourceReader):
             if ef is not None and self._type_needs_migration(ef.dataType, sf.dataType):
                 self._migrate_column(delta_path, ef.name, sf.dataType.simpleString())
 
-    def _migrate_column(self, delta_path: Destination, name: str, new_type: Optional[str]):
+    def _migrate_column(self, delta_path: Destination, name: str, new_type: Optional[str]) -> None:
         def q(n: str):
             return "`" + n.replace("`", "``") + "`"
 
@@ -367,7 +367,7 @@ class SparkReader(DataSourceReader):
         mode: Literal["overwrite", "append"],
         *,
         allow_schema_drift: Union[bool, Literal["new_only"]],
-    ):
+    ) -> None:
         reader = self._reader(sql)
         reader = self.transformation_hook(reader.load(), "sql2delta")
         writer = reader.write.format("delta")
@@ -387,7 +387,7 @@ class SparkReader(DataSourceReader):
         local_sql_source: Query,
         target_delta: Destination,
         merge_cols: Sequence[str],
-    ):
+    ) -> None:
         from delta.tables import DeltaTable
 
         assert len(merge_cols) > 0

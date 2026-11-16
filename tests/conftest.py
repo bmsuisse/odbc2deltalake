@@ -37,7 +37,7 @@ def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
 
 
 class DBConnection:
-    def __init__(self):
+    def __init__(self) -> None:
         import shutil
 
         self.source_server = source_server
@@ -135,7 +135,7 @@ class DBConnection:
     def new_connection(self, cfg_name: str):
         return get_conn(self.conn_str[cfg_name], autocommit=True)
 
-    def close(self):
+    def close(self) -> None:
         pass
 
     def __exit__(self, exc_type, exc_value, traceback):

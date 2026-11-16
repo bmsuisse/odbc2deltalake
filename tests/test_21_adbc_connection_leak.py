@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.order(22)
-def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DBConnection"):
+def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DBConnection") -> None:
     if connection.source_server != "postgres":
         pytest.skip("this bug is specific to the ADBC/postgres reader")
 

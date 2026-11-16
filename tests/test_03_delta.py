@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 @pytest.mark.order(5)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_delta(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     import sqlglot.expressions as ex
 
     from odbc2deltalake import DBDeltaPathConfigs
@@ -144,7 +144,7 @@ def test_delta(connection: "DBConnection", spark_session: "SparkSession", conf_n
 
 @pytest.mark.order(5)
 @pytest.mark.parametrize("conf_name", config_names)
-def test_delta_sys(connection: "DBConnection", spark_session: "SparkSession", conf_name: str):
+def test_delta_sys(connection: "DBConnection", spark_session: "SparkSession", conf_name: str) -> None:
     from odbc2deltalake import DBDeltaPathConfigs
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/company_2")[conf_name]

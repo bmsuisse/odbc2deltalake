@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.order(24)
-def test_postgres_identity_column_detected(connection: "DBConnection"):
+def test_postgres_identity_column_detected(connection: "DBConnection") -> None:
     if connection.source_server != "postgres":
         pytest.skip("is_identity casing bug is specific to the postgres query")
 
