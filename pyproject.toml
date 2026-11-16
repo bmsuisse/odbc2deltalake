@@ -61,6 +61,8 @@ exclude_lines = [
 [tool.uv]
 native-tls = true
 keyring-provider = "subprocess"
+exclude-newer = "5 days"
+exclude-newer-package = { deltalake2db = false }
 
 [[tool.uv.index]]
 name = "BMSAzureDevOps"
