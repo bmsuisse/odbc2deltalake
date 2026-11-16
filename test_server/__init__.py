@@ -40,7 +40,8 @@ def start_server(server: Literal["mssql", "postgres"]) -> Container:
     envs = _getenvs(server)
 
     if sql_server is None:
-        # using podman:  podman run  --env-file=TESTS/SQL_DOCKER.ENV --publish=1439:1433 --name=mssql1 chriseaton/adventureworks:light
+        # using podman:
+        #   podman run --env-file=TESTS/SQL_DOCKER.ENV --publish=1439:1433 --name=mssql1 chriseaton/adventureworks:light
         #                podman kill mssql1
         sql_server = client.containers.run(
             server_configs[server]["image"],

@@ -439,8 +439,11 @@ def _get_type_map(write_config: WriteConfig) -> Mapping[str, ex.DataType]:
 
 def do_delta_load(
     infos: WriteConfigAndInfos,
-    simple=False,  # a simple delta load assumes that there are no deletes and no additional updates (eg, when soft-delete is implemented in source properly)
-    simple_check=False,  # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
+    # a simple delta load assumes that there are no deletes and no additional updates
+    # (eg, when soft-delete is implemented in source properly)
+    simple=False,
+    # does a simple load and checks if the source and target counts match. If not, do a normal delta load on top
+    simple_check=False,
 ) -> LoadResult:
     delta_result = DeltaLoadResult()
     destination = infos.destination
@@ -464,7 +467,8 @@ def do_delta_load(
 
     last_pk_path = destination / f"delta_load/{DBDeltaPathConfigs.LATEST_PK_VERSION}" if not simple else None
     logger.info(
-        f"Start {'SIMPLE ' if simple else ''}Delta Load with Delta Column {delta_col.column_name} and pks: {', '.join(c.column_name for c in infos.pk_cols)}"
+        f"Start {'SIMPLE ' if simple else ''}Delta Load with Delta Column {delta_col.column_name} "
+        f"and pks: {', '.join(c.column_name for c in infos.pk_cols)}"
     )
 
     if last_pk_path and not reader.local_delta_table_exists(last_pk_path):  # or do a full load?
@@ -600,13 +604,15 @@ def do_delta_load(
         delta_result.dirty = source_count != target_count
         if source_count != target_count:
             logger.warning(
-                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. {'Do a normal delta' if simple_check else ''}"
+                f"Source and target count do not match. Source: {source_count}, Target: {target_count}. "
+                f"{'Do a normal delta' if simple_check else ''}"
             )
             source_delta, source_count = retrieve_source_ts_cnt(infos=infos)
             delta_result.end_source_state = source_delta, source_count
             if delta_result.end_source_state != delta_result.starting_source_state:
                 logger.warning(
-                    f"Source state changed during load: {delta_result.starting_source_state} -> {delta_result.end_source_state}"
+                    "Source state changed during load: "
+                    f"{delta_result.starting_source_state} -> {delta_result.end_source_state}"
                 )
             return delta_result
 
@@ -630,7 +636,8 @@ def do_delta_load(
     delta_result.dirty = source_count != target_count
     if source_count != target_count:
         logger.warning(
-            f"Source and target count do not match. Source: {source_count}, Target: {target_count}. {'Do a normal delta' if simple_check else ''}"
+            f"Source and target count do not match. Source: {source_count}, Target: {target_count}. "
+            f"{'Do a normal delta' if simple_check else ''}"
         )
         if simple_check:
             return do_delta_load(infos, simple=False)
@@ -638,7 +645,8 @@ def do_delta_load(
         delta_result.end_source_state = source_delta, source_count
         if delta_result.end_source_state != delta_result.starting_source_state:
             logger.warning(
-                f"Source state changed during load: {delta_result.starting_source_state} -> {delta_result.end_source_state}"
+                "Source state changed during load: "
+                f"{delta_result.starting_source_state} -> {delta_result.end_source_state}"
             )
         return delta_result
     logger.info(f"Source and target count match: {source_count}")
@@ -874,6 +882,13 @@ def _write_delta2(infos: WriteConfigAndInfos, data: list[dict], mode: Literal["o
             )
         )
         sql = infos.from_("t").select(*selects).sql(write_config.dialect)
+        join_condition = " AND ".join(
+            [
+                f"t.{sql_quote_name(c.column_name)} {_collate(c)} "
+                f"= ttt.{sql_quote_name(write_config.get_target_name(c))}"
+                for c in infos.pk_cols
+            ]
+        )
         pk_map = ", ".join(
             [
                 "p" + str(i) + " as " + sql_quote_name(write_config.get_target_name(c))
@@ -883,11 +898,11 @@ def _write_delta2(infos: WriteConfigAndInfos, data: list[dict], mode: Literal["o
         if write_config.dialect == "tsql":
             return f"""{sql}
             inner join (SELECT {pk_map} FROM OPENJSON({sql_quote_value(js)}) with ({col_defs}) ) ttt
-                on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
+                on {join_condition}
             """
         return f"""{sql}
             inner join (SELECT {pk_map} FROM JSON_TABLE({sql_quote_value(js)}, '$[*]' COLUMNS ({col_defs}))) ttt
-                on {" AND ".join([f"t.{sql_quote_name(c.column_name)} {_collate(c)} = ttt.{sql_quote_name(write_config.get_target_name(c))}" for c in infos.pk_cols])}
+                on {join_condition}
             """
 
     if mode == "overwrite":
@@ -929,7 +944,10 @@ def _handle_additional_updates(
     infos: WriteConfigAndInfos,
     old_pk_version: int,
 ):
-    """Handles updates that are not logical by their timestamp. This can happen on a restore from backup, for example."""
+    """Handles updates that are not logical by their timestamp.
+
+    This can happen on a restore from backup, for example.
+    """
     folder = infos.destination
     delta_col = infos.delta_col
     pk_cols = infos.pk_cols
@@ -1067,7 +1085,8 @@ def _handle_additional_updates(
         )
         return delta_load_value
     else:
-        # we don't want to overshoot 8000 chars here because of spark. we estimate how much space in json a record of pk's will take
+        # we don't want to overshoot 8000 chars here because of spark.
+        # we estimate how much space in json a record of pk's will take
 
         char_size_pks = sum(
             [

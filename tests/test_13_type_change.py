@@ -30,9 +30,15 @@ def _run_type_change(
 
     def _query(name_len_type: str):
         if is_pg:
-            sql = f'select "User - iD", firstname, cast(length(firstname) as {name_len_type}) as name_len, xmin::text::bigint as xmin from dbo.user6'
+            sql = (
+                f'select "User - iD", firstname, cast(length(firstname) as {name_len_type}) as name_len, '
+                "xmin::text::bigint as xmin from dbo.user6"
+            )
         else:
-            sql = f"select [User - iD], FirstName, cast(len(FirstName) as {name_len_type}) as name_len, [time stamp] from dbo.user6"
+            sql = (
+                f"select [User - iD], FirstName, cast(len(FirstName) as {name_len_type}) as name_len, "
+                "[time stamp] from dbo.user6"
+            )
         q = sg.parse_one(sql, dialect=dialect)
         assert isinstance(q, ex.Query)
         return q

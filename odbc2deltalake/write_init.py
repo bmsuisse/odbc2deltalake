@@ -50,7 +50,8 @@ def compat_name(inf: InformationSchemaColInfo) -> str:
 
 class DBDeltaPathConfigs:
     DELTA_1_NAME = "delta_1"
-    """common data for delta load contains data that has changed after last full load via naive criteria timestamp > last_timestamp (or similar, can also be dates)"""
+    """common data for delta load contains data that has changed after last full load via naive criteria
+    timestamp > last_timestamp (or similar, can also be dates)"""
     DELTA_2_NAME = "delta_2"
     """delta 2 is data where timestamp is different for whatever reason, eg restore"""
     PRIMARY_KEYS_TS = "primary_keys_ts"
@@ -72,7 +73,8 @@ class WriteConfig:
     """A list of primary keys to use for the delta load. If None, the primary keys will be determined from the source"""
 
     delta_col: Union[str, None] = None
-    """The column to use for the delta load. If None, the column will be determined from the source. Should be mostly increasing to make load efficient"""
+    """The column to use for the delta load. If None, the column will be determined from the source.
+    Should be mostly increasing to make load efficient"""
 
     load_mode: Literal[
         "overwrite",
@@ -83,19 +85,26 @@ class WriteConfig:
         "simple_delta_check",
     ] = "append"
     """The load mode to use. Attention: overwrite will not help you build scd2, the history is in the delta table only
-        append_inserts is for when you have a delta column which is strictly increasing and you want to append new rows only. No deletes of rows. might be good for logs
-        simple_delta is for sources where the delta col is a datetime and you can be sure that there are no deletes or additional updates
-        simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower than delta
+        append_inserts is for when you have a delta column which is strictly increasing and you want to append new
+        rows only. No deletes of rows. might be good for logs
+        simple_delta is for sources where the delta col is a datetime and you can be sure that there are no deletes
+        or additional updates
+        simple_delta_check is like simple_delta, but checks for deletes if the count does not match. Only use if you
+        do not expect frequent deletes, as it will do simple_delta AND delta if there are deletes, which is slower
+        than delta
     """
 
     data_type_map: Union[Mapping[str, ex.DataType], Literal["default"]] = "default"
-    """Set this if you want to map stuff like decimal to double before writing to delta. We recommend doing so later in ETL usually"""
+    """Set this if you want to map stuff like decimal to double before writing to delta.
+    We recommend doing so later in ETL usually"""
 
     no_complex_entries_load: bool = False
-    """If true, will not load 'strange updates' via OPENJSON. Use if your db does not support OPENJSON or you're fine to get some additional updates in order to reduce complexity"""
+    """If true, will not load 'strange updates' via OPENJSON. Use if your db does not support OPENJSON or you're fine
+    to get some additional updates in order to reduce complexity"""
 
     get_target_name: Callable[[InformationSchemaColInfo], str] = dataclasses.field(default_factory=lambda: compat_name)
-    """A method that returns the target name of a column. This is used to map the source column names to the target column names.
+    """A method that returns the target name of a column.
+    This is used to map the source column names to the target column names.
     Use if you want to apply some naming convention or avoid special characters in the target. """
 
     allow_schema_drift: Union[bool, Literal["new_only"]] = "new_only"

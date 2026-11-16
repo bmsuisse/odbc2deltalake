@@ -25,7 +25,8 @@ def get_primary_keys(reader: DataSourceReader, table_name: table_name_type, *, d
     query = sqlglot.parse_one(
         f"""SELECT ccu.COLUMN_NAME as col_name
     FROM {quoted_db}INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc {no_lock}
-        JOIN {quoted_db}INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu {no_lock} ON tc.CONSTRAINT_NAME = ccu.Constraint_name
+        JOIN {quoted_db}INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu {no_lock}
+            ON tc.CONSTRAINT_NAME = ccu.Constraint_name
     WHERE lower(tc.CONSTRAINT_TYPE) = 'primary key'""",
         dialect=dialect,
     )
@@ -99,7 +100,9 @@ def _get_table_cols(reader: DataSourceReader, table_name: table_name_type, *, di
             coalesce(ci.is_identity, convert(bit, 0)) as is_identity FROM {quoted_db}INFORMATION_SCHEMA.COLUMNS ccu
             left join (
                 
-    SELECT sc.name as table_schema, t.name as table_name, c.name as col_name, c.generated_always_type_desc, c.is_identity as is_identity FROM {quoted_db}sys.columns c 
+    SELECT sc.name as table_schema, t.name as table_name, c.name as col_name, c.generated_always_type_desc,
+        c.is_identity as is_identity
+    FROM {quoted_db}sys.columns c
         inner join {quoted_db}sys.tables t on t.object_id=c.object_id
         inner join {quoted_db}sys.schemas sc on sc.schema_id=t.schema_id
             ) ci on ci.table_schema=ccu.TABLE_SCHEMA and ci.table_name=ccu.TABLE_NAME and ci.col_name=ccu.COLUMN_NAME

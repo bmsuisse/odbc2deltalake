@@ -125,7 +125,8 @@ def test_delta(connection: "DB_Connection", spark_session: "SparkSession", conf_
         )
         id_tuples = con.execute(
             f"""SELECT s2.FirstName, s2.LastName from v_latest_pk lf 
-                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."{ts_col}"=lf."{ts_col}"
+                                inner join v_user_scd2 s2 on s2."User_-_iD"=lf."User_-_iD"
+                                    and s2."{ts_col}"=lf."{ts_col}"
                 qualify row_number() over (partition by s2."User_-_iD" order by lf."{ts_col}" desc)=1
                 order by s2."User_-_iD" 
                 """

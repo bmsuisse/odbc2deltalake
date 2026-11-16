@@ -108,7 +108,8 @@ def test_strange_delta(connection: "DB_Connection", spark_session: "SparkSession
         ts_col = "xmin" if reader.source_dialect == "postgres" else "time_stamp"
         id_tuples = con.execute(
             f"""SELECT s2.FirstName, s2.LastName, companyid from v_latest_pk_user3 lf 
-                                inner join v_user3_scd2 s2 on s2."User_-_iD"=lf."User_-_iD" and s2."{ts_col}"=lf."{ts_col}"
+                                inner join v_user3_scd2 s2 on s2."User_-_iD"=lf."User_-_iD"
+                                    and s2."{ts_col}"=lf."{ts_col}"
                 where not s2.__is_deleted
                 qualify row_number() over (partition by s2."User_-_iD" order by lf."{ts_col}" desc)=1
 
