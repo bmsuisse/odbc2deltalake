@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from time import sleep
@@ -6,6 +7,8 @@ from typing import Literal, Union, cast
 import docker
 import docker.errors
 from docker.models.containers import Container
+
+logger = logging.getLogger(__name__)
 
 server_configs = {
     "mssql": {
@@ -52,9 +55,9 @@ def start_server(server: Literal["mssql", "postgres"]) -> Container:
         )  # type: ignore
     assert sql_server is not None
     sql_server.start()
-    print(sql_server.status)
+    logger.info("%s", sql_server.status)
     sleep(20)
-    print(f"Successfully created {server} container...")
+    logger.info("Successfully created %s container...", server)
     return sql_server
 
 
@@ -95,8 +98,8 @@ def start_azurite() -> Container:
         )  # type: ignore
     assert azurite_server is not None
     azurite_server.start()
-    print(azurite_server.status)
+    logger.info("%s", azurite_server.status)
     sleep(20)
     create_test_blobstorage()
-    print("Successfully created azurite container...")
+    logger.info("Successfully created azurite container...")
     return azurite_server

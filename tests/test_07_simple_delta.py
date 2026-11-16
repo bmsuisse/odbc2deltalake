@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING
 
 import duckdb
@@ -10,6 +11,8 @@ from tests.utils import (
     get_test_run_configs,
     write_db_to_delta_with_check,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
@@ -50,7 +53,7 @@ select 'c300',
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
         cursor.execute("SELECT * FROM dbo.company3")
         alls = cursor.fetchall()
-        print(alls)
+        logger.info("%s", alls)
     ts_col = "xmin" if reader.source_dialect == "postgres" else "Start"
     with duckdb.connect() as con:
         create_delta_view(

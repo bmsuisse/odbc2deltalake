@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Union
@@ -22,6 +23,8 @@ if TYPE_CHECKING:
     from pyspark.sql import SparkSession
 
     from tests.conftest import DB_Connection
+
+logger = logging.getLogger(__name__)
 
 
 def create_delta_view(
@@ -76,7 +79,7 @@ def check_latest_pk_pandas(infos: WriteConfigAndInfos):
     latest_pd = _ntz(latest_pd)
     comp = _ntz(lpk_pd).compare(latest_pd)
     if comp.shape[0] > 0:
-        print(comp)
+        logger.warning("%s", comp)
     assert comp.shape[0] == 0
 
 
@@ -100,9 +103,8 @@ def write_db_to_delta_with_check(
     try:
         check_latest_pk_pandas(w)
     except ImportError:
-        print(
-            "Pandas or deltalake is not installed, skipping check_latest_pk_pandas. "
-            "Install pandas to enable this check."
+        logger.warning(
+            "Pandas or deltalake is not installed, skipping check_latest_pk_pandas. Install pandas to enable this check."
         )
     return w, r
 

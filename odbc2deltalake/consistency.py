@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import sqlglot as sg
@@ -5,6 +6,8 @@ import sqlglot.expressions as ex
 
 from odbc2deltalake.write_init import DBDeltaPathConfigs, WriteConfigAndInfos
 from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
+
+logger = logging.getLogger(__name__)
 
 
 class InconsistentPrimaryKeyError(Exception):
@@ -48,7 +51,7 @@ def check_latest_pk(infos: WriteConfigAndInfos, raise_if_not_consistent=True):
     )
     result = infos.source.local_execute_sql_to_py(ex.union(query1, query2, distinct=False))
     if result:
-        print(result)
+        logger.warning("Inconsistent primary keys: %s", result)
         if raise_if_not_consistent:
             raise InconsistentPrimaryKeyError("Primary keys are not consistent", result)
     return result

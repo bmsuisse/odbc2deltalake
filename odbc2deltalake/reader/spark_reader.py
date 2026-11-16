@@ -267,7 +267,6 @@ class SparkReader(DataSourceReader):
                         jdbcUrl += ";databaseName=" + value
                 else:
                     options[key] = value
-            print(jdbcUrl)
             reader = self.spark.read.format("jdbc").option("url", jdbcUrl)
         else:
             options = self.sql_config

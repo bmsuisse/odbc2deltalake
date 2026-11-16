@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING
 
 import duckdb
@@ -11,6 +12,8 @@ from tests.utils import (
     get_test_run_configs,
     write_db_to_delta_with_check,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
@@ -56,7 +59,7 @@ def test_delta(connection: "DB_Connection", spark_session: "SparkSession", conf_
             cursor.execute(sg.parse_one("SELECT * FROM [dbo].[user2$]", dialect="tsql").sql(reader.source_dialect))
             alls = cursor.fetchall()
             assert cursor.description is not None
-            print(alls)
+            logger.info("%s", alls)
 
     import time
 
@@ -158,7 +161,7 @@ select 'c300',
             )
             for stmt in stmts:
                 assert stmt is not None
-                print(stmt.sql(reader.source_dialect))
+                logger.info("%s", stmt.sql(reader.source_dialect))
                 cursor.execute(stmt.sql(reader.source_dialect))
             if reader.source_dialect in ["tsql", "mssql"]:
                 cursor.execute("""
@@ -170,7 +173,7 @@ set id='c2 '
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM dbo.company")
             alls = cursor.fetchall()
-            print(alls)
+            logger.info("%s", alls)
     with duckdb.connect() as con:
         create_delta_view(
             con,

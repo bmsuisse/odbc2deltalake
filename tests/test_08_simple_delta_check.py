@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,8 @@ from tests.utils import (
     get_test_run_configs,
     write_db_to_delta_with_check,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
@@ -56,7 +59,7 @@ select 'c500',
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
         cursor.execute("SELECT * FROM dbo.company3")
         alls = cursor.fetchall()
-        print(alls)
+        logger.info("%s", alls)
     with duckdb.connect() as con:
         create_delta_view(
             con,

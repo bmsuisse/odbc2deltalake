@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,8 @@ from tests.utils import (
     get_test_run_configs,
     write_db_to_delta_with_check,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession
@@ -50,7 +53,7 @@ def test_strange_delta(connection: "DB_Connection", spark_session: "SparkSession
         with nc.cursor() as cursor:
             cursor.execute("SELECT * FROM dbo.user3")
             alls = cursor.fetchall()
-            print(alls)
+            logger.info("%s", alls)
     import time
 
     time.sleep(2)
@@ -85,7 +88,7 @@ def test_strange_delta(connection: "DB_Connection", spark_session: "SparkSession
         assert cursor.description is not None
         cols = [c[0] for c in cursor.description]
         dicts = [dict(zip(cols, row)) for row in alls]
-        print(dicts)
+        logger.info("%s", dicts)
     write_db_to_delta_with_check(
         reader,
         ("dbo", "user3"),
@@ -182,7 +185,7 @@ def test_strange_delta_sys(connection: "DB_Connection", spark_session: "SparkSes
             assert cursor.description is not None
             cols = [c[0] for c in cursor.description]
             dicts = [dict(zip(cols, row)) for row in alls]
-            print(dicts)
+            logger.info("%s", dicts)
     write_db_to_delta_with_check(reader, ("dbo", "company2"), dest)
 
     with duckdb.connect() as con:

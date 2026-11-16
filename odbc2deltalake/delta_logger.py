@@ -1,4 +1,5 @@
 import logging
+import sys
 from datetime import datetime, timezone
 from typing import Literal, Optional, Union
 from uuid import uuid4
@@ -87,7 +88,7 @@ class DeltaLogger:
                 self.base_logger.error(msg_str)
 
             if self.print_to_console:
-                print(msg.type + ": " + msg_str)
+                sys.stdout.write(msg.type + ": " + msg_str + "\n")
 
     def info(
         self,

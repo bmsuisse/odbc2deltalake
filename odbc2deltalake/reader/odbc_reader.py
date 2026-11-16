@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional, Union
@@ -14,6 +15,8 @@ from odbc2deltalake.read_utils.delta_rs import (
     _to_pyarrow_schema,
 )
 from odbc2deltalake.reader.reader import DataSourceReader, DeltaOps
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import pyarrow as pa
@@ -324,4 +327,4 @@ class ODBCReader(DataSourceReader):
                 .when_not_matched_insert_all()
                 .execute()
             )
-            print(res)
+            logger.info("Merge result: %s", res)
