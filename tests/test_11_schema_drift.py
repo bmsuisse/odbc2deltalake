@@ -99,4 +99,4 @@ def test_schema_drift(connection: "DBConnection", spark_session: "SparkSession",
     except Exception:  # the exception type depends on the configuration (delta-rs / spark) and database
         pass
     else:
-        pytest.fail("Expected the force_full load to fail after the incompatible type change")
+        pytest.fail("Expected the force_full load to fail after the incompatible type change")  # ty: ignore[invalid-argument-type]  # ty does not understand pytest's skip/fail wrappers

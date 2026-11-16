@@ -17,11 +17,11 @@ def test_different_kwargs_get_different_cached_credentials() -> None:
     created_with: list[dict] = []
 
     class FakeCredential:
-        def __init__(self, **kwargs) -> None:
+        def __init__(self, **kwargs: object) -> None:
             created_with.append(kwargs)
             self.kwargs = kwargs
 
-        def get_token(self, *_a, **_kw):
+        def get_token(self, *_a: object, **_kw: object) -> MagicMock:
             return MagicMock(token=f"token-for-{self.kwargs}")
 
     with patch("azure.identity.DefaultAzureCredential", FakeCredential):

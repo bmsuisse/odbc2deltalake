@@ -2,11 +2,14 @@ import logging
 import os
 from pathlib import Path
 from time import sleep
-from typing import Literal, Union, cast
+from typing import TYPE_CHECKING, Literal, Union, cast
 
 import docker
 import docker.errors
 from docker.models.containers import Container
+
+if TYPE_CHECKING:
+    from azure.storage.blob import ContainerClient
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +23,7 @@ server_configs = {
 }
 
 
-def _getenvs(server: Literal["mssql", "postgres"]):
+def _getenvs(server: Literal["mssql", "postgres"]) -> dict[str, str]:
     with Path(f"test_server/{server}.env").open() as f:
         lines = f.readlines()
         return {
@@ -52,7 +55,7 @@ def start_server(server: Literal["mssql", "postgres"]) -> Container:
             detach=True,
             name=f"test4{server}_odbc2deltalake",
             ports={f"{server_configs[server]['container_port']}/tcp": server_configs[server]["local_port"]},
-        )  # type: ignore
+        )
     assert sql_server is not None
     sql_server.start()
     logger.info("%s", sql_server.status)
@@ -61,7 +64,7 @@ def start_server(server: Literal["mssql", "postgres"]) -> Container:
     return sql_server
 
 
-def create_test_blobstorage():
+def create_test_blobstorage() -> "ContainerClient":
     constr = os.getenv(
         "TEST_BLOB_CONSTR",
         "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;",
@@ -95,7 +98,7 @@ def start_azurite() -> Container:
             detach=True,
             name="test4azurite",
             ports={"10000/tcp": 10000, "10001/tcp": 10001, "10002/tcp": 10002},
-        )  # type: ignore
+        )
     assert azurite_server is not None
     azurite_server.start()
     logger.info("%s", azurite_server.status)

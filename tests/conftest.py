@@ -1,14 +1,16 @@
 import logging
 import os
+from collections.abc import Iterator
 from pathlib import Path
 from time import sleep
-from typing import TYPE_CHECKING, Final, Literal, cast
+from typing import TYPE_CHECKING, Any, Final, Literal, Optional, cast
 
 import pytest
 from dotenv import load_dotenv
 from typing_extensions import LiteralString
 
 if TYPE_CHECKING:
+    from docker.models.containers import Container
     from pyspark.sql import SparkSession
 
 load_dotenv(override=True)
@@ -19,7 +21,7 @@ source_server: Final[Literal["mssql", "postgres"]] = "mssql" if not use_postgres
 logger = logging.getLogger(__name__)
 
 
-def get_conn(conn_str: str, *, autocommit: bool, attempt=0):
+def get_conn(conn_str: str, *, autocommit: bool, attempt: int = 0) -> Any:
     try:
         if source_server == "mssql":
             import pyodbc
@@ -98,7 +100,7 @@ class DBConnection:
                 sqls = f.read().replace("\r\n", "\n").split("\nGO\n")
                 for sql in sqls:
                     with con.cursor() as cursor:
-                        if hasattr(cursor, "executescript"):  # type: ignore
+                        if hasattr(cursor, "executescript"):
                             # for postgres
                             cursor.executescript(sql)
                         else:
@@ -107,10 +109,10 @@ class DBConnection:
             if db_name not in self.conn_str[cfg]:
                 raise ValueError("Database not created correctly")
 
-    def __enter__(self):
+    def __enter__(self) -> "DBConnection":
         return self
 
-    def get_jdbc_options(self, cfg_name: str):
+    def get_jdbc_options(self, cfg_name: str) -> dict[str, str]:
         if self.conn_str[cfg_name].startswith("postgresql://"):
             # Postgres connection string
             parts = self.conn_str[cfg_name].split("/")
@@ -132,18 +134,18 @@ class DBConnection:
         d["driver"] = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
         return d
 
-    def new_connection(self, cfg_name: str):
+    def new_connection(self, cfg_name: str) -> Any:
         return get_conn(self.conn_str[cfg_name], autocommit=True)
 
     def close(self) -> None:
         pass
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
         pass
 
 
 @pytest.fixture(scope="session")
-def spawn_sql():
+def spawn_sql() -> Iterator[Optional["Container"]]:
     import os
 
     import test_server
@@ -158,14 +160,14 @@ def spawn_sql():
 
 
 @pytest.fixture(scope="session")
-def connection(spawn_sql):
+def connection(spawn_sql: Optional["Container"]) -> Iterator[DBConnection]:
     c = DBConnection()
     yield c
     c.close()
 
 
 @pytest.fixture(scope="session", autouse=True)
-def spawn_azurite():
+def spawn_azurite() -> Iterator[Optional["Container"]]:
     import os
 
     import test_server
@@ -185,7 +187,7 @@ def spawn_azurite():
 
 
 @pytest.fixture(scope="session")
-def spark_session():
+def spark_session() -> Optional["SparkSession"]:
     if os.getenv("NO_SPARK", "0") == "1":
         return None
     if os.getenv("ODBCLAKE_TEST_CONFIGURATION", "spark").lower() != "spark":
@@ -195,7 +197,7 @@ def spark_session():
 
     jar = str(Path("tests/jar").absolute())
     builder = (
-        SparkSession.builder.appName("test_odbc2deltalake")  # type: ignore
+        SparkSession.builder.appName("test_odbc2deltalake")
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config("spark.driver.extraClassPath", jar)
         .config("spark.executor.extraClassPath", jar)
@@ -214,7 +216,7 @@ def spark_session():
 
 
 @pytest.fixture(autouse=True)
-def session_clear(spark_session: "SparkSession"):
+def session_clear(spark_session: Optional["SparkSession"]) -> Iterator[None]:
     yield
     if spark_session:
         spark_session.catalog.clearCache()

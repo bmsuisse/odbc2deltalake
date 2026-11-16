@@ -12,8 +12,10 @@ on Databricks. Databricks-specific SQL generation was consequently dead code.
 
 from unittest.mock import MagicMock
 
+import pytest
 
-def _spark_conf_get(*args):
+
+def _spark_conf_get(*args: str) -> str:
     # mirrors pyspark.sql.conf.RuntimeConfig.get: get(key) with no default
     # raises for an unset key (real Spark: NoSuchElementException),
     # get(key, default) returns the default instead of raising
@@ -22,7 +24,7 @@ def _spark_conf_get(*args):
     return args[1]
 
 
-def test_databricks_dialect_detected_via_env_var(monkeypatch) -> None:
+def test_databricks_dialect_detected_via_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
     from odbc2deltalake.reader.spark_reader import SparkReader
 
     monkeypatch.setenv("DATABRICKS_RUNTIME_VERSION", "14.3")
@@ -38,7 +40,7 @@ def test_databricks_dialect_detected_via_env_var(monkeypatch) -> None:
     )
 
 
-def test_plain_spark_dialect_when_not_on_databricks(monkeypatch) -> None:
+def test_plain_spark_dialect_when_not_on_databricks(monkeypatch: pytest.MonkeyPatch) -> None:
     from odbc2deltalake.reader.spark_reader import SparkReader
 
     monkeypatch.delenv("DATABRICKS_RUNTIME_VERSION", raising=False)

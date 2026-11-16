@@ -1,5 +1,5 @@
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import duckdb
 import pytest
@@ -29,14 +29,11 @@ def test_first_load_timestamp(connection: "DBConnection", spark_session: "SparkS
     )
 
     reader, dest = get_test_run_configs(connection, spark_session, "dbo/user_double")[conf_name]
-    write_config = WriteConfig(
-        data_type_map={
-            "decimal": ex.DataType(this=ex.DataType.Type.DOUBLE),
-            "numeric": ex.DataType(this=ex.DataType.Type.DOUBLE),
-        }
-        | dict(DEFAULT_DATA_TYPE_MAP),
-        dialect=reader.source_dialect,
-    )
+    data_type_map: dict[str, Any] = {
+        "decimal": ex.DataType(this=ex.DataType.Type.DOUBLE),
+        "numeric": ex.DataType(this=ex.DataType.Type.DOUBLE),
+    } | dict(DEFAULT_DATA_TYPE_MAP)
+    write_config = WriteConfig(data_type_map=data_type_map, dialect=reader.source_dialect)
     with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
         cursor.execute("""DROP TABLE IF EXISTS dbo.user_double""")
         cursor.execute("""SELECT * INTO dbo.user_double FROM dbo."user" """)

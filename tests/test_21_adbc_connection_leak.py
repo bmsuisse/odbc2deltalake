@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 @pytest.mark.order(22)
 def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DBConnection") -> None:
     if connection.source_server != "postgres":
-        pytest.skip("this bug is specific to the ADBC/postgres reader")
+        pytest.skip("this bug is specific to the ADBC/postgres reader")  # ty: ignore[too-many-positional-arguments]  # ty does not understand pytest's skip/fail wrappers
 
     import adbc_driver_postgresql.dbapi as adbc_pg
 
@@ -45,7 +45,7 @@ def test_adbc_reader_does_not_leak_locks_across_calls(connection: "DBConnection"
                 c.execute("alter table dbo.company3 drop column zzz_leak_test")
             except Exception as e:
                 pytest.fail(
-                    "ALTER TABLE on a table the ADBCReader had read from was "
+                    "ALTER TABLE on a table the ADBCReader had read from was "  # ty: ignore[invalid-argument-type]
                     f"blocked - the reader is leaking a lock-holding, "
                     f"uncommitted transaction: {e}"
                 )

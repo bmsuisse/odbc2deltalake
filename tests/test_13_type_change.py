@@ -5,6 +5,8 @@ import pytest
 import sqlglot as sg
 import sqlglot.expressions as ex
 
+from odbc2deltalake import DataSourceReader, Destination
+from odbc2deltalake.reader.reader import DeltaOps
 from tests.utils import config_names, get_test_run_configs, write_db_to_delta_with_check
 
 if TYPE_CHECKING:
@@ -20,7 +22,7 @@ def _run_type_change(
     new_type: str,
     *,
     append_only: bool = False,
-):
+) -> tuple[DataSourceReader, Destination, DeltaOps]:
     from odbc2deltalake import WriteConfig
 
     reader, dest = get_test_run_configs(connection, spark_session, f"dbo/user_type_change_{new_type}")[conf_name]
@@ -28,7 +30,7 @@ def _run_type_change(
     is_pg = dialect == "postgres"
     delta_col = "xmin" if is_pg else "time stamp"
 
-    def _query(name_len_type: str):
+    def _query(name_len_type: str) -> ex.Query:
         if is_pg:
             sql = (
                 f'select "User - iD", firstname, cast(length(firstname) as {name_len_type}) as name_len, '
@@ -68,7 +70,7 @@ def test_source_type_widening_does_not_fail_on_stale_staging(
 
 def test_source_type_change_int_to_string_spark(connection: "DBConnection", spark_session: "SparkSession") -> None:
     if spark_session is None or "spark" not in config_names:
-        pytest.skip("Column migration is only implemented for spark")
+        pytest.skip("Column migration is only implemented for spark")  # ty: ignore[too-many-positional-arguments]  # ty does not understand pytest's skip/fail wrappers
     _, dest, ops = _run_type_change(connection, spark_session, "spark", "text", append_only=True)
     df = spark_session.read.format("delta").load(str(dest / "delta"))
     assert dict(df.dtypes)["name_len"] == "string"

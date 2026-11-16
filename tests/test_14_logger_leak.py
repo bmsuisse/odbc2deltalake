@@ -13,10 +13,12 @@ different table's logger) to its own log_file_path.
 
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from odbc2deltalake.delta_logger import DeltaStorageBackend
 from odbc2deltalake.destination.file_system import FileSystemDestination
 from odbc2deltalake.logging import LogMessage
+from odbc2deltalake.reader.reader import DataSourceReader
 
 
 def _msg(text: str) -> LogMessage:
@@ -34,8 +36,9 @@ def test_pending_logs_are_not_shared_between_instances(tmp_path: Path) -> None:
     dest_b = FileSystemDestination(tmp_path / "table_b" / "log")
 
     # source is only used inside flush(), which we never trigger here
-    backend_a = DeltaStorageBackend(dest_a, source=None)  # type: ignore[arg-type]
-    backend_b = DeltaStorageBackend(dest_b, source=None)  # type: ignore[arg-type]
+    source = MagicMock(spec=DataSourceReader)
+    backend_a = DeltaStorageBackend(dest_a, source=source)
+    backend_b = DeltaStorageBackend(dest_b, source=source)
 
     msg_a = _msg("message for table a")
     backend_a.log(msg_a)

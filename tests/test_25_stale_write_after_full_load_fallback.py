@@ -33,10 +33,11 @@ via write_db_to_delta_with_check's built-in check_latest_pk /
 check_latest_pk_pandas ground-truth comparisons.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
+from sqlglot.expressions import Query
 
 from tests.utils import config_names, get_test_run_configs, write_db_to_delta_with_check
 
@@ -65,7 +66,7 @@ def test_stale_write_after_full_load_fallback(
 
     real_register_view = reader.local_register_view
 
-    def _fail_additional_updates(sql, view_name, *a, **kw):
+    def _fail_additional_updates(sql: Query, view_name: str, *a: Any, **kw: Any) -> None:
         if view_name == "additional_updates":
             # simulate a concurrent write landing on the source exactly while
             # the "additional updates" detection is failing/being restored -

@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 @pytest.mark.order(24)
 def test_postgres_identity_column_detected(connection: "DBConnection") -> None:
     if connection.source_server != "postgres":
-        pytest.skip("is_identity casing bug is specific to the postgres query")
+        pytest.skip("is_identity casing bug is specific to the postgres query")  # ty: ignore[too-many-positional-arguments]  # ty does not understand pytest's skip/fail wrappers
 
     import adbc_driver_postgresql.dbapi as adbc_pg
 

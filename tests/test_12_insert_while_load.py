@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import duckdb
 import pytest
@@ -44,15 +44,20 @@ def test_insert_while_load(connection: "DBConnection", spark_session: "SparkSess
 
     orig_info = writer.logger.info
 
-    def info(*args, **kwargs) -> None:
-        msg = args[0]
-        if msg.startswith("Start delta step 2"):
+    def info(
+        message: str,
+        *,
+        load: Optional[str] = None,
+        sql: Optional[str] = None,
+        sub_load: Optional[str] = None,
+    ) -> None:
+        if message.startswith("Start delta step 2"):
             with connection.new_connection(conf_name) as nc, nc.cursor() as cursor:
                 cursor.execute(
                     """delete from dbo.user8 where "User - iD"=98
                         """
                 )
-        orig_info(*args, **kwargs)
+        orig_info(message, load=load, sql=sql, sub_load=sub_load)
 
     writer.logger.info = info
     writer.execute()

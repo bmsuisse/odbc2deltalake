@@ -20,7 +20,7 @@ filter made it into the WHERE clause.
 import contextlib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, Literal, NoReturn, Union
 
 import sqlglot.expressions as ex
 
@@ -43,7 +43,7 @@ class _StopForTestError(Exception):
 
 
 class _CapturingReader(ODBCReader):
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.captured_sql = None
 
@@ -51,9 +51,9 @@ class _CapturingReader(ODBCReader):
         self,
         sql: str,
         delta_path: Destination,
-        mode,
+        mode: Literal["overwrite", "append"],
         *,
-        allow_schema_drift,
+        allow_schema_drift: Union[bool, Literal["new_only"]],
     ) -> NoReturn:
         self.captured_sql = sql
         raise _StopForTestError()

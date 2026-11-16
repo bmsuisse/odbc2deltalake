@@ -16,6 +16,7 @@ from odbc2deltalake import (
     make_writer,
 )
 from odbc2deltalake.consistency import check_latest_pk
+from odbc2deltalake.load_result import LoadResult
 from odbc2deltalake.write_utils.restore_pk import create_last_pk_version_view
 
 if TYPE_CHECKING:
@@ -46,7 +47,7 @@ def create_delta_view(
     )
 
 
-def _ntz(df_in: pd.DataFrame):
+def _ntz(df_in: pd.DataFrame) -> pd.DataFrame:
     df = df_in.copy()
     col_times = [col for col in df.columns if any(isinstance(x, pd.Timestamp) for x in df[col])]
     for col in col_times:
@@ -64,7 +65,7 @@ def check_latest_pk_pandas(infos: WriteConfigAndInfos) -> None:
         lpk_df = DeltaTable(lpk_df)
     sort_cols = [infos.write_config.get_target_name(pk) for pk in infos.pk_cols]
 
-    def _sort_pd(df: pd.DataFrame):
+    def _sort_pd(df: pd.DataFrame) -> pd.DataFrame:
         if df.shape[0] == 0:
             return df
         return df.sort_values(sort_cols).reset_index(drop=True)
@@ -88,7 +89,7 @@ def write_db_to_delta_with_check(
     table_or_query: Union[tuple[str, str], ex.Query],
     destination: Union[Destination, Path],
     write_config: Union[WriteConfig, None] = None,
-):
+) -> tuple[WriteConfigAndInfos, LoadResult]:
     w = make_writer(
         source=source,
         table_or_query=table_or_query,
@@ -128,7 +129,7 @@ def get_test_run_configs(
     Path("tests/_db/_local/" + sub_path).mkdir(parents=True, exist_ok=True)
     cfg: dict[str, tuple[DataSourceReader, Destination]] = {}
 
-    def _local_reader(connection, config):
+    def _local_reader(connection: "DBConnection", config: str) -> DataSourceReader:
         if connection.source_server in ["tsql", "mssql"]:
             from odbc2deltalake.reader.odbc_reader import ODBCReader
 
