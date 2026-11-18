@@ -202,6 +202,10 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
     lock_file_path = destination / "meta/lock.txt"
 
     try:
+        stale_pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
+        if lock_file_path.exists() and stale_pk_ts.exists():
+            # the previous run died without cleanup (kill, cancel), its primary_keys_ts may be ahead of the delta table
+            stale_pk_ts.remove(True)
         if (
             lock_file_path.exists()
             and (datetime.now(tz=timezone.utc) - lock_file_path.modified_time()).total_seconds() > 60 * 60
@@ -238,6 +242,14 @@ def exec_write_db_to_delta(infos: WriteConfigAndInfos) -> LoadResult:
         _vacuum(source, destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS)
         return load_result
     except Exception as e:
+        # primary_keys_ts is written before the changed rows are loaded. Left behind, the next run's "no updates"
+        # check would match it against the source and silently skip the load
+        try:
+            pk_ts = destination / "delta_load" / DBDeltaPathConfigs.PRIMARY_KEYS_TS
+            if pk_ts.exists():
+                pk_ts.remove(True)
+        except Exception as rm_err:  # must not hide the original error or skip the restore below
+            dest_logger.warning(f"Could not remove primary_keys_ts: {rm_err}")
         # restore files
         if last_version_pk is not None:
             o = source.get_local_delta_ops(destination / "delta_load" / DBDeltaPathConfigs.LATEST_PK_VERSION)

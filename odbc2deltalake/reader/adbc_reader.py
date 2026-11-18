@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Optional, Union
 
@@ -54,17 +54,32 @@ def _decimal_batch(batch: "pa.RecordBatch", schema: "pa.Schema") -> "pa.RecordBa
 class ADBCReader(DataSourceReader):
     def __init__(
         self,
-        connection: "Connection",
+        connection: "Union[Connection, Callable[[], Connection]]",
         local_db: str = ":memory:",
         source_dialect: str = "postgres",
     ) -> None:
         from deltalake import WriterProperties
 
-        self.connection = connection
+        # a factory lets the reader reconnect on retry; a plain connection can not be revived
+        self._connection_factory = connection if callable(connection) else None
+        self._connection = self._connection_factory() if self._connection_factory else connection
         self.writer_properties = WriterProperties(compression="ZSTD")
         self.duck_con = None
         self.local_db = local_db
         self.source_dialect = source_dialect
+
+    @property
+    def connection(self) -> "Connection":
+        return self._connection
+
+    def reset_connection(self) -> None:
+        if self._connection_factory is None:
+            return
+        try:
+            self._connection.close()
+        except Exception as e:
+            logger.debug(f"Could not close dropped connection: {e}")
+        self._connection = self._connection_factory()
 
     @property
     def supports_proc_exec(self) -> bool:

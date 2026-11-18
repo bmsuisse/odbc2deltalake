@@ -1,12 +1,13 @@
 [project]
 name = "odbc2deltalake"
-version = "0.14.4"
+version = "0.15.0"
 description = ""
 authors = [{ name = "Adrian Ehrsam", email = "adrian.ehrsam@bmsuisse.ch" }]
 dependencies = [
     "pydantic >=1.10.0",
     "azure-identity >=1.15.0,<2",
     "sqlglot >=23.17.0",
+    "tenacity >=8",
 ]
 requires-python = "~=3.9"
 
