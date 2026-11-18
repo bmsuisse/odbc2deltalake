@@ -61,8 +61,12 @@ class ADBCReader(DataSourceReader):
         from deltalake import WriterProperties
 
         # a factory lets the reader reconnect on retry; a plain connection can not be revived
-        self._connection_factory = connection if callable(connection) else None
-        self._connection = self._connection_factory() if self._connection_factory else connection
+        self._connection_factory: Optional[Callable[[], Connection]] = None
+        if callable(connection):
+            self._connection_factory = connection
+            self._connection: Connection = connection()
+        else:
+            self._connection = connection
         self.writer_properties = WriterProperties(compression="ZSTD")
         self.duck_con = None
         self.local_db = local_db
