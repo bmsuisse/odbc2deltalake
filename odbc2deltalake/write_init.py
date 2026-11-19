@@ -218,13 +218,14 @@ def make_writer(
 
     def _reset(rs: "RetryCallState") -> None:
         logging.getLogger(__name__).warning(
-            f"Reading source metadata failed, retry after attempt {rs.attempt_number}: {rs.outcome and rs.outcome.exception()}"
+            f"Reading source metadata failed, retry after attempt {rs.attempt_number}: "
+            f"{rs.outcome and rs.outcome.exception()}"
         )
         if isinstance(source, DataSourceReader):
             try:
                 source.reset_connection()
-            except Exception:  # source may still be down: the next attempt fails and retries
-                pass
+            except Exception as e:  # source may still be down: the next attempt fails and retries
+                logging.getLogger(__name__).warning(f"Could not reset connection: {e}")
 
     return Retrying(
         stop=stop_after_attempt(max(write_config.retry_attempts, 1)),
