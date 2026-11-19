@@ -214,6 +214,37 @@ def make_writer(
 ) -> WriteConfigAndInfos:
     if write_config is None:
         write_config = WriteConfig(dialect=source.source_dialect if isinstance(source, DataSourceReader) else "tsql")
+    from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+    def _reset(rs: "RetryCallState") -> None:
+        logging.getLogger(__name__).warning(
+            f"Reading source metadata failed, retry after attempt {rs.attempt_number}: "
+            f"{rs.outcome and rs.outcome.exception()}"
+        )
+        if isinstance(source, DataSourceReader):
+            try:
+                source.reset_connection()
+            except Exception as e:  # source may still be down: the next attempt fails and retries
+                logging.getLogger(__name__).warning(f"Could not reset connection: {e}")
+
+    return Retrying(
+        stop=stop_after_attempt(max(write_config.retry_attempts, 1)),
+        wait=wait_exponential(multiplier=write_config.retry_wait_seconds, max=300),
+        retry=retry_if_exception_type(write_config.retry_on),
+        before_sleep=_reset,
+        reraise=True,
+    )(_make_writer, source, table_or_query, destination, write_config, logger_name, log_file_path, log_backend)
+
+
+def _make_writer(
+    source: Union[DataSourceReader, str],
+    table_or_query: Union[str, tuple[str, str], ex.Query],
+    destination: Union[Destination, Path],
+    write_config: WriteConfig,
+    logger_name: Optional[str],
+    log_file_path: Optional[Destination],
+    log_backend: Optional[Union[StorageBackend, Literal["default"]]],
+) -> WriteConfigAndInfos:
     if isinstance(destination, Path):
         from odbc2deltalake.destination.file_system import FileSystemDestination
 
