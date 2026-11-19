@@ -1241,12 +1241,14 @@ wheels = [
 
 [[package]]
 name = "odbc2deltalake"
-version = "0.14.4"
+version = "0.15.0"
 source = { editable = "." }
 dependencies = [
     { name = "azure-identity" },
     { name = "pydantic" },
     { name = "sqlglot" },
+    { name = "tenacity", version = "9.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "tenacity", version = "9.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
 
 [package.optional-dependencies]
@@ -1330,6 +1332,7 @@ requires-dist = [
     { name = "pyodbc", marker = "extra == 'local-azure'", specifier = ">=5.1.0,<6" },
     { name = "pyodbc", marker = "extra == 'mssql'", specifier = ">=5.1.0,<6" },
     { name = "sqlglot", specifier = ">=23.17.0" },
+    { name = "tenacity", specifier = ">=8" },
 ]
 provides-extras = ["local", "local-azure", "postgres", "mssql", "adbc"]
 
@@ -2004,6 +2007,32 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/4c/f6/97ef44306cf04419487f4369d9828c2fe6956439c673a67c099276962379/sqlglot-27.0.0.tar.gz", hash = "sha256:828736ff811a304e3bf6b05386aa0461a10f77f95e93dd1a2febc20f0fc4ada7", size = 5356535, upload-time = "2025-07-07T21:24:06.467Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/31/ae/a68bf87d667f3e6ac33b4a7c111846bc9ba2169416b835d5879881df902b/sqlglot-27.0.0-py3-none-any.whl", hash = "sha256:96722da415a607914b1c49acd8f4ffbe65e5c2feee9254a9edf63f70e0fe0208", size = 479554, upload-time = "2025-07-07T21:24:04.031Z" },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.10'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/d4/2b0cd0fe285e14b36db076e78c93766ff1d529d70408bd1d2a5a84f1d929/tenacity-9.1.2.tar.gz", hash = "sha256:1169d376c297e7de388d18b4481760d478b0e99a777cad3a9c86e556f4b697cb", size = 48036, upload-time = "2025-04-02T08:25:09.966Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/30/643397144bfbfec6f6ef821f36f33e57d35946c44a2352d3c9f0ae847619/tenacity-9.1.2-py3-none-any.whl", hash = "sha256:f77bf36710d8b73a50b2dd155c97b870017ad21afe6ab300326b0371b3b05138", size = 28248, upload-time = "2025-04-02T08:25:07.678Z" },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.2.1"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.12'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/82/9e/497c1c8ebe5a5b5d1d4a7511aea22c0bb1a97e3170d98abdef0e1b34265a/tenacity-9.2.1.tar.gz", hash = "sha256:a606b5c808d0cded4a359d5b9932d867ff2a6a6b64d37350260fd01bbdf83839", size = 58261, upload-time = "2026-10-07T12:13:01.633Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d6/26/1ff2b0721ac66a3ec5b1402b333110b352ab0a8724052ac279a7b82d40c4/tenacity-9.2.1-py3-none-any.whl", hash = "sha256:9e56f17539296baab7beabb08b92f6ee3d7be92d8be72d763360677c2ad6580e", size = 32310, upload-time = "2026-10-07T12:13:00.102Z" },
 ]
 
 [[package]]

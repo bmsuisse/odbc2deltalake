@@ -37,6 +37,9 @@ class DeltaOps(Protocol):
 class DataSourceReader(ABC):
     source_dialect: str
 
+    def reset_connection(self) -> None:  # noqa: B027 - optional hook
+        """Called before a retry of a failed load. Readers holding a connection may reconnect here"""
+
     @property
     @abstractmethod
     def supports_proc_exec(self) -> bool:

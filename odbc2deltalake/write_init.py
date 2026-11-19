@@ -3,7 +3,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Literal, Optional, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, Union, cast
 
 import sqlglot as sg
 import sqlglot.expressions as ex
@@ -21,6 +21,9 @@ from odbc2deltalake.metadata import (
 )
 from odbc2deltalake.reader import DataSourceReader
 from odbc2deltalake.sql_glot_utils import table_from_tuple
+
+if TYPE_CHECKING:
+    from tenacity import RetryCallState
 
 IS_DELETED_COL_NAME = "__is_deleted"
 VALID_FROM_COL_NAME = "__timestamp"
@@ -113,6 +116,16 @@ class WriteConfig:
     no_trim: bool = False
     """If true, will not trim the strings in the source. This is useful if you want to keep the original data as is. """
 
+    retry_attempts: int = 1
+    """Total attempts of a load when it fails (1 = no retry). Retried with exponential backoff via tenacity.
+    Each attempt starts from the committed state, so a connection drop mid-load is safe to retry"""
+
+    retry_wait_seconds: float = 10
+    """Base of the exponential backoff between attempts (capped at 300s)"""
+
+    retry_on: tuple[type[BaseException], ...] = (Exception,)
+    """Exception types that trigger a retry. Narrow it (eg to your driver's OperationalError) to skip permanent ones"""
+
 
 @dataclass(frozen=True)
 class WriteConfigAndInfos:
@@ -126,9 +139,27 @@ class WriteConfigAndInfos:
     logger: DeltaLogger
 
     def execute(self) -> LoadResult:
+        from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+
         from odbc2deltalake.db_to_delta import exec_write_db_to_delta
 
-        return exec_write_db_to_delta(self)
+        wc = self.write_config
+        return Retrying(
+            stop=stop_after_attempt(max(wc.retry_attempts, 1)),
+            wait=wait_exponential(multiplier=wc.retry_wait_seconds, max=300),
+            retry=retry_if_exception_type(wc.retry_on),
+            before_sleep=self._before_retry,
+            reraise=True,
+        )(exec_write_db_to_delta, self)
+
+    def _before_retry(self, rs: "RetryCallState") -> None:
+        self.logger.warning(
+            f"Load failed, retry after attempt {rs.attempt_number}: {rs.outcome and rs.outcome.exception()}"
+        )
+        try:
+            self.source.reset_connection()
+        except Exception as e:  # source may still be down: let the next attempt fail and retry instead of aborting
+            self.logger.warning(f"Could not reset connection: {e}")
 
     def check_delta_consistency(self, auto_fix: bool = False) -> tuple[list[dict], bool]:
         from odbc2deltalake.consistency import check_latest_pk
